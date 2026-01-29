@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert, TouchableOpacity, Image, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
 import StoryItem from '@/components/feed/StoryItem';
 import FeedItem from '@/components/feed/FeedItem';
@@ -54,6 +54,32 @@ export default function HomeScreen() {
     setStats({ totalHours: 127, streak: 7, rank: 5 });
   }, [token]);
 
+  // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
+  const getAvatarUrl = (avatar, image) => {
+    // First try avatar (might be full URL from API)
+    const avatarValue = avatar || image;
+    
+    if (!avatarValue) return null;
+    
+    // If it's already a full URL, return it
+    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
+      return avatarValue;
+    }
+    
+    if (typeof avatarValue === 'string') {
+      // Check if it already includes storage path
+      if (avatarValue.includes('storage/')) {
+        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
+        return `${API.APP_URL}${cleanPath}`;
+      } else {
+        // If it's just a filename, use storage/img/profile/ like profile.jsx does
+        return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
+      }
+    }
+    
+    return null;
+  };
+
   const fetchFeed = async () => {
     if (!token) {
       setPosts(hardcodedPosts);
@@ -71,10 +97,55 @@ export default function HomeScreen() {
         const feedData = response.data.feed || response.data.posts || [];
         console.log('[HOME] Feed items found:', feedData.length);
         
-        const feedPosts = feedData.map(post => ({
-          ...post,
-          onRepost: handleRepost,
-        }));
+        const feedPosts = feedData.map(post => {
+          // Get user avatar and image from various possible fields
+          const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
+          const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
+          
+          // Construct proper avatar URL using helper function
+          const avatarUrl = getAvatarUrl(userAvatar, userImage);
+          
+          const normalizedUser = {
+            ...(post.user || post.author || {}),
+            name: post.user?.name || post.author?.name || post.user_name || post.author_name || 'Unknown',
+            avatar: avatarUrl,
+            image: userImage, // Keep original image value for reference
+          };
+          
+          // Post image handling - check if it needs URL construction
+          let normalizedImage = post.image || post.image_url || post.media?.url || (post.images && post.images[0]);
+          
+          // If post image is not a full URL, construct it
+          if (normalizedImage && typeof normalizedImage === 'string' && !normalizedImage.startsWith('http')) {
+            if (normalizedImage.includes('storage/')) {
+              const cleanPath = normalizedImage.startsWith('/') ? normalizedImage : `/${normalizedImage}`;
+              normalizedImage = `${API.APP_URL}${cleanPath}`;
+            } else {
+              // Assume it's in /storage/img/posts/
+              normalizedImage = `${API.APP_URL}/storage/img/posts/${normalizedImage}`;
+            }
+          }
+          
+          // Log for debugging
+          console.log('[HOME] Post normalized:', {
+            id: post.id,
+            userName: normalizedUser.name,
+            userAvatar: avatarUrl,
+            userImage: userImage,
+            postImage: normalizedImage,
+            originalPostImage: post.image || post.image_url,
+            fullUserObject: normalizedUser
+          });
+          
+          return {
+            ...post,
+            user: normalizedUser,
+            userAvatar: avatarUrl,
+            postImage: normalizedImage,
+            image: normalizedImage, // Keep for backward compatibility
+            onRepost: handleRepost,
+          };
+        });
         setPosts(feedPosts);
       } else {
         // Fallback to hardcoded posts if no data
@@ -149,8 +220,6 @@ export default function HomeScreen() {
         }
       >
         <View className="px-6">
-
-
           {/* Stories Section */}
           <View className="mb-6">
             <View className="flex-row items-center justify-between mb-3">

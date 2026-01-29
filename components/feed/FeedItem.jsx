@@ -49,28 +49,67 @@ export default function FeedItem({ item, onPress }) {
     }
   };
 
+  // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
+  const getAvatarUrl = () => {
+    const avatar = item.user?.avatar || item.userAvatar;
+    const image = item.user?.image;
+    
+    // First try avatar (might be full URL from API)
+    const avatarValue = avatar || image;
+    
+    if (!avatarValue) return null;
+    
+    // If it's already a full URL, return it
+    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
+      return avatarValue;
+    }
+    
+    if (typeof avatarValue === 'string') {
+      // Check if it already includes storage path
+      if (avatarValue.includes('storage/')) {
+        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
+        return `${API.APP_URL}${cleanPath}`;
+      } else {
+        // If it's just a filename, use storage/img/profile/ like profile.jsx does
+        return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
+      }
+    }
+    
+    return null;
+  };
+
   return (
     <Pressable onPress={onPress} className="mb-4">
       <View className="bg-light dark:bg-dark rounded-2xl overflow-hidden border border-light/20 dark:border-dark/20 shadow-sm">
         {/* Header */}
         <View className="flex-row items-center p-4 pb-3">
-          {item.user?.avatar ? (
-            <Image
-              source={{ 
-                uri: item.user?.avatar || (item.user?.image ? `${API.APP_URL}/storage/img/profile/${item.user.image}` : null) || 'https://via.placeholder.com/40' 
-              }}
-              className="w-14 h-14 rounded-full mr-3 border-2 border-alpha/30"
-              defaultSource={require('@/assets/images/icon.png')}
-            />
-          ) : (
-            <View className="w-14 h-14 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center border-2 border-beta/30">
-              <Ionicons 
-                name={getTypeIcon(item.type)} 
-                size={24} 
-                color={getTypeColor(item.type)} 
+          {(() => {
+            const profileImageUrl = getAvatarUrl();
+            
+            console.log('[FeedItem] Profile image URL:', profileImageUrl, 'for user:', item.user?.name, 'avatar:', item.user?.avatar, 'image:', item.user?.image);
+            
+            return profileImageUrl ? (
+              <Image
+                source={{ uri: profileImageUrl }}
+                className="w-14 h-14 rounded-full mr-3 border-2 border-alpha/30"
+                defaultSource={require('@/assets/images/icon.png')}
+                onError={(error) => {
+                  console.log('[FeedItem] Error loading profile image:', profileImageUrl, error);
+                }}
+                onLoad={() => {
+                  console.log('[FeedItem] Profile image loaded successfully:', profileImageUrl);
+                }}
               />
-            </View>
-          )}
+            ) : (
+              <View className="w-14 h-14 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center border-2 border-beta/30">
+                <Ionicons 
+                  name={getTypeIcon(item.type)} 
+                  size={24} 
+                  color={getTypeColor(item.type)} 
+                />
+              </View>
+            );
+          })()}
           <View className="flex-1">
             <View className="flex-row items-center">
               <Text className="font-bold text-base text-black dark:text-white">
@@ -101,14 +140,26 @@ export default function FeedItem({ item, onPress }) {
           </TouchableOpacity>
         </View>
 
-        {/* Content */}
-        {item.image && (
-          <Image
-            source={{ uri: item.image }}
-            className="w-full h-64"
-            resizeMode="cover"
-          />
-        )}
+        {/* Content - Post Image */}
+        {item.postImage && (() => {
+          // postImage should already be a full URL from normalization
+          const postImageUrl = item.postImage;
+          console.log('[FeedItem] Post image URL:', postImageUrl, 'for post:', item.id);
+          
+          return (
+            <Image
+              source={{ uri: postImageUrl }}
+              className="w-full h-64"
+              resizeMode="cover"
+              onError={(error) => {
+                console.log('[FeedItem] Error loading post image:', postImageUrl, error);
+              }}
+              onLoad={() => {
+                console.log('[FeedItem] Post image loaded successfully:', postImageUrl);
+              }}
+            />
+          );
+        })()}
         
         <View className="p-4 pt-3">
           <Text className="text-lg font-bold text-black dark:text-white mb-2">

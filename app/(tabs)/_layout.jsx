@@ -69,6 +69,7 @@ export default function TabLayout() {
     { route: "index", name: "Home", icon: "house.fill", showTab: true, roles: [] }, // Everyone
     { route: "reservations", name: "Reservations", icon: "calendar", showTab: true, roles: [] }, // Everyone
     { route: "chat", name: "Chat", icon: "chatbubbles.fill", showTab: true, roles: [] }, // Everyone
+    { route: "training", name: "Training", icon: "school", showTab: true, roles: [] }, // Everyone
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill", showTab: true, roles: [] },
     { route: "more", name: "More", icon: "ellipsis", showTab: true, roles: [] }, // Everyone
   ].filter(screen => screen.showTab)

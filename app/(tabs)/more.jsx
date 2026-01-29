@@ -52,6 +52,11 @@ export default function More() {
   const isAdmin = userRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
 
   const menuItems = [
+    {
+      label: 'Scan QR Code',
+      icon: 'qr-code-outline',
+      onPress: () => router.push('/(tabs)/training/qr-scanner'),
+    },
     ...(isAdmin ? [
       {
         label: 'View All Members',

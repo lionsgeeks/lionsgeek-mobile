@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import API from '@/api';
 import { Home as LogoIcon } from '@/components/logo';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { registerForPushNotificationsAsync, sendPushTokenToBackend } from '@/services/pushNotifications';
 
 export default function LoadingScreen() {
   const { saveAuth } = useAppContext();
@@ -62,6 +63,18 @@ export default function LoadingScreen() {
             
             // Store full user data
             await saveAuth(token, userData);
+            
+            // Register for push notifications and send token to backend
+            try {
+              const pushToken = await registerForPushNotificationsAsync();
+              if (pushToken) {
+                await sendPushTokenToBackend(pushToken, token);
+              }
+            } catch (error) {
+              console.error('[LOADING] Error setting up push notifications:', error);
+              // Don't block app flow if push notification setup fails
+            }
+            
             router.replace('/(tabs)');
           } else {
             // Token invalid, clear and go to login

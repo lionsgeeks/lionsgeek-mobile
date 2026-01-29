@@ -25,19 +25,51 @@ export default function Navbar() {
   // Log user data for debugging
   // console.log('[NAVBAR] User data:', JSON.stringify(user, null, 2));
 
-  // Get avatar URL - prefer avatar, fallback to image path with correct format, then placeholder
+  // Helper function to get avatar URL - always use /storage/img/profile/
   const getAvatarUrl = () => {
-    if (!user) return 'https://via.placeholder.com/40';
-    if (user?.avatar) return user.avatar;
-    if (user?.image) {
-      // Check if it's already a full path or just filename
-      if (user.image.includes('storage/')) {
-        return `${API.APP_URL}/${user.image}`;
+    if (!user) return null;
+    
+    const avatar = user?.avatar;
+    const image = user?.image;
+    
+    // First try avatar (might be full URL from API)
+    const avatarValue = avatar || image;
+    
+    if (!avatarValue) return null;
+    
+    // If it's already a full URL, check if it needs to be corrected
+    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
+      // If it's a full URL but doesn't include img/profile/, extract filename and reconstruct
+      if (avatarValue.includes('/storage/') && !avatarValue.includes('/storage/img/profile/')) {
+        // Extract filename from URL (e.g., from http://.../storage/filename.jpg)
+        const filename = avatarValue.split('/').pop();
+        if (filename) {
+          return `${API.APP_URL}/storage/img/profile/${filename}`;
+        }
       }
-      // Use the format the user prefers
-      return `${API.APP_URL}/storage/img/profile/${user.image}`;
+      return avatarValue;
     }
-    return 'https://via.placeholder.com/40';
+    
+    if (typeof avatarValue === 'string') {
+      // If it includes storage/ but not img/profile/, extract filename
+      if (avatarValue.includes('storage/') && !avatarValue.includes('img/profile/')) {
+        // Extract filename (handle both /storage/filename.jpg and storage/filename.jpg)
+        const parts = avatarValue.split('/');
+        const filename = parts[parts.length - 1];
+        if (filename) {
+          return `${API.APP_URL}/storage/img/profile/${filename}`;
+        }
+      }
+      // If it already includes img/profile/, use it as is
+      if (avatarValue.includes('img/profile/')) {
+        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
+        return `${API.APP_URL}${cleanPath}`;
+      }
+      // If it's just a filename, use storage/img/profile/
+      return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
+    }
+    
+    return null;
   };
 
   // Early return if user is not loaded yet
@@ -65,11 +97,31 @@ export default function Navbar() {
           onPress={handleProfilePress}
           className="flex-row items-center flex-1"
         >
-          <Image
-            source={{ uri: getAvatarUrl() }}
-            className="w-10 h-10 rounded-full mr-3"
-            defaultSource={require('@/assets/images/icon.png')}
-          />
+          {(() => {
+            const profileImageUrl = getAvatarUrl();
+            
+            console.log('[Navbar] Profile image URL:', profileImageUrl, 'for user:', user?.name, 'avatar:', user?.avatar, 'image:', user?.image);
+            
+            return profileImageUrl ? (
+              <Image
+                source={{ uri: profileImageUrl }}
+                className="w-10 h-10 rounded-full mr-3 border-2 border-alpha/30"
+                defaultSource={require('@/assets/images/icon.png')}
+                onError={(error) => {
+                  console.log('[Navbar] Error loading profile image:', profileImageUrl, error);
+                }}
+                onLoad={() => {
+                  console.log('[Navbar] Profile image loaded successfully:', profileImageUrl);
+                }}
+              />
+            ) : (
+              <View className="w-10 h-10 rounded-full mr-3 bg-gray-300 dark:bg-gray-700 items-center justify-center">
+                <Text className="text-xs font-bold text-black/60 dark:text-white/60">
+                  {(user?.name || 'U').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            );
+          })()}
           <View className="flex-1">
             <Text className="text-base font-semibold text-black dark:text-white" numberOfLines={1}>
               {user?.name || 'User'}

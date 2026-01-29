@@ -6,13 +6,14 @@ export default function Entry() {
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {
-        // Check if user has seen welcome page
+        // Check if user has seen onboarding
         const welcomeSeen = await AsyncStorage.getItem('welcome_seen');
         const token = await AsyncStorage.getItem('auth_token');
         
         if (!welcomeSeen) {
-          // First time - show welcome page
-          router.replace('/welcome');
+          // First time - show onboarding page
+          // router.replace('/onboarding');
+           router.replace('/welcome');
         } else if (token) {
           // Has token - go to loading for verification
           router.replace('/loading');
@@ -22,7 +23,8 @@ export default function Entry() {
         }
       } catch (error) {
         console.error('[ENTRY] Error:', error);
-        router.replace('/welcome');
+        // On error, redirect to login
+        router.replace('/auth/login');
       }
     };
 
