@@ -17,13 +17,35 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
 
+/**
+ * Resolves any avatar/image value the API can return into a full URL.
+ * Matches the same logic used in CreatePost and profile screens.
+ */
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  if (value.includes('storage/')) {
+
+  // Already a full URL — but if it's missing /img/profile/, fix it
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    if (value.includes('/storage/') && !value.includes('/storage/img/profile/')) {
+      const filename = value.split('/').pop();
+      return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : value;
+    }
+    return value;
+  }
+
+  // Relative path that already includes img/profile/
+  if (value.includes('img/profile/')) {
     const cleanPath = value.startsWith('/') ? value : `/${value}`;
     return `${API.APP_URL}${cleanPath}`;
   }
+
+  // Relative path that includes storage/ (but not img/profile/)
+  if (value.includes('storage/')) {
+    const filename = value.split('/').pop();
+    return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : null;
+  }
+
+  // Plain filename — assume it lives in /storage/img/profile/
   return `${API.APP_URL}/storage/img/profile/${value}`;
 }
 
@@ -118,14 +140,15 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
   const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
   const inputBg = isDark ? '#2a2a2a' : '#f3f2ef';
 
-  const myAvatarUrl = resolveAvatarUrl(user?.avatar || user?.image);
+  // Try every possible field the user object might carry
+  const myAvatarUrl = resolveAvatarUrl(user?.avatar || user?.image || user?.profile_picture);
   const myInitial = (user?.name || 'U').charAt(0).toUpperCase();
 
   useEffect(() => {
     if (visible && postId) {
-      fetchComments();
+      fetchComments(); // fetchComments is stable — intentionally omitted from deps
     }
-  }, [visible, postId]);
+  }, [visible, postId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchComments = async () => {
     setLoading(true);
@@ -281,16 +304,23 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
           {/* My avatar */}
           <View
             style={{
-              width: 34, height: 34, borderRadius: 17,
-              backgroundColor: isDark ? '#2a2a2a' : '#e5e5e5',
+              width: 36, height: 36, borderRadius: 18,
+              borderWidth: 1.5, borderColor: '#ffc801',
+              overflow: 'hidden',
+              flexShrink: 0,
+              backgroundColor: isDark ? '#2a2a2a' : '#e9e5df',
               alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', flexShrink: 0,
             }}
           >
             {myAvatarUrl ? (
-              <Image source={{ uri: myAvatarUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+              <Image
+                source={{ uri: myAvatarUrl }}
+                defaultSource={require('@/assets/images/icon.png')}
+                style={{ width: 36, height: 36, borderRadius: 18 }}
+                onError={() => {/* fallback rendered by defaultSource */}}
+              />
             ) : (
-              <Text style={{ fontWeight: '800', fontSize: 13, color: isDark ? '#fff' : '#000' }}>
+              <Text style={{ fontWeight: '800', fontSize: 14, color: isDark ? '#fff' : '#111' }}>
                 {myInitial}
               </Text>
             )}
