@@ -17,14 +17,10 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
 
-/**
- * Resolves any avatar/image value the API can return into a full URL.
- * Matches the same logic used in CreatePost and profile screens.
- */
+// ─── helpers ────────────────────────────────────────────────────────────────
+
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
-
-  // Already a full URL — but if it's missing /img/profile/, fix it
   if (value.startsWith('http://') || value.startsWith('https://')) {
     if (value.includes('/storage/') && !value.includes('/storage/img/profile/')) {
       const filename = value.split('/').pop();
@@ -32,20 +28,14 @@ function resolveAvatarUrl(value) {
     }
     return value;
   }
-
-  // Relative path that already includes img/profile/
   if (value.includes('img/profile/')) {
     const cleanPath = value.startsWith('/') ? value : `/${value}`;
     return `${API.APP_URL}${cleanPath}`;
   }
-
-  // Relative path that includes storage/ (but not img/profile/)
   if (value.includes('storage/')) {
     const filename = value.split('/').pop();
     return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : null;
   }
-
-  // Plain filename — assume it lives in /storage/img/profile/
   return `${API.APP_URL}/storage/img/profile/${value}`;
 }
 
@@ -62,107 +52,203 @@ function formatTime(dateString) {
   return 'just now';
 }
 
-function CommentRow({ comment, isDark, mutedColor, textColor }) {
-  const avatarUrl = resolveAvatarUrl(comment.user?.avatar);
-  const initial = (comment.user?.name || 'U').charAt(0).toUpperCase();
+// ─── Avatar ──────────────────────────────────────────────────────────────────
 
+function Avatar({ value, name, size = 36, isDark }) {
+  const url = resolveAvatarUrl(value);
+  const initial = (name || 'U').charAt(0).toUpperCase();
   return (
-    <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10 }}>
-      {/* Avatar */}
-      <View
-        style={{
-          width: 36, height: 36, borderRadius: 18,
-          marginRight: 10,
-          backgroundColor: isDark ? '#2a2a2a' : '#e5e5e5',
-          overflow: 'hidden',
-          alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        {avatarUrl ? (
-          <Image
-            source={{ uri: avatarUrl }}
-            style={{ width: 36, height: 36, borderRadius: 18 }}
-          />
-        ) : (
-          <Text style={{ fontWeight: '800', fontSize: 14, color: isDark ? '#fff' : '#000' }}>
-            {initial}
-          </Text>
-        )}
-      </View>
-
-      {/* Bubble */}
-      <View style={{ flex: 1 }}>
-        <View
-          style={{
-            backgroundColor: isDark ? '#2a2a2a' : '#f3f2ef',
-            borderRadius: 14,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-          }}
-        >
-          <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2 }}>
-            {comment.user?.name || 'User'}
-          </Text>
-          <Text style={{ fontSize: 14, color: textColor, lineHeight: 20 }}>
-            {comment.body}
-          </Text>
-        </View>
-        <Text style={{ fontSize: 11, color: mutedColor, marginTop: 4, marginLeft: 4 }}>
-          {formatTime(comment.created_at)}
+    <View
+      style={{
+        width: size, height: size, borderRadius: size / 2,
+        backgroundColor: isDark ? '#2a2a2a' : '#e5e5e5',
+        overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {url ? (
+        <Image
+          source={{ uri: url }}
+          defaultSource={require('@/assets/images/icon.png')}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+        />
+      ) : (
+        <Text style={{ fontWeight: '800', fontSize: size * 0.38, color: isDark ? '#fff' : '#111' }}>
+          {initial}
         </Text>
-      </View>
+      )}
     </View>
   );
 }
 
-/**
- * Bottom-sheet style comments modal.
- * Opens when the user taps the comment icon on any FeedItem.
- */
-export default function CommentsModal({ visible, postId, postAuthorName, onClose, onCommentAdded }) {
+// ─── CommentRow ──────────────────────────────────────────────────────────────
+
+function CommentRow({
+  comment,
+  isReply = false,
+  isDark,
+  textColor,
+  mutedColor,
+  token,
+  onReply,
+}) {
+  const [liked, setLiked]       = useState(Boolean(comment.is_liked_by_user));
+  const [likeCount, setLikeCount] = useState(comment.likes_count ?? 0);
+  const [showReplies, setShowReplies] = useState(false);
+
+  const bubbleBg = isDark ? '#2a2a2a' : '#f3f2ef';
+
+  const handleLike = async () => {
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount(c => wasLiked ? c - 1 : c + 1);
+    try {
+      const res = await API.post(`mobile/comments/${comment.id}/like`, {}, token);
+      if (res?.data) {
+        setLiked(res.data.liked);
+        setLikeCount(res.data.likes_count);
+      }
+    } catch {
+      setLiked(wasLiked);
+      setLikeCount(c => wasLiked ? c + 1 : c - 1);
+    }
+  };
+
+  return (
+    <View style={{ marginLeft: isReply ? 44 : 0 }}>
+      <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 }}>
+        {/* Avatar */}
+        <View style={{ marginRight: 10 }}>
+          <Avatar
+            value={comment.user?.avatar}
+            name={comment.user?.name}
+            size={isReply ? 30 : 36}
+            isDark={isDark}
+          />
+        </View>
+
+        {/* Content */}
+        <View style={{ flex: 1 }}>
+          {/* Bubble */}
+          <View style={{ backgroundColor: bubbleBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2 }}>
+              {comment.user?.name || 'User'}
+            </Text>
+            <Text style={{ fontSize: 14, color: textColor, lineHeight: 20 }}>
+              {comment.body}
+            </Text>
+          </View>
+
+          {/* Meta row: time · Like · Reply */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, marginLeft: 4, gap: 14 }}>
+            <Text style={{ fontSize: 11, color: mutedColor }}>{formatTime(comment.created_at)}</Text>
+
+            {/* Like action */}
+            <TouchableOpacity onPress={handleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={13}
+                color={liked ? '#ffc801' : mutedColor}
+              />
+              {likeCount > 0 && (
+                <Text style={{ fontSize: 11, color: liked ? '#ffc801' : mutedColor, fontWeight: '600' }}>
+                  {likeCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Reply action — only on top-level comments */}
+            {!isReply && (
+              <TouchableOpacity onPress={() => onReply(comment)}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: mutedColor }}>Reply</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* Nested replies */}
+      {!isReply && comment.replies?.length > 0 && (
+        <View>
+          {/* Toggle replies */}
+          <TouchableOpacity
+            onPress={() => setShowReplies(p => !p)}
+            style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 62, marginBottom: 4 }}
+          >
+            <View style={{ width: 24, height: 0.5, backgroundColor: mutedColor, marginRight: 6 }} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: mutedColor }}>
+              {showReplies
+                ? 'Hide replies'
+                : `View ${comment.replies.length} repl${comment.replies.length > 1 ? 'ies' : 'y'}`}
+            </Text>
+          </TouchableOpacity>
+
+          {showReplies && comment.replies.map(reply => (
+            <CommentRow
+              key={String(reply.id)}
+              comment={reply}
+              isReply
+              isDark={isDark}
+              textColor={textColor}
+              mutedColor={mutedColor}
+              token={token}
+              onReply={() => {}}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── CommentsModal ────────────────────────────────────────────────────────────
+
+export default function CommentsModal({ visible, postId, onClose, onCommentAdded }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [comments, setComments]   = useState([]);
+  const [loading, setLoading]     = useState(false);
   const [inputText, setInputText] = useState('');
-  const [sending, setSending] = useState(false);
+  const [sending, setSending]     = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, name }
 
   const flatListRef = useRef(null);
-  const inputRef = useRef(null);
+  const inputRef    = useRef(null);
 
-  const bgColor = isDark ? '#1c1c1c' : '#ffffff';
-  const handleColor = isDark ? '#444' : '#d0cdc8';
+  const bgColor     = isDark ? '#1c1c1c' : '#ffffff';
+  const handleColor = isDark ? '#444'    : '#d0cdc8';
   const borderColor = isDark ? '#2e2e2e' : '#e8e5e0';
-  const textColor = isDark ? '#f5f5f5' : '#111111';
-  const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
-  const inputBg = isDark ? '#2a2a2a' : '#f3f2ef';
+  const textColor   = isDark ? '#f5f5f5' : '#111111';
+  const mutedColor  = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
+  const inputBg     = isDark ? '#2a2a2a' : '#f3f2ef';
 
-  // Try every possible field the user object might carry
   const myAvatarUrl = resolveAvatarUrl(user?.avatar || user?.image || user?.profile_picture);
-  const myInitial = (user?.name || 'U').charAt(0).toUpperCase();
+  const myInitial   = (user?.name || 'U').charAt(0).toUpperCase();
 
   useEffect(() => {
-    if (visible && postId) {
-      fetchComments(); // fetchComments is stable — intentionally omitted from deps
-    }
+    if (visible && postId) fetchComments();
   }, [visible, postId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchComments = async () => {
     setLoading(true);
     try {
-      const response = await API.get(`mobile/posts/${postId}/comments`, token);
-      if (response?.data?.comments) {
-        setComments(response.data.comments);
-      }
+      const res = await API.get(`mobile/posts/${postId}/comments`, token);
+      if (res?.data?.comments) setComments(res.data.comments);
     } catch {
-      // Comments unavailable — show empty state
+      // show empty state
     } finally {
       setLoading(false);
     }
   };
+
+  const handleReply = (comment) => {
+    setReplyingTo({ id: comment.id, name: comment.user?.name || 'User' });
+    inputRef.current?.focus();
+  };
+
+  const cancelReply = () => setReplyingTo(null);
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -171,34 +257,69 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
     setSending(true);
     setInputText('');
 
-    // Optimistic insert
+    const tempId = `temp-${Date.now()}`;
     const tempComment = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
+      parent_id: replyingTo?.id ?? null,
       body: text,
       created_at: new Date().toISOString(),
-      user: {
-        id: user?.id,
-        name: user?.name || 'You',
-        avatar: user?.avatar || user?.image || null,
-      },
+      likes_count: 0,
+      is_liked_by_user: false,
+      replies: [],
+      user: { id: user?.id, name: user?.name || 'You', avatar: user?.avatar || user?.image || null },
     };
-    setComments(prev => [...prev, tempComment]);
 
-    // Scroll to bottom after adding
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    if (replyingTo) {
+      // Append reply optimistically inside the parent
+      setComments(prev =>
+        prev.map(c =>
+          c.id === replyingTo.id
+            ? { ...c, replies: [...(c.replies || []), tempComment] }
+            : c
+        )
+      );
+    } else {
+      setComments(prev => [...prev, tempComment]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+
+    const parentId = replyingTo?.id ?? null;
+    setReplyingTo(null);
 
     try {
-      const response = await API.post(`mobile/posts/${postId}/comments`, { comment: text }, token);
-      if (response?.data?.comment) {
-        // Replace temp with real comment from server
-        setComments(prev =>
-          prev.map(c => (c.id === tempComment.id ? response.data.comment : c))
-        );
+      const res = await API.post(
+        `mobile/posts/${postId}/comments`,
+        { comment: text, parent_id: parentId },
+        token
+      );
+      if (res?.data?.comment) {
+        const saved = res.data.comment;
+        if (parentId) {
+          setComments(prev =>
+            prev.map(c =>
+              c.id === parentId
+                ? { ...c, replies: (c.replies || []).map(r => r.id === tempId ? saved : r) }
+                : c
+            )
+          );
+        } else {
+          setComments(prev => prev.map(c => c.id === tempId ? saved : c));
+        }
         if (onCommentAdded) onCommentAdded();
       }
     } catch {
-      // Revert optimistic insert on failure
-      setComments(prev => prev.filter(c => c.id !== tempComment.id));
+      // Revert
+      if (parentId) {
+        setComments(prev =>
+          prev.map(c =>
+            c.id === parentId
+              ? { ...c, replies: (c.replies || []).filter(r => r.id !== tempId) }
+              : c
+          )
+        );
+      } else {
+        setComments(prev => prev.filter(c => c.id !== tempId));
+      }
       setInputText(text);
     } finally {
       setSending(false);
@@ -208,32 +329,25 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
   const handleClose = () => {
     setComments([]);
     setInputText('');
+    setReplyingTo(null);
     onClose();
   };
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      {/* Dim overlay */}
-      <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-        onPress={handleClose}
-      />
+  const canSend = inputText.trim().length > 0;
 
-      {/* Sheet — takes up ~75% of screen height */}
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      {/* Dim overlay */}
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={handleClose} />
+
+      {/* Sheet */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{
-          position: 'absolute',
-          bottom: 0, left: 0, right: 0,
-          height: '75%',
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: '78%',
           backgroundColor: bgColor,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderTopLeftRadius: 20, borderTopRightRadius: 20,
           overflow: 'hidden',
         }}
       >
@@ -250,9 +364,7 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
             borderBottomWidth: 0.5, borderBottomColor: borderColor,
           }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: textColor }}>
-            Comments
-          </Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: textColor }}>Comments</Text>
           <TouchableOpacity onPress={handleClose} style={{ padding: 4 }}>
             <Ionicons name="close" size={22} color={mutedColor} />
           </TouchableOpacity>
@@ -274,6 +386,8 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
                 isDark={isDark}
                 textColor={textColor}
                 mutedColor={mutedColor}
+                token={token}
+                onReply={handleReply}
               />
             )}
             ListEmptyComponent={
@@ -292,12 +406,33 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
           />
         )}
 
+        {/* "Replying to…" banner */}
+        {replyingTo ? (
+          <View
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              paddingHorizontal: 16, paddingVertical: 7,
+              backgroundColor: isDark ? '#252525' : '#f7f5f1',
+              borderTopWidth: 0.5, borderTopColor: borderColor,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: mutedColor }}>
+              Replying to{' '}
+              <Text style={{ fontWeight: '700', color: '#ffc801' }}>{replyingTo.name}</Text>
+            </Text>
+            <TouchableOpacity onPress={cancelReply}>
+              <Ionicons name="close-circle" size={18} color={mutedColor} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* Input bar */}
         <View
           style={{
             flexDirection: 'row', alignItems: 'center',
             paddingHorizontal: 12, paddingVertical: 10,
-            borderTopWidth: 0.5, borderTopColor: borderColor,
+            borderTopWidth: replyingTo ? 0 : 0.5,
+            borderTopColor: borderColor,
             gap: 10,
           }}
         >
@@ -306,8 +441,7 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
             style={{
               width: 36, height: 36, borderRadius: 18,
               borderWidth: 1.5, borderColor: '#ffc801',
-              overflow: 'hidden',
-              flexShrink: 0,
+              overflow: 'hidden', flexShrink: 0,
               backgroundColor: isDark ? '#2a2a2a' : '#e9e5df',
               alignItems: 'center', justifyContent: 'center',
             }}
@@ -317,7 +451,6 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
                 source={{ uri: myAvatarUrl }}
                 defaultSource={require('@/assets/images/icon.png')}
                 style={{ width: 36, height: 36, borderRadius: 18 }}
-                onError={() => {/* fallback rendered by defaultSource */}}
               />
             ) : (
               <Text style={{ fontWeight: '800', fontSize: 14, color: isDark ? '#fff' : '#111' }}>
@@ -331,7 +464,9 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
             ref={inputRef}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={`Comment as ${user?.name || 'you'}…`}
+            placeholder={
+              replyingTo ? `Reply to ${replyingTo.name}…` : `Comment as ${user?.name || 'you'}…`
+            }
             placeholderTextColor={mutedColor}
             style={{
               flex: 1,
@@ -350,22 +485,18 @@ export default function CommentsModal({ visible, postId, postAuthorName, onClose
           {/* Send button */}
           <TouchableOpacity
             onPress={handleSend}
-            disabled={!inputText.trim() || sending}
+            disabled={!canSend || sending}
             style={{
               width: 38, height: 38, borderRadius: 19,
-              backgroundColor: inputText.trim() ? '#ffc801' : (isDark ? '#2a2a2a' : '#e5e5e5'),
+              backgroundColor: canSend ? '#ffc801' : (isDark ? '#2a2a2a' : '#e5e5e5'),
               alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
             }}
           >
             {sending ? (
-              <ActivityIndicator size="small" color={inputText.trim() ? '#000' : mutedColor} />
+              <ActivityIndicator size="small" color={canSend ? '#000' : mutedColor} />
             ) : (
-              <Ionicons
-                name="send"
-                size={16}
-                color={inputText.trim() ? '#000' : mutedColor}
-              />
+              <Ionicons name="send" size={16} color={canSend ? '#000' : mutedColor} />
             )}
           </TouchableOpacity>
         </View>
