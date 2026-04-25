@@ -400,6 +400,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
             }
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             onContentSizeChange={() =>
               comments.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
             }
@@ -482,8 +483,11 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
             returnKeyType="default"
           />
 
-          {/* Send button */}
-          <TouchableOpacity
+          {/* Send button
+              onStartShouldSetResponder forces this view to claim the touch
+              immediately, before React Native can interpret it as a keyboard-
+              dismiss gesture. This is why a single tap always sends. */}
+          <Pressable
             onPress={handleSend}
             disabled={!canSend || sending}
             style={{
@@ -498,7 +502,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
             ) : (
               <Ionicons name="send" size={16} color={canSend ? '#000' : mutedColor} />
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </Modal>
