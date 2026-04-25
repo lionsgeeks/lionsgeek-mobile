@@ -38,7 +38,7 @@ function formatTime(dateString) {
  * - Long captions → shows preview + "... see more" / full text + " see less".
  * - Tapping anywhere on the text block toggles expanded state.
  */
-function Caption({ name, text, textSize = 14, lineHeight = 22, mutedColor }) {
+function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!text) return null;
@@ -51,8 +51,8 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, mutedColor }) {
 
   return (
     <Pressable onPress={() => isLong && setExpanded(p => !p)} className="active:opacity-75">
-      <Text style={{ fontSize: textSize, lineHeight, color: 'inherit' }} className="text-black dark:text-white">
-        <Text style={{ fontWeight: '800' }}>{name} </Text>
+      <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
+        <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
         {displayedText}
         {isLong && !expanded ? (
           <Text style={{ color: mutedColor, fontWeight: '700' }}>{'... '}
@@ -91,6 +91,7 @@ export default function FeedItem({ item, onPress }) {
   };
 
   const iconColor = isDark ? '#e5e5e5' : '#262626';
+  const textColor = isDark ? '#f5f5f5' : '#111111';
   const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
 
   return (
@@ -170,6 +171,7 @@ export default function FeedItem({ item, onPress }) {
             text={caption}
             textSize={14}
             lineHeight={22}
+            textColor={textColor}
             mutedColor={mutedColor}
           />
         </View>
@@ -239,6 +241,7 @@ export default function FeedItem({ item, onPress }) {
             text={caption}
             textSize={13}
             lineHeight={20}
+            textColor={textColor}
             mutedColor={mutedColor}
           />
         </View>
