@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert, TouchableOpacity, Image, Pressable } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { useAppContext } from '@/context';
 import StoryItem from '@/components/feed/StoryItem';
 import FeedItem from '@/components/feed/FeedItem';
@@ -8,7 +8,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import API from '@/api';
-import { router } from 'expo-router';
 
 export default function HomeScreen() {
   const { user, token } = useAppContext();
@@ -17,7 +16,6 @@ export default function HomeScreen() {
   const [posts, setPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalHours: 0, streak: 0, rank: 0 });
 
   // Enhanced hardcoded posts
   const hardcodedPosts = [
@@ -50,8 +48,6 @@ export default function HomeScreen() {
       setPosts(hardcodedPosts);
       setLoading(false);
     }
-    // Simulate stats
-    setStats({ totalHours: 127, streak: 7, rank: 5 });
   }, [token]);
 
   // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
