@@ -118,13 +118,25 @@ const post = async (endpoint, data, Token) => {
 const put = async (endpoint, Token, data) => {
     try {
         const baseUrl = ensureAppUrl();
-        const response = await axios.put(`${baseUrl}/api/${endpoint}`, data, {
-            headers: { Token },
-        });
+        if (!Token) {
+            throw new Error('Authentication token is required');
+        }
+
+        const headers = {
+            'Authorization': `Bearer ${Token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        };
+
+        const response = await axios.put(`${baseUrl}/api/${endpoint}`, data, { headers });
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: PUT\nEndpoint: ${endpoint}\nError: ${error}`);
-        return null;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: PUT\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        throw error;
     }
 };
 
@@ -147,13 +159,25 @@ const put = async (endpoint, Token, data) => {
 const remove = async (endpoint, Token) => {
     try {
         const baseUrl = ensureAppUrl();
-        const response = await axios.delete(`${baseUrl}/api/${endpoint}`, {
-            headers: { Token: Token },
-        });
+        if (!Token) {
+            throw new Error('Authentication token is required');
+        }
+
+        const headers = {
+            'Authorization': `Bearer ${Token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        };
+
+        const response = await axios.delete(`${baseUrl}/api/${endpoint}`, { headers });
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: DELETE\nEndpoint: ${endpoint}\nError: ${error}`);
-        return null;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: DELETE\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        throw error;
     }
 };
 

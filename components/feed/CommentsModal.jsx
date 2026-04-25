@@ -91,6 +91,8 @@ function CommentRow({
   mutedColor,
   token,
   onReply,
+  currentUserId,
+  onOpenMenu,
 }) {
   const [liked, setLiked]       = useState(Boolean(comment.is_liked_by_user));
   const [likeCount, setLikeCount] = useState(comment.likes_count ?? 0);
@@ -131,9 +133,16 @@ function CommentRow({
         <View style={{ flex: 1 }}>
           {/* Bubble */}
           <View style={{ backgroundColor: bubbleBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 }}>
-            <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2 }}>
-              {comment.user?.name || 'User'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2, flex: 1 }} numberOfLines={1}>
+                {comment.user?.name || 'User'}
+              </Text>
+              {currentUserId && comment.user?.id === currentUserId ? (
+                <TouchableOpacity onPress={() => onOpenMenu(comment)} style={{ paddingLeft: 10, paddingVertical: 2 }}>
+                  <Ionicons name="ellipsis-horizontal" size={16} color={mutedColor} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <Text style={{ fontSize: 14, color: textColor, lineHeight: 20 }}>
               {comment.body}
             </Text>
@@ -193,6 +202,8 @@ function CommentRow({
               mutedColor={mutedColor}
               token={token}
               onReply={() => {}}
+              currentUserId={currentUserId}
+              onOpenMenu={onOpenMenu}
             />
           ))}
         </View>
@@ -213,6 +224,8 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
   const [inputText, setInputText] = useState('');
   const [sending, setSending]     = useState(false);
   const [replyingTo, setReplyingTo] = useState(null); // { id, name }
+  const [editingComment, setEditingComment] = useState(null); // { id, parent_id }
+  const [menuComment, setMenuComment] = useState(null); // comment object
 
   const flatListRef = useRef(null);
   const inputRef    = useRef(null);
@@ -249,6 +262,53 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
   };
 
   const cancelReply = () => setReplyingTo(null);
+  const cancelEdit = () => {
+    setEditingComment(null);
+    setInputText('');
+  };
+
+  const openMenu = (comment) => setMenuComment(comment);
+  const closeMenu = () => setMenuComment(null);
+
+  const startEdit = () => {
+    if (!menuComment) return;
+    setEditingComment({ id: menuComment.id, parent_id: menuComment.parent_id ?? null });
+    setReplyingTo(null);
+    setInputText(menuComment.body || '');
+    closeMenu();
+    inputRef.current?.focus();
+  };
+
+  const deleteFromState = (commentId, parentId) => {
+    if (parentId) {
+      setComments(prev =>
+        prev.map(c =>
+          c.id === parentId
+            ? { ...c, replies: (c.replies || []).filter(r => r.id !== commentId) }
+            : c
+        )
+      );
+    } else {
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!menuComment) return;
+    const commentId = menuComment.id;
+    const parentId = menuComment.parent_id ?? null;
+    closeMenu();
+
+    // Optimistic remove
+    deleteFromState(commentId, parentId);
+
+    try {
+      await API.remove(`mobile/comments/${commentId}`, token);
+    } catch {
+      // Re-fetch on failure to restore correct state
+      fetchComments();
+    }
+  };
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -256,6 +316,50 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
 
     setSending(true);
     setInputText('');
+
+    // Editing flow
+    if (editingComment) {
+      const editId = editingComment.id;
+      const editParentId = editingComment.parent_id ?? null;
+      setEditingComment(null);
+
+      // Optimistic update in state
+      if (editParentId) {
+        setComments(prev =>
+          prev.map(c =>
+            c.id === editParentId
+              ? { ...c, replies: (c.replies || []).map(r => r.id === editId ? { ...r, body: text } : r) }
+              : c
+          )
+        );
+      } else {
+        setComments(prev => prev.map(c => c.id === editId ? { ...c, body: text } : c));
+      }
+
+      try {
+        const res = await API.put(`mobile/comments/${editId}`, token, { comment: text });
+        if (res?.data?.comment) {
+          const saved = res.data.comment;
+          const pid = saved.parent_id ?? null;
+          if (pid) {
+            setComments(prev =>
+              prev.map(c =>
+                c.id === pid
+                  ? { ...c, replies: (c.replies || []).map(r => r.id === saved.id ? saved : r) }
+                  : c
+              )
+            );
+          } else {
+            setComments(prev => prev.map(c => c.id === saved.id ? saved : c));
+          }
+        }
+      } catch {
+        fetchComments();
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     const tempId = `temp-${Date.now()}`;
     const tempComment = {
@@ -330,6 +434,8 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
     setComments([]);
     setInputText('');
     setReplyingTo(null);
+    setEditingComment(null);
+    setMenuComment(null);
     onClose();
   };
 
@@ -388,6 +494,8 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
                 mutedColor={mutedColor}
                 token={token}
                 onReply={handleReply}
+                currentUserId={user?.id}
+                onOpenMenu={openMenu}
               />
             )}
             ListEmptyComponent={
@@ -407,8 +515,24 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
           />
         )}
 
-        {/* "Replying to…" banner */}
-        {replyingTo ? (
+        {/* Editing / Replying banner */}
+        {editingComment ? (
+          <View
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              paddingHorizontal: 16, paddingVertical: 7,
+              backgroundColor: isDark ? '#252525' : '#f7f5f1',
+              borderTopWidth: 0.5, borderTopColor: borderColor,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: mutedColor }}>
+              Editing comment
+            </Text>
+            <TouchableOpacity onPress={cancelEdit}>
+              <Ionicons name="close-circle" size={18} color={mutedColor} />
+            </TouchableOpacity>
+          </View>
+        ) : replyingTo ? (
           <View
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -425,6 +549,46 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
               <Ionicons name="close-circle" size={18} color={mutedColor} />
             </TouchableOpacity>
           </View>
+        ) : null}
+
+        {/* Comment menu (Edit/Delete) */}
+        {menuComment ? (
+          <Modal transparent animationType="fade" visible={!!menuComment} onRequestClose={closeMenu}>
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={closeMenu} />
+            <View
+              style={{
+                position: 'absolute',
+                left: 12,
+                right: 12,
+                bottom: 24,
+                backgroundColor: bgColor,
+                borderRadius: 16,
+                borderWidth: 0.5,
+                borderColor,
+                overflow: 'hidden',
+              }}
+            >
+              <Pressable
+                onPress={startEdit}
+                style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
+                <Ionicons name="pencil" size={18} color={textColor} />
+                <Text style={{ color: textColor, fontWeight: '700' }}>Edit</Text>
+              </Pressable>
+              <View style={{ height: 0.5, backgroundColor: borderColor }} />
+              <Pressable
+                onPress={handleDelete}
+                style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
+                <Ionicons name="trash" size={18} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontWeight: '800' }}>Delete</Text>
+              </Pressable>
+              <View style={{ height: 8, backgroundColor: 'transparent' }} />
+              <Pressable onPress={closeMenu} style={{ paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' }}>
+                <Text style={{ color: mutedColor, fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+            </View>
+          </Modal>
         ) : null}
 
         {/* Input bar */}
