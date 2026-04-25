@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
 import API from '@/api';
 
 const CAPTION_PREVIEW_LENGTH = 60;
@@ -68,9 +69,10 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
 }
 
 export default function FeedItem({ item, onPress }) {
+  const { token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(Boolean(item.is_liked_by_user));
   const [likeCount, setLikeCount] = useState(item.likes || 0);
   const [saved, setSaved] = useState(false);
 
@@ -83,11 +85,24 @@ export default function FeedItem({ item, onPress }) {
   const commentCount = item.comments || 0;
   const repostCount = item.reposts || 0;
 
-  const handleLike = () => {
-    setLiked(prev => {
-      setLikeCount(c => prev ? c - 1 : c + 1);
-      return !prev;
-    });
+  const handleLike = async () => {
+    // Optimistic update — flip immediately so UI feels instant
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount(c => wasLiked ? c - 1 : c + 1);
+
+    try {
+      const response = await API.post(`mobile/posts/like/${item.id}`, {}, token);
+      // Sync with server truth
+      if (response?.data) {
+        setLiked(response.data.liked);
+        setLikeCount(response.data.likes_count);
+      }
+    } catch {
+      // Revert optimistic update on failure
+      setLiked(wasLiked);
+      setLikeCount(c => wasLiked ? c + 1 : c - 1);
+    }
   };
 
   const iconColor = isDark ? '#e5e5e5' : '#262626';
@@ -203,14 +218,22 @@ export default function FeedItem({ item, onPress }) {
         />
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center" style={{ gap: 16 }}>
-            <TouchableOpacity onPress={handleLike} className="active:opacity-60">
+            <TouchableOpacity
+              onPress={handleLike}
+              style={{
+                width: 40, height: 40,
+                borderRadius: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
+              }}
+            >
               <Ionicons
                 name={liked ? 'heart' : 'heart-outline'}
                 size={26}
-                color={liked ? '#e0245e' : iconColor}
+                color={liked ? '#ffc801' : iconColor}
               />
             </TouchableOpacity>
-
             <TouchableOpacity className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
             </TouchableOpacity>
