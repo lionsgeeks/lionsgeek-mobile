@@ -96,8 +96,14 @@ export default function FeedItem({ item, onPress }) {
 
   return (
     <View
-      className="bg-light dark:bg-dark"
-      style={{ borderBottomWidth: 0.5, borderBottomColor: isDark ? '#2a2a2a' : '#e0e0e0' }}
+      style={{
+        backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+        marginBottom: 8,
+        // Subtle top/bottom border for the card edge
+        borderTopWidth: 0.5,
+        borderBottomWidth: 0.5,
+        borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+      }}
     >
       {/* ── Repost banner ── */}
       {item.reposted ? (
@@ -188,6 +194,13 @@ export default function FeedItem({ item, onPress }) {
 
       {/* ── Action bar ── */}
       <View className="px-3 pt-2 pb-1">
+        <View
+          style={{
+            height: 0.5,
+            backgroundColor: isDark ? '#2e2e2e' : '#ddd8d0',
+            marginBottom: 8,
+          }}
+        />
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center" style={{ gap: 16 }}>
             <TouchableOpacity onPress={handleLike} className="active:opacity-60">
