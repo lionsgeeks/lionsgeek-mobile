@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import CommentsModal from '@/components/feed/CommentsModal';
+import LikesModal from '@/components/feed/LikesModal';
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
@@ -78,6 +79,7 @@ export default function FeedItem({ item, onPress }) {
   const [saved, setSaved] = useState(false);
   const [commentCount, setCommentCount] = useState(item.comments || 0);
   const [showComments, setShowComments] = useState(false);
+  const [showLikes, setShowLikes] = useState(false);
 
   const avatarUrl = resolveAvatarUrl(
     item.user?.avatar || item.userAvatar || item.user?.image
@@ -264,11 +266,11 @@ export default function FeedItem({ item, onPress }) {
 
       {/* ── Like count ── */}
       {likeCount > 0 ? (
-        <View className="px-4 pb-1">
+        <Pressable onPress={() => setShowLikes(true)} className="px-4 pb-1 active:opacity-60">
           <Text className="font-extrabold text-[13px] text-black dark:text-white">
             {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
           </Text>
-        </View>
+        </Pressable>
       ) : null}
 
       {/* ── Caption below image (media posts) ── */}
@@ -315,6 +317,12 @@ export default function FeedItem({ item, onPress }) {
             setCommentCount(Math.max(0, change.set));
           }
         }}
+      />
+
+      <LikesModal
+        visible={showLikes}
+        postId={item.id}
+        onClose={() => setShowLikes(false)}
       />
     </View>
   );
