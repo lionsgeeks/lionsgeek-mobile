@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter, router as routerDirect } from 'expo-router';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Image, Linking } from 'react-native';
+import { View, Text, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -40,14 +40,6 @@ export default function MessageItem({
         }
         
         return `${size.toFixed(1)} ${units[unitIndex]}`;
-    };
-
-    // Format audio duration
-    const formatAudioDuration = (seconds) => {
-        if (!seconds) return '';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     const imageUrl = message.attachment_path?.startsWith('/storage/') || message.attachment_path?.startsWith('http')

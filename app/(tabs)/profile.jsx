@@ -17,13 +17,9 @@ export default function ProfileScreen() {
   const isDark = colorScheme === 'dark';
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [posts, setPosts] = useState([]);
+  const [posts] = useState([]);
 
   const isOwnProfile = !userId || userId === currentUser?.id?.toString();
-
-  // Check if current user is admin
-  const currentUserRoles = currentUser?.roles || [];
-  const isAdmin = currentUserRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -112,7 +108,7 @@ export default function ProfileScreen() {
               <View className="items-center mb-4">
                 <View className="relative">
                   <Image
-                    source={{ uri: `${API.APP_URL}/storage/img/profile/${profile.image}` }}
+                    source={{ uri: getImageUrl() }}
                     className="w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark"
                     defaultSource={require('@/assets/images/icon.png')}
                   />

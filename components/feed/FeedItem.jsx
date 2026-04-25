@@ -141,7 +141,7 @@ export default function FeedItem({ item, onPress }) {
               if (typeof item.onPostDeleted === 'function') {
                 item.onPostDeleted(item.id);
               }
-            } catch (error) {
+            } catch (_error) {
               Alert.alert('Error', 'Failed to delete the post. Please try again.');
             }
           },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MessageItem from './MessageItem';
 import TypingIndicator from './TypingIndicator';

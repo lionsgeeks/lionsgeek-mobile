@@ -14,7 +14,6 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
     const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(false);
     const [attachment, setAttachment] = useState(null);
-    const [isPlayingAudio, setIsPlayingAudio] = useState(null);
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -103,11 +102,6 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
 
     const isCurrentUserMessage = (senderId) => {
         return String(senderId) === String(currentUser.id);
-    };
-
-    const handlePlayAudio = (audioPath, messageId) => {
-        // Audio playback handled by VoiceMessage component
-        setIsPlayingAudio(isPlayingAudio === messageId ? null : messageId);
     };
 
     const renderMessage = (message) => {

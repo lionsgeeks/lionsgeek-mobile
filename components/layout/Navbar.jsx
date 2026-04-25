@@ -1,4 +1,4 @@
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { router } from 'expo-router';

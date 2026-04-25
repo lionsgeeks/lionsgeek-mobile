@@ -19,8 +19,6 @@ export default function AudioRecorder({ onSend, onCancel, isRecording, recording
         const animate = () => {
             barsRef.current.forEach((bar, index) => {
                 if (bar) {
-                    const level = Math.random() * 0.8 + 0.2;
-                    const height = (Math.sin(Date.now() / 100 + index * 0.5) * 0.5 + 0.5) * 100 * level;
                     // In React Native, we'll use Animated API or just update style
                 }
             });

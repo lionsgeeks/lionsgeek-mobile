@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, TextInput, Image, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import AudioRecorder from './AudioRecorder';
@@ -9,7 +9,7 @@ import VoiceRecorder from '../VoiceRecorder';
 let ImagePicker = null;
 try {
     ImagePicker = require('expo-image-picker');
-} catch (e) {
+} catch (_error) {
     console.warn('expo-image-picker not installed. Camera and photo library features will be disabled.');
 }
 
@@ -110,8 +110,6 @@ export default function MessageInput({
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
-
-    const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
 
     // Request permissions
     useEffect(() => {

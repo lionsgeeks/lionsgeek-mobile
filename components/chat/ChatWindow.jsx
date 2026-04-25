@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
@@ -9,7 +8,6 @@ import API from '@/api';
 export default function ChatWindow({ conversation, onBack }) {
     const { user, token } = useAppContext();
     const currentUser = user;
-    const router = useRouter();
     const [messages, setMessages] = useState(conversation.messages || []);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
