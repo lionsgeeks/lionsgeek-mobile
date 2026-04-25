@@ -4,6 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import CommentsModal from '@/components/feed/CommentsModal';
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
@@ -75,6 +76,8 @@ export default function FeedItem({ item, onPress }) {
   const [liked, setLiked] = useState(Boolean(item.is_liked_by_user));
   const [likeCount, setLikeCount] = useState(item.likes || 0);
   const [saved, setSaved] = useState(false);
+  const [commentCount, setCommentCount] = useState(item.comments || 0);
+  const [showComments, setShowComments] = useState(false);
 
   const avatarUrl = resolveAvatarUrl(
     item.user?.avatar || item.userAvatar || item.user?.image
@@ -82,7 +85,6 @@ export default function FeedItem({ item, onPress }) {
   const mediaUrl = item.postImage || (Array.isArray(item.images) ? item.images[0] : null);
   const displayName = item.user?.name || 'Unknown';
   const caption = item.description || item.content || '';
-  const commentCount = item.comments || 0;
   const repostCount = item.reposts || 0;
 
   const handleLike = async () => {
@@ -234,7 +236,7 @@ export default function FeedItem({ item, onPress }) {
                 color={liked ? '#ffc801' : iconColor}
               />
             </TouchableOpacity>
-            <TouchableOpacity className="active:opacity-60">
+            <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
             </TouchableOpacity>
 
@@ -285,7 +287,7 @@ export default function FeedItem({ item, onPress }) {
 
       {/* ── Comments + reposts info ── */}
       {(commentCount > 0 || repostCount > 0) ? (
-        <Pressable className="px-4 pb-1 active:opacity-60">
+        <Pressable onPress={() => setShowComments(true)} className="px-4 pb-1 active:opacity-60">
           <Text style={{ color: mutedColor }} className="text-[12px]">
             {commentCount > 0 ? `View all ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}
             {commentCount > 0 && repostCount > 0 ? '  •  ' : ''}
@@ -295,6 +297,15 @@ export default function FeedItem({ item, onPress }) {
       ) : null}
 
       <View className="pb-3" />
+
+      {/* ── Comments modal ── */}
+      <CommentsModal
+        visible={showComments}
+        postId={item.id}
+        postAuthorName={displayName}
+        onClose={() => setShowComments(false)}
+        onCommentAdded={() => setCommentCount(c => c + 1)}
+      />
     </View>
   );
 }
