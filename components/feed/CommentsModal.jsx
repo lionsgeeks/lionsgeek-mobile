@@ -400,7 +400,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
             }
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             onContentSizeChange={() =>
               comments.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
             }
@@ -488,7 +488,16 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
               immediately, before React Native can interpret it as a keyboard-
               dismiss gesture. This is why a single tap always sends. */}
           <Pressable
-            onPress={handleSend}
+            // Capture the touch before the keyboard-dismiss gesture does.
+            onStartShouldSetResponder={() => true}
+            // Fire on touch-down so it always sends on first tap.
+            onPressIn={() => {
+              if (canSend && !sending) handleSend();
+            }}
+            // Keep onPress as a fallback for platforms that don't dispatch pressIn.
+            onPress={() => {
+              if (canSend && !sending) handleSend();
+            }}
             disabled={!canSend || sending}
             style={{
               width: 38, height: 38, borderRadius: 19,
