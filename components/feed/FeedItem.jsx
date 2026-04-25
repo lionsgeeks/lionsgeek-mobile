@@ -304,9 +304,16 @@ export default function FeedItem({ item, onPress }) {
         postId={item.id}
         postAuthorName={displayName}
         onClose={() => setShowComments(false)}
-        onCommentCountChange={(delta) => {
-          if (typeof delta !== 'number' || Number.isNaN(delta)) return;
-          setCommentCount((c) => Math.max(0, c + delta));
+        onCommentCountChange={(change) => {
+          // change can be a delta number OR { set: number } for server-truth sync
+          if (typeof change === 'number') {
+            if (Number.isNaN(change)) return;
+            setCommentCount((c) => Math.max(0, c + change));
+            return;
+          }
+          if (change && typeof change === 'object' && typeof change.set === 'number') {
+            setCommentCount(Math.max(0, change.set));
+          }
         }}
       />
     </View>

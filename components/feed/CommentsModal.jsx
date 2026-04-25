@@ -256,6 +256,20 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
     }
   };
 
+  const syncRealCount = async () => {
+    if (!onCommentCountChange) return;
+    try {
+      const res = await API.get(`mobile/posts/${postId}/comments-count`, token);
+      const real = res?.data?.comments_count;
+      if (typeof real === 'number' && !Number.isNaN(real)) {
+        // Send as an absolute set by using a special payload object
+        onCommentCountChange({ set: real });
+      }
+    } catch {
+      // ignore — we keep optimistic count
+    }
+  };
+
   const handleReply = (comment) => {
     setReplyingTo({ id: comment.id, name: comment.user?.name || 'User' });
     inputRef.current?.focus();
@@ -306,6 +320,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
 
     try {
       await API.remove(`mobile/comments/${commentId}`, token);
+      await syncRealCount();
     } catch {
       if (onCommentCountChange) onCommentCountChange(deletedCount);
       // Re-fetch on failure to restore correct state
@@ -413,6 +428,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
           setComments(prev => prev.map(c => c.id === tempId ? saved : c));
         }
         if (onCommentCountChange) onCommentCountChange(1);
+        await syncRealCount();
       }
     } catch {
       // Revert
