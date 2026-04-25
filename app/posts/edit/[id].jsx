@@ -36,7 +36,7 @@ export default function EditPostScreen() {
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : null;
   }, [id]);
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -47,10 +47,44 @@ export default function EditPostScreen() {
   const [removedImages, setRemovedImages] = useState([]);   // filenames to remove
   const [newImages, setNewImages] = useState([]);           // picked assets: { uri, name, type }
 
-  const bg = isDark ? '#0f0f0f' : '#e9e5df';
+  // Same avatar resolver used in CreatePost
+  const getProfileImageUrl = () => {
+    if (!user) return null;
+
+    const avatar = user?.avatar;
+    const image = user?.image;
+    const avatarValue = avatar || image;
+    if (!avatarValue) return null;
+
+    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
+      if (avatarValue.includes('/storage/') && !avatarValue.includes('/storage/img/profile/')) {
+        const filename = avatarValue.split('/').pop();
+        if (filename) return `${API.APP_URL}/storage/img/profile/${filename}`;
+      }
+      return avatarValue;
+    }
+
+    if (typeof avatarValue === 'string') {
+      if (avatarValue.includes('storage/') && !avatarValue.includes('img/profile/')) {
+        const parts = avatarValue.split('/');
+        const filename = parts[parts.length - 1];
+        if (filename) return `${API.APP_URL}/storage/img/profile/${filename}`;
+      }
+      if (avatarValue.includes('img/profile/')) {
+        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
+        return `${API.APP_URL}${cleanPath}`;
+      }
+      return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
+    }
+
+    return null;
+  };
+
+  // Match Create Post modal styling
+  const bg = isDark ? '#171717' : '#fafafa';
   const card = isDark ? '#1c1c1c' : '#ffffff';
   const border = isDark ? '#2e2e2e' : '#ddd8d0';
-  const text = isDark ? '#f5f5f5' : '#111111';
+  const text = isDark ? '#ffffff' : '#111111';
   const muted = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
 
   useEffect(() => {
@@ -169,13 +203,22 @@ export default function EditPostScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={{ backgroundColor: card, borderBottomWidth: 0.5, borderBottomColor: border, paddingTop: 50, paddingBottom: 12, paddingHorizontal: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
+        {/* Header (same as Create Post) */}
+        <View
+          style={{
+            backgroundColor: card,
+            borderBottomWidth: 0.5,
+            borderBottomColor: border,
+          }}
+        >
+          
+          <View style={{ paddingTop: 48, paddingBottom: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
               <Ionicons name="chevron-back" size={22} color={text} />
             </TouchableOpacity>
-            <Text style={{ color: text, fontWeight: '900', fontSize: 16 }}>Edit post</Text>
+            <Text style={{ color: text, fontWeight: '800', fontSize: 16 }}>
+              Edit post
+            </Text>
             <Pressable
               onPress={handleSave}
               disabled={saving}
@@ -187,11 +230,57 @@ export default function EditPostScreen() {
               }}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={muted} />
+                <ActivityIndicator size="small" color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
               ) : (
                 <Text style={{ fontWeight: '900', color: '#000' }}>Save</Text>
               )}
             </Pressable>
+          </View>
+
+          {/* Profile row (same as CreatePost) */}
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingBottom: 14,
+              paddingTop: 14,
+              borderTopWidth: 0.5,
+              borderTopColor: border,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {(() => {
+                const profileImageUrl = getProfileImageUrl();
+
+                return profileImageUrl ? (
+                  <Image
+                    source={{ uri: profileImageUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12, borderWidth: 2, borderColor: 'rgba(255,200,1,0.3)' }}
+                    defaultSource={require('@/assets/images/icon.png')}
+                  />
+                ) : (
+                  <View style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12, backgroundColor: isDark ? 'rgba(33,37,41,0.4)' : 'rgba(33,37,41,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)' }}>
+                      {(user?.name || 'U').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                );
+              })()}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: text }}>
+                  {user?.name || 'User'}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Ionicons
+                    name="create-outline"
+                    size={14}
+                    color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
+                  />
+                  <Text style={{ fontSize: 12, color: muted, marginLeft: 6 }}>
+                    Editing your post
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         </View>
 
