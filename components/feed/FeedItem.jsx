@@ -4,7 +4,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 
-// Normalises avatar/image value to a full URL
+const CAPTION_PREVIEW_LENGTH = 60;
+
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
@@ -29,6 +30,41 @@ function formatTime(dateString) {
   if (hours > 0) return `${hours}h`;
   if (mins > 0) return `${mins}m`;
   return 'just now';
+}
+
+/**
+ * Renders a fully-tappable caption block.
+ * - Short captions (≤ CAPTION_PREVIEW_LENGTH chars) → plain text, no toggle.
+ * - Long captions → shows preview + "... see more" / full text + " see less".
+ * - Tapping anywhere on the text block toggles expanded state.
+ */
+function Caption({ name, text, textSize = 14, lineHeight = 22, mutedColor }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!text) return null;
+
+  const isLong = text.length > CAPTION_PREVIEW_LENGTH;
+
+  const displayedText = isLong && !expanded
+    ? text.slice(0, CAPTION_PREVIEW_LENGTH).trimEnd()
+    : text;
+
+  return (
+    <Pressable onPress={() => isLong && setExpanded(p => !p)} className="active:opacity-75">
+      <Text style={{ fontSize: textSize, lineHeight, color: 'inherit' }} className="text-black dark:text-white">
+        <Text style={{ fontWeight: '800' }}>{name} </Text>
+        {displayedText}
+        {isLong && !expanded ? (
+          <Text style={{ color: mutedColor, fontWeight: '700' }}>{'... '}
+            <Text style={{ color: mutedColor, fontWeight: '700' }}>see more</Text>
+          </Text>
+        ) : null}
+        {isLong && expanded ? (
+          <Text style={{ color: mutedColor, fontWeight: '700' }}> see less</Text>
+        ) : null}
+      </Text>
+    </Pressable>
+  );
 }
 
 export default function FeedItem({ item, onPress }) {
@@ -121,13 +157,23 @@ export default function FeedItem({ item, onPress }) {
           </View>
         </Pressable>
 
-        {/* Follow button (icon-only) */}
-        <TouchableOpacity
-          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
-        >
+        <TouchableOpacity className="h-8 w-8 items-center justify-center rounded-full active:opacity-60">
           <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
         </TouchableOpacity>
       </View>
+
+      {/* ── Caption above image (text-only posts) ── */}
+      {!mediaUrl && caption ? (
+        <View className="px-4 pb-3">
+          <Caption
+            name={displayName}
+            text={caption}
+            textSize={14}
+            lineHeight={22}
+            mutedColor={mutedColor}
+          />
+        </View>
+      ) : null}
 
       {/* ── Media (edge-to-edge) ── */}
       {mediaUrl ? (
@@ -138,22 +184,10 @@ export default function FeedItem({ item, onPress }) {
         />
       ) : null}
 
-      {/* ── Caption (above image if no media) ── */}
-      {!mediaUrl && caption ? (
-        <View className="px-4 pb-3">
-          <Text className="text-[14px] leading-[22px] text-black dark:text-white">
-            <Text className="font-extrabold">{displayName} </Text>
-            {caption}
-          </Text>
-        </View>
-      ) : null}
-
       {/* ── Action bar ── */}
       <View className="px-3 pt-2 pb-1">
         <View className="flex-row items-center justify-between">
-          {/* Left actions */}
           <View className="flex-row items-center" style={{ gap: 16 }}>
-            {/* Like */}
             <TouchableOpacity onPress={handleLike} className="active:opacity-60">
               <Ionicons
                 name={liked ? 'heart' : 'heart-outline'}
@@ -162,12 +196,10 @@ export default function FeedItem({ item, onPress }) {
               />
             </TouchableOpacity>
 
-            {/* Comment */}
             <TouchableOpacity className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
             </TouchableOpacity>
 
-            {/* Repost / Send */}
             <TouchableOpacity
               onPress={() => { if (item.onRepost) item.onRepost(item); }}
               className="active:opacity-60"
@@ -180,7 +212,6 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
           </View>
 
-          {/* Right: Bookmark */}
           <TouchableOpacity onPress={() => setSaved(p => !p)} className="active:opacity-60">
             <Ionicons
               name={saved ? 'bookmark' : 'bookmark-outline'}
@@ -200,13 +231,16 @@ export default function FeedItem({ item, onPress }) {
         </View>
       ) : null}
 
-      {/* ── Caption (below image when media exists) ── */}
+      {/* ── Caption below image (media posts) ── */}
       {mediaUrl && caption ? (
         <View className="px-4 pb-1">
-          <Text className="text-[13px] leading-[20px] text-black dark:text-white" numberOfLines={3}>
-            <Text className="font-extrabold">{displayName} </Text>
-            {caption}
-          </Text>
+          <Caption
+            name={displayName}
+            text={caption}
+            textSize={13}
+            lineHeight={20}
+            mutedColor={mutedColor}
+          />
         </View>
       ) : null}
 
@@ -221,7 +255,6 @@ export default function FeedItem({ item, onPress }) {
         </Pressable>
       ) : null}
 
-      {/* ── Bottom spacing ── */}
       <View className="pb-3" />
     </View>
   );
