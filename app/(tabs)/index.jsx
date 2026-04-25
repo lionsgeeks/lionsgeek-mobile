@@ -283,7 +283,13 @@ export default function HomeScreen() {
           posts.map((item) => (
             <FeedItem
               key={item.id}
-              item={{ ...item, onRepost: handleRepost }}
+              item={{
+                ...item,
+                onRepost: handleRepost,
+                onPostDeleted: (postId) => {
+                  setPosts(prev => prev.filter(p => p.id !== postId));
+                },
+              }}
             />
           ))
         )}

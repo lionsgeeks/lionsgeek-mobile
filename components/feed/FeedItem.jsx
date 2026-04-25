@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { Alert, Modal, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import CommentsModal from '@/components/feed/CommentsModal';
 import LikesModal from '@/components/feed/LikesModal';
+import { router } from 'expo-router';
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
@@ -71,7 +72,7 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
 }
 
 export default function FeedItem({ item, onPress }) {
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [liked, setLiked] = useState(Boolean(item.is_liked_by_user));
@@ -80,6 +81,7 @@ export default function FeedItem({ item, onPress }) {
   const [commentCount, setCommentCount] = useState(item.comments || 0);
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
+  const [showPostMenu, setShowPostMenu] = useState(false);
 
   const avatarUrl = resolveAvatarUrl(
     item.user?.avatar || item.userAvatar || item.user?.image
@@ -88,6 +90,7 @@ export default function FeedItem({ item, onPress }) {
   const displayName = item.user?.name || 'Unknown';
   const caption = item.description || item.content || '';
   const repostCount = item.reposts || 0;
+  const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
 
   const handleLike = async () => {
     // Optimistic update — flip immediately so UI feels instant
@@ -112,6 +115,37 @@ export default function FeedItem({ item, onPress }) {
   const iconColor = isDark ? '#e5e5e5' : '#262626';
   const textColor = isDark ? '#f5f5f5' : '#111111';
   const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
+
+  const handleDeletePost = () => {
+    setShowPostMenu(false);
+    Alert.alert(
+      'Delete post?',
+      'This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await API.remove(`mobile/posts/${item.id}`, token);
+              if (typeof item.onPostDeleted === 'function') {
+                item.onPostDeleted(item.id);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete the post. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleEditPost = () => {
+    setShowPostMenu(false);
+    router.push(`/posts/edit/${item.id}`);
+  };
 
   return (
     <View
@@ -183,9 +217,16 @@ export default function FeedItem({ item, onPress }) {
           </View>
         </Pressable>
 
-        <TouchableOpacity className="h-8 w-8 items-center justify-center rounded-full active:opacity-60">
-          <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
-        </TouchableOpacity>
+        {isOwner ? (
+          <TouchableOpacity
+            onPress={() => setShowPostMenu(true)}
+            className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
+          </TouchableOpacity>
+        ) : (
+          <View className="h-8 w-8" />
+        )}
       </View>
 
       {/* ── Caption above image (text-only posts) ── */}
@@ -324,6 +365,49 @@ export default function FeedItem({ item, onPress }) {
         postId={item.id}
         onClose={() => setShowLikes(false)}
       />
+
+      {/* Post menu (owner-only) */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showPostMenu}
+        onRequestClose={() => setShowPostMenu(false)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowPostMenu(false)} />
+        <View
+          style={{
+            position: 'absolute',
+            left: 12,
+            right: 12,
+            bottom: 24,
+            backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+            borderRadius: 16,
+            borderWidth: 0.5,
+            borderColor: isDark ? '#2e2e2e' : '#e8e5e0',
+            overflow: 'hidden',
+          }}
+        >
+          <Pressable
+            onPress={handleEditPost}
+            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Ionicons name="pencil" size={18} color={textColor} />
+            <Text style={{ color: textColor, fontWeight: '800' }}>Edit</Text>
+          </Pressable>
+          <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#e8e5e0' }} />
+          <Pressable
+            onPress={handleDeletePost}
+            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Ionicons name="trash" size={18} color="#ef4444" />
+            <Text style={{ color: '#ef4444', fontWeight: '900' }}>Delete</Text>
+          </Pressable>
+          <View style={{ height: 8, backgroundColor: 'transparent' }} />
+          <Pressable onPress={() => setShowPostMenu(false)} style={{ paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' }}>
+            <Text style={{ color: mutedColor, fontWeight: '800' }}>Cancel</Text>
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -77,19 +77,23 @@ const post = async (endpoint, data, Token) => {
             (data._parts !== undefined) // React Native FormData has _parts
         );
 
-        // Only set Content-Type for JSON, let axios set it automatically for FormData
+        // For JSON, we set application/json.
+        // For FormData (uploads), axios-on-RN is more reliable when explicitly
+        // using multipart/form-data (boundary is handled by the native layer).
         if (!isFormData) {
             headers['Content-Type'] = 'application/json';
+        } else {
+            headers['Content-Type'] = 'multipart/form-data';
         }
 
         if (Token) {
             headers['Authorization'] = `Bearer ${Token}`;
         }
 
-        const response = await axios.post(`${baseUrl}/api/${endpoint}`, data, { 
+        const response = await axios.post(`${baseUrl}/api/${endpoint}`, data, {
             headers,
-            // Ensure axios handles FormData correctly
-            transformRequest: isFormData ? [(data) => data] : undefined,
+            // Avoid custom transformRequest for FormData — it can break multipart in RN and cause Network Error
+            timeout: 30000,
         });
         
         // Handle case where response.data is a string with HTML warnings + JSON
