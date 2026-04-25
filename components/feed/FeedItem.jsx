@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, Modal, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Dimensions, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
@@ -86,7 +86,16 @@ export default function FeedItem({ item, onPress }) {
   const avatarUrl = resolveAvatarUrl(
     item.user?.avatar || item.userAvatar || item.user?.image
   );
-  const mediaUrl = item.postImage || (Array.isArray(item.images) ? item.images[0] : null);
+  const mediaUrls = useMemo(() => {
+    if (Array.isArray(item.images) && item.images.length > 0) return item.images.filter(Boolean);
+    if (item.postImage) return [item.postImage];
+    return [];
+  }, [item.images, item.postImage]);
+  const hasMedia = mediaUrls.length > 0;
+  const isCarousel = mediaUrls.length > 1;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
+  const screenWidth = Dimensions.get('window').width;
   const displayName = item.user?.name || 'Unknown';
   const caption = item.description || item.content || '';
   const repostCount = item.reposts || 0;
@@ -230,7 +239,7 @@ export default function FeedItem({ item, onPress }) {
       </View>
 
       {/* ── Caption above image (text-only posts) ── */}
-      {!mediaUrl && caption ? (
+      {!hasMedia && caption ? (
         <View className="px-4 pb-3">
           <Caption
             name={displayName}
@@ -244,23 +253,96 @@ export default function FeedItem({ item, onPress }) {
       ) : null}
 
       {/* ── Media (edge-to-edge) ── */}
-      {mediaUrl ? (
-        <Image
-          source={{ uri: mediaUrl }}
-          style={{ width: '100%', aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
-          resizeMode="cover"
-        />
+      {hasMedia ? (
+        <View style={{ width: '100%', backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}>
+          {isCarousel ? (
+            <View>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={(e) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  const nextIndex = Math.round(x / screenWidth);
+                  if (nextIndex !== carouselIndex) setCarouselIndex(nextIndex);
+                }}
+                scrollEventThrottle={16}
+              >
+                {mediaUrls.map((uri, idx) => (
+                  <Image
+                    key={`${uri}-${idx}`}
+                    source={{ uri }}
+                    style={{ width: screenWidth, aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+
+              {/* Counter (top-right) */}
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  backgroundColor: 'rgba(0,0,0,0.55)',
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>
+                  {carouselIndex + 1}/{mediaUrls.length}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: mediaUrls[0] }}
+              style={{ width: '100%', aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+      ) : null}
+
+      {/* Carousel dots (between media and actions) */}
+      {isCarousel ? (
+        <View
+          style={{
+            paddingTop: 10,
+            paddingBottom: 6,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {mediaUrls.map((_, idx) => {
+            const active = idx === carouselIndex;
+            return (
+              <View
+                key={idx}
+                style={{
+                  width: active ? 7 : 6,
+                  height: active ? 7 : 6,
+                  borderRadius: 10,
+                  backgroundColor: active ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)'),
+                }}
+              />
+            );
+          })}
+        </View>
       ) : null}
 
       {/* ── Action bar ── */}
-      <View className="px-3 pt-2 pb-1">
-        <View
+      <View className="px-3 pb-1">
+        {/* <View
           style={{
             height: 0.5,
             backgroundColor: isDark ? '#2e2e2e' : '#ddd8d0',
             marginBottom: 8,
           }}
-        />
+        /> */}
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center" style={{ gap: 16 }}>
             <TouchableOpacity
@@ -315,7 +397,7 @@ export default function FeedItem({ item, onPress }) {
       ) : null}
 
       {/* ── Caption below image (media posts) ── */}
-      {mediaUrl && caption ? (
+      {hasMedia && caption ? (
         <View className="px-4 pb-1">
           <Caption
             name={displayName}
