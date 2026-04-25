@@ -472,7 +472,7 @@ export default function NotificationsScreen() {
                   No notifications yet
                 </Text>
                 <Text className="text-center text-black/40 dark:text-white/40 mt-2 text-sm">
-                  You're all caught up!
+                  You are all caught up!
                 </Text>
               </View>
             ) : (
