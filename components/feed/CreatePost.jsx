@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
   const [postContent, setPostContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState('post'); // post, video, photo, article
+  const keyboardVerticalOffset = useMemo(() => (Platform.OS === 'ios' ? 0 : 24), []);
 
   const handleCreatePost = () => {
     setShowModal(true);
@@ -101,75 +102,71 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
 
   return (
     <>
-      <View className="bg-light dark:bg-dark rounded-xl p-4 mb-4 border border-light/20 dark:border-dark/20 shadow-sm">
-        <View className="flex-row items-center mb-3">
-          {(() => {
-            const profileImageUrl = getImageUrl();
-            
-            console.log('[CreatePost] Profile image URL:', profileImageUrl, 'for user:', user?.name, 'avatar:', user?.avatar, 'image:', user?.image);
-            
-            return profileImageUrl ? (
-              <Image
-                source={{ uri: profileImageUrl }}
-                className="w-10 h-10 rounded-full mr-3 border-2 border-alpha/30"
-                defaultSource={require('@/assets/images/icon.png')}
-                onError={(error) => {
-                  console.log('[CreatePost] Error loading profile image:', profileImageUrl, error);
-                }}
-                onLoad={() => {
-                  console.log('[CreatePost] Profile image loaded successfully:', profileImageUrl);
-                }}
-              />
-            ) : (
-              <View className="w-10 h-10 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center">
-                <Text className="text-xs font-bold text-black/60 dark:text-white/60">
-                  {(user?.name || 'U').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            );
-          })()}
-          <TouchableOpacity 
-            onPress={handleCreatePost}
-            className="flex-1 bg-light/50 dark:bg-dark/50 rounded-full px-4 py-3 border border-light/30 dark:border-dark/30 active:opacity-80"
-          >
-            <Text className="text-black/60 dark:text-white/60">
-              Start a post
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {/* Composer row */}
+      <View className="flex-row items-center" style={{ gap: 10 }}>
+        {(() => {
+          const profileImageUrl = getImageUrl();
+          return profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              className="w-9 h-9 rounded-full"
+              style={{ borderWidth: 1.5, borderColor: '#ffc801' }}
+              defaultSource={require('@/assets/images/icon.png')}
+            />
+          ) : (
+            <View
+              className="w-9 h-9 rounded-full bg-beta/10 dark:bg-beta/40 items-center justify-center"
+              style={{ borderWidth: 1.5, borderColor: '#ffc801' }}
+            >
+              <Text className="text-xs font-extrabold text-black/60 dark:text-white/60">
+                {(user?.name || 'U').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          );
+        })()}
 
-        <View className="flex-row items-center justify-around pt-3 border-t border-light/20 dark:border-dark/20">
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('video');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="videocam-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Video</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('photo');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="image-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Photo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('article');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="document-text-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Article</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={handleCreatePost}
+          className="flex-1 py-2 px-4 rounded-full active:opacity-70"
+          style={{
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)',
+          }}
+        >
+          <Text style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', fontWeight: '500' }}>
+            What are you thinking about?
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick-action row */}
+      <View
+        className="flex-row items-center mt-3 pt-3"
+        style={{ borderTopWidth: 0.5, borderTopColor: isDark ? '#2a2a2a' : '#e0e0e0', gap: 4 }}
+      >
+        <TouchableOpacity
+          onPress={() => { setSelectedType('photo'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="image-outline" size={20} color="#43b581" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Photo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => { setSelectedType('video'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="videocam-outline" size={20} color="#5865f2" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Video</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => { setSelectedType('article'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="document-text-outline" size={20} color="#ffc801" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Article</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Create Post Modal - Full Screen */}
@@ -183,7 +180,11 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
           setSelectedType('post');
         }}
       >
-        <View className="flex-1 bg-light dark:bg-dark">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={keyboardVerticalOffset}
+          className="flex-1 bg-light dark:bg-dark"
+        >
           {/* Header */}
           <View className="pt-12 pb-4 px-6 border-b border-light/20 dark:border-dark/20">
             <View className="flex-row items-center justify-between mb-4">
@@ -206,20 +207,12 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
             <View className="flex-row items-center mb-6 pb-4 border-b border-light/20 dark:border-dark/20">
               {(() => {
                 const profileImageUrl = getImageUrl();
-                
-                console.log('[CreatePost] Profile image URL in modal:', profileImageUrl, 'for user:', user?.name, 'avatar:', user?.avatar, 'image:', user?.image);
-                
+
                 return profileImageUrl ? (
                   <Image
                     source={{ uri: profileImageUrl }}
                     className="w-12 h-12 rounded-full mr-3 border-2 border-alpha/30"
                     defaultSource={require('@/assets/images/icon.png')}
-                    onError={(error) => {
-                      console.log('[CreatePost] Error loading profile image in modal:', profileImageUrl, error);
-                    }}
-                    onLoad={() => {
-                      console.log('[CreatePost] Profile image loaded successfully in modal:', profileImageUrl);
-                    }}
                   />
                 ) : (
                   <View className="w-12 h-12 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center">
@@ -249,7 +242,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
               <TextInput
                 className="bg-light/50 dark:bg-dark/50 rounded-xl px-4 py-4 text-black dark:text-white text-base"
-                style={{ minHeight: 300 }}
+                style={{ minHeight: 260 }}
                 placeholder="What's on your mind?"
                 placeholderTextColor={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                 value={postContent}
@@ -309,7 +302,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

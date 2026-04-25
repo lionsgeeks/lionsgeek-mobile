@@ -219,68 +219,56 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffc801" />
         }
       >
-        <View className="px-6">
-          {/* Stories Section */}
-          <View className="mb-6">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-base font-bold text-black dark:text-white">Stories</Text>
-              <Ionicons name="add-circle-outline" size={24} color="#ffc801" />
-            </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              className="-mx-6"
-              contentContainerStyle={{ paddingHorizontal: 24, paddingRight: 24 }}
-            >
-              <View className="mr-4">
-                <StoryItem user={user} isOwn={true} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'Hamza', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'Nabil', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'John', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-            </ScrollView>
+          {/* Stories Section — padded */}
+        <View className="px-4 pt-2 mb-2">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-sm font-bold text-black/80 dark:text-white/80 tracking-wide uppercase">Stories</Text>
+            <Ionicons name="add-circle-outline" size={22} color="#ffc801" />
           </View>
-
-          {/* Create Post Section */}
-          <View className="mb-6">
-            <CreatePost onPostPress={() => {}} onPostCreated={handlePostCreated} />
-          </View>
-
-          {/* Feed Section */}
-          <View className="mb-4">
-
-            {loading ? (
-              <View className="py-16 items-center">
-                <ActivityIndicator size="large" color="#ffc801" />
-                <Text className="text-black/60 dark:text-white/60 mt-4">Loading feed...</Text>
-              </View>
-            ) : posts.length === 0 ? (
-              <View className="py-16 items-center bg-light/30 dark:bg-dark/30 rounded-2xl">
-                <Ionicons name="document-text-outline" size={48} color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} />
-                <Text className="text-black/60 dark:text-white/60 text-center mt-4 px-4">
-                  No posts yet. Be the first to share something!
-                </Text>
-              </View>
-            ) : (
-              posts.map((item, index) => (
-                <View key={item.id} className={index !== posts.length - 1 ? "mb-5" : ""}>
-                  <FeedItem 
-                    item={{
-                      ...item,
-                      onRepost: handleRepost,
-                    }} 
-                  />
-                </View>
-              ))
-            )}
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 8 }}
+          >
+            <StoryItem user={user} isOwn={true} />
+            <StoryItem user={{ name: 'Hamza', avatar: 'https://via.placeholder.com/60', image: null }} />
+            <StoryItem user={{ name: 'Nabil', avatar: 'https://via.placeholder.com/60', image: null }} />
+            <StoryItem user={{ name: 'John', avatar: 'https://via.placeholder.com/60', image: null }} />
+          </ScrollView>
         </View>
+
+        {/* Divider */}
+        <View style={{ height: 0.5, backgroundColor: isDark ? '#2a2a2a' : '#e0e0e0' }} />
+
+        {/* Create Post — padded */}
+        <View className="px-4 py-3">
+          <CreatePost onPostPress={() => {}} onPostCreated={handlePostCreated} />
+        </View>
+
+        {/* Divider */}
+        <View style={{ height: 8, backgroundColor: isDark ? '#0f0f0f' : '#efefef' }} />
+
+        {/* Feed — full-width, no padding */}
+        {loading ? (
+          <View className="py-16 items-center">
+            <ActivityIndicator size="large" color="#ffc801" />
+            <Text className="text-black/60 dark:text-white/60 mt-4">Loading feed...</Text>
+          </View>
+        ) : posts.length === 0 ? (
+          <View className="py-16 items-center mx-4 bg-light/30 dark:bg-dark/30 rounded-2xl">
+            <Ionicons name="document-text-outline" size={48} color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} />
+            <Text className="text-black/60 dark:text-white/60 text-center mt-4 px-4">
+              No posts yet. Be the first to share something!
+            </Text>
+          </View>
+        ) : (
+          posts.map((item) => (
+            <FeedItem
+              key={item.id}
+              item={{ ...item, onRepost: handleRepost }}
+            />
+          ))
+        )}
       </ScrollView>
     </AppLayout>
   );

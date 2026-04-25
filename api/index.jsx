@@ -1,13 +1,23 @@
 import axios from "axios";
 
-
 const APP_URL = process.env.EXPO_PUBLIC_APP_URL;
 
-const IMAGE_URL = `${APP_URL}/storage/images`
-const VIDEO_URL = `${APP_URL}/storage/videos`
+const ensureAppUrl = () => {
+    const value = typeof APP_URL === 'string' ? APP_URL.trim() : '';
+    if (!value) {
+        throw new Error(
+            'EXPO_PUBLIC_APP_URL is not set. Create a .env file (see .env.example) and restart Expo.'
+        );
+    }
+    return value.replace(/\/+$/, '');
+};
+
+const IMAGE_URL = APP_URL ? `${APP_URL}/storage/images` : '';
+const VIDEO_URL = APP_URL ? `${APP_URL}/storage/videos` : '';
 
 const get = async (endpoint, Token) => {
     try {
+        const baseUrl = ensureAppUrl();
         // Token is REQUIRED for all API calls
         if (!Token) {
             throw new Error('Authentication token is required');
@@ -19,7 +29,7 @@ const get = async (endpoint, Token) => {
             'Content-Type': 'application/json',
         };
 
-        const response = await axios.get(`${APP_URL}/api/${endpoint}`, { headers });
+        const response = await axios.get(`${baseUrl}/api/${endpoint}`, { headers });
         
         // Handle case where response.data is a string with HTML warnings + JSON
         if (typeof response.data === 'string') {
@@ -53,6 +63,7 @@ const get = async (endpoint, Token) => {
 
 const post = async (endpoint, data, Token) => {
     try {
+        const baseUrl = ensureAppUrl();
         // Token is REQUIRED for all API calls (except login/forgot-password)
         const headers = {
             'Accept': 'application/json',
@@ -75,7 +86,7 @@ const post = async (endpoint, data, Token) => {
             headers['Authorization'] = `Bearer ${Token}`;
         }
 
-        const response = await axios.post(`${APP_URL}/api/${endpoint}`, data, { 
+        const response = await axios.post(`${baseUrl}/api/${endpoint}`, data, { 
             headers,
             // Ensure axios handles FormData correctly
             transformRequest: isFormData ? [(data) => data] : undefined,
@@ -106,7 +117,8 @@ const post = async (endpoint, data, Token) => {
 
 const put = async (endpoint, Token, data) => {
     try {
-        const response = await axios.put(`${APP_URL}/api/${endpoint}`, data, {
+        const baseUrl = ensureAppUrl();
+        const response = await axios.put(`${baseUrl}/api/${endpoint}`, data, {
             headers: { Token },
         });
         return response;
@@ -134,7 +146,8 @@ const put = async (endpoint, Token, data) => {
 
 const remove = async (endpoint, Token) => {
     try {
-        const response = await axios.delete(`${APP_URL}/api/${endpoint}`, {
+        const baseUrl = ensureAppUrl();
+        const response = await axios.delete(`${baseUrl}/api/${endpoint}`, {
             headers: { Token: Token },
         });
         return response;

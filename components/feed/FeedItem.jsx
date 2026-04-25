@@ -1,221 +1,228 @@
+import { useState } from 'react';
 import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 
+// Normalises avatar/image value to a full URL
+function resolveAvatarUrl(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  if (value.includes('storage/')) {
+    const cleanPath = value.startsWith('/') ? value : `/${value}`;
+    return `${API.APP_URL}${cleanPath}`;
+  }
+  return `${API.APP_URL}/storage/img/profile/${value}`;
+}
+
+function formatTime(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  if (weeks > 4) return date.toLocaleDateString();
+  if (weeks > 0) return `${weeks}w`;
+  if (days > 0) return `${days}d`;
+  if (hours > 0) return `${hours}h`;
+  if (mins > 0) return `${mins}m`;
+  return 'just now';
+}
+
 export default function FeedItem({ item, onPress }) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(item.likes || 0);
+  const [saved, setSaved] = useState(false);
 
-  const formatTime = (dateString) => {
-    if (!dateString) return 'Just now';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now - date;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-    
-    if (days > 7) return date.toLocaleDateString();
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    const mins = Math.floor(diff / (1000 * 60));
-    if (mins > 0) return `${mins}m ago`;
-    return 'Just now';
+  const avatarUrl = resolveAvatarUrl(
+    item.user?.avatar || item.userAvatar || item.user?.image
+  );
+  const mediaUrl = item.postImage || (Array.isArray(item.images) ? item.images[0] : null);
+  const displayName = item.user?.name || 'Unknown';
+  const caption = item.description || item.content || '';
+  const commentCount = item.comments || 0;
+  const repostCount = item.reposts || 0;
+
+  const handleLike = () => {
+    setLiked(prev => {
+      setLikeCount(c => prev ? c - 1 : c + 1);
+      return !prev;
+    });
   };
 
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'project':
-        return 'folder-outline';
-      case 'reservation':
-        return 'calendar-outline';
-      case 'achievement':
-        return 'trophy';
-      default:
-        return 'document-outline';
-    }
-  };
-
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'project':
-        return '#f59e0b';
-      case 'reservation':
-        return '#10b981';
-      case 'achievement':
-        return '#ffc801';
-      default:
-        return isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
-    }
-  };
-
-  // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
-  const getAvatarUrl = () => {
-    const avatar = item.user?.avatar || item.userAvatar;
-    const image = item.user?.image;
-    
-    // First try avatar (might be full URL from API)
-    const avatarValue = avatar || image;
-    
-    if (!avatarValue) return null;
-    
-    // If it's already a full URL, return it
-    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
-      return avatarValue;
-    }
-    
-    if (typeof avatarValue === 'string') {
-      // Check if it already includes storage path
-      if (avatarValue.includes('storage/')) {
-        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
-        return `${API.APP_URL}${cleanPath}`;
-      } else {
-        // If it's just a filename, use storage/img/profile/ like profile.jsx does
-        return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
-      }
-    }
-    
-    return null;
-  };
+  const iconColor = isDark ? '#e5e5e5' : '#262626';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
 
   return (
-    <Pressable onPress={onPress} className="mb-4">
-      <View className="bg-light dark:bg-dark rounded-2xl overflow-hidden border border-light/20 dark:border-dark/20 shadow-sm">
-        {/* Header */}
-        <View className="flex-row items-center p-4 pb-3">
-          {(() => {
-            const profileImageUrl = getAvatarUrl();
-            
-            console.log('[FeedItem] Profile image URL:', profileImageUrl, 'for user:', item.user?.name, 'avatar:', item.user?.avatar, 'image:', item.user?.image);
-            
-            return profileImageUrl ? (
-              <Image
-                source={{ uri: profileImageUrl }}
-                className="w-14 h-14 rounded-full mr-3 border-2 border-alpha/30"
-                defaultSource={require('@/assets/images/icon.png')}
-                onError={(error) => {
-                  console.log('[FeedItem] Error loading profile image:', profileImageUrl, error);
-                }}
-                onLoad={() => {
-                  console.log('[FeedItem] Profile image loaded successfully:', profileImageUrl);
-                }}
-              />
-            ) : (
-              <View className="w-14 h-14 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center border-2 border-beta/30">
-                <Ionicons 
-                  name={getTypeIcon(item.type)} 
-                  size={24} 
-                  color={getTypeColor(item.type)} 
+    <View
+      className="bg-light dark:bg-dark"
+      style={{ borderBottomWidth: 0.5, borderBottomColor: isDark ? '#2a2a2a' : '#e0e0e0' }}
+    >
+      {/* ── Repost banner ── */}
+      {item.reposted ? (
+        <View className="flex-row items-center px-4 pt-3 pb-1">
+          <Ionicons name="repeat" size={14} color={mutedColor} />
+          <Text style={{ color: mutedColor }} className="text-xs ml-1 font-semibold">
+            {item.reposted_by || 'Someone'} reposted
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Header ── */}
+      <View className="flex-row items-center px-3 py-3">
+        <Pressable onPress={onPress} className="flex-row items-center flex-1 active:opacity-80">
+          {/* Avatar with gold ring */}
+          <View
+            style={{
+              width: 42, height: 42, borderRadius: 21,
+              padding: 2,
+              backgroundColor: '#ffc801',
+              marginRight: 10,
+            }}
+          >
+            <View
+              style={{
+                flex: 1, borderRadius: 19,
+                backgroundColor: isDark ? '#171717' : '#fafafa',
+                padding: 1.5,
+              }}
+            >
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  defaultSource={require('@/assets/images/icon.png')}
+                  style={{ width: '100%', height: '100%', borderRadius: 18 }}
                 />
-              </View>
-            );
-          })()}
-          <View className="flex-1">
-            <View className="flex-row items-center">
-              <Text className="font-bold text-base text-black dark:text-white">
-                {item.user?.name || 'System'}
-              </Text>
-              {item.badge && (
-                <View 
-                  className="ml-2 px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: item.badgeColor || '#ef4444' }}
+              ) : (
+                <View
+                  style={{ flex: 1, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+                  className="bg-beta/10 dark:bg-beta/40"
                 >
-                  <Text className="text-xs font-bold text-white">{item.badge}</Text>
+                  <Text className="text-sm font-extrabold text-black/70 dark:text-white/70">
+                    {displayName.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
               )}
             </View>
-            <View className="flex-row items-center mt-0.5">
-              <Ionicons 
-                name={getTypeIcon(item.type)} 
-                size={12} 
-                color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
-              />
-              <Text className="text-xs text-black/60 dark:text-white/60 ml-1">
-                {formatTime(item.created_at)}
-              </Text>
-            </View>
           </View>
-          <TouchableOpacity>
-            <Ionicons name="ellipsis-horizontal" size={22} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+
+          {/* Name + time */}
+          <View className="flex-1">
+            <Text className="font-bold text-[14px] text-black dark:text-white" numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={{ color: mutedColor }} className="text-[11px]">
+              {formatTime(item.created_at)}
+            </Text>
+          </View>
+        </Pressable>
+
+        {/* Follow button (icon-only) */}
+        <TouchableOpacity
+          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Media (edge-to-edge) ── */}
+      {mediaUrl ? (
+        <Image
+          source={{ uri: mediaUrl }}
+          style={{ width: '100%', aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
+          resizeMode="cover"
+        />
+      ) : null}
+
+      {/* ── Caption (above image if no media) ── */}
+      {!mediaUrl && caption ? (
+        <View className="px-4 pb-3">
+          <Text className="text-[14px] leading-[22px] text-black dark:text-white">
+            <Text className="font-extrabold">{displayName} </Text>
+            {caption}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Action bar ── */}
+      <View className="px-3 pt-2 pb-1">
+        <View className="flex-row items-center justify-between">
+          {/* Left actions */}
+          <View className="flex-row items-center" style={{ gap: 16 }}>
+            {/* Like */}
+            <TouchableOpacity onPress={handleLike} className="active:opacity-60">
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={26}
+                color={liked ? '#e0245e' : iconColor}
+              />
+            </TouchableOpacity>
+
+            {/* Comment */}
+            <TouchableOpacity className="active:opacity-60">
+              <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
+            </TouchableOpacity>
+
+            {/* Repost / Send */}
+            <TouchableOpacity
+              onPress={() => { if (item.onRepost) item.onRepost(item); }}
+              className="active:opacity-60"
+            >
+              <Ionicons
+                name={item.isReposted ? 'repeat' : 'paper-plane-outline'}
+                size={24}
+                color={item.isReposted ? '#ffc801' : iconColor}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Right: Bookmark */}
+          <TouchableOpacity onPress={() => setSaved(p => !p)} className="active:opacity-60">
+            <Ionicons
+              name={saved ? 'bookmark' : 'bookmark-outline'}
+              size={24}
+              color={saved ? '#ffc801' : iconColor}
+            />
           </TouchableOpacity>
         </View>
-
-        {/* Content - Post Image */}
-        {item.postImage && (() => {
-          // postImage should already be a full URL from normalization
-          const postImageUrl = item.postImage;
-          console.log('[FeedItem] Post image URL:', postImageUrl, 'for post:', item.id);
-          
-          return (
-            <Image
-              source={{ uri: postImageUrl }}
-              className="w-full h-64"
-              resizeMode="cover"
-              onError={(error) => {
-                console.log('[FeedItem] Error loading post image:', postImageUrl, error);
-              }}
-              onLoad={() => {
-                console.log('[FeedItem] Post image loaded successfully:', postImageUrl);
-              }}
-            />
-          );
-        })()}
-        
-        <View className="p-4 pt-3">
-          <Text className="text-lg font-bold text-black dark:text-white mb-2">
-            {item.title || 'New activity'}
-          </Text>
-          <Text className="text-sm text-black/80 dark:text-white/80 leading-6 mb-3" numberOfLines={3}>
-            {item.description || 'No description available'}
-          </Text>
-
-          {/* Repost Indicator */}
-          {item.reposted && (
-            <View className="flex-row items-center px-3 py-2 bg-alpha/10 dark:bg-alpha/20 rounded-xl mb-3 border border-alpha/20">
-              <Ionicons name="repeat" size={16} color="#ffc801" />
-              <Text className="text-xs text-black/70 dark:text-white/70 ml-2 font-medium">
-                Reposted by {item.reposted_by || 'someone'}
-              </Text>
-            </View>
-          )}
-
-          {/* Footer - Like, Comment, Repost, Share */}
-          <View className="flex-row items-center justify-between pt-3 border-t border-light/20 dark:border-dark/20">
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80 hover:bg-light/50 dark:hover:bg-dark/50">
-              <Ionicons name="heart-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-              <Text className="text-sm font-semibold text-black dark:text-white ml-2">
-                {item.likes || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80 hover:bg-light/50 dark:hover:bg-dark/50">
-              <Ionicons name="chatbubble-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-              <Text className="text-sm font-semibold text-black dark:text-white ml-2">
-                {item.comments || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => {
-                if (item.onRepost) {
-                  item.onRepost(item);
-                }
-              }}
-              className={`flex-row items-center px-4 py-2 rounded-xl active:opacity-80 ${item.isReposted ? 'bg-alpha/20' : ''}`}
-            >
-              <Ionicons 
-                name={item.isReposted ? "repeat" : "repeat-outline"} 
-                size={22} 
-                color={item.isReposted ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)')} 
-              />
-              <Text className={`text-sm font-semibold ml-2 ${item.isReposted ? 'text-alpha' : 'text-black dark:text-white'}`}>
-                {item.reposts || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80">
-              <Ionicons name="share-social-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
-    </Pressable>
+
+      {/* ── Like count ── */}
+      {likeCount > 0 ? (
+        <View className="px-4 pb-1">
+          <Text className="font-extrabold text-[13px] text-black dark:text-white">
+            {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Caption (below image when media exists) ── */}
+      {mediaUrl && caption ? (
+        <View className="px-4 pb-1">
+          <Text className="text-[13px] leading-[20px] text-black dark:text-white" numberOfLines={3}>
+            <Text className="font-extrabold">{displayName} </Text>
+            {caption}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Comments + reposts info ── */}
+      {(commentCount > 0 || repostCount > 0) ? (
+        <Pressable className="px-4 pb-1 active:opacity-60">
+          <Text style={{ color: mutedColor }} className="text-[12px]">
+            {commentCount > 0 ? `View all ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}
+            {commentCount > 0 && repostCount > 0 ? '  •  ' : ''}
+            {repostCount > 0 ? `${repostCount} repost${repostCount > 1 ? 's' : ''}` : ''}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {/* ── Bottom spacing ── */}
+      <View className="pb-3" />
+    </View>
   );
 }
