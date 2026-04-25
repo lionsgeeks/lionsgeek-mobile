@@ -304,7 +304,10 @@ export default function FeedItem({ item, onPress }) {
         postId={item.id}
         postAuthorName={displayName}
         onClose={() => setShowComments(false)}
-        onCommentAdded={() => setCommentCount(c => c + 1)}
+        onCommentCountChange={(delta) => {
+          if (typeof delta !== 'number' || Number.isNaN(delta)) return;
+          setCommentCount((c) => Math.max(0, c + delta));
+        }}
       />
     </View>
   );

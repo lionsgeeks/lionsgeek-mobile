@@ -214,7 +214,7 @@ function CommentRow({
 
 // ─── CommentsModal ────────────────────────────────────────────────────────────
 
-export default function CommentsModal({ visible, postId, onClose, onCommentAdded }) {
+export default function CommentsModal({ visible, postId, onClose, onCommentCountChange }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -297,14 +297,17 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
     if (!menuComment) return;
     const commentId = menuComment.id;
     const parentId = menuComment.parent_id ?? null;
+    const deletedCount = parentId ? 1 : (1 + (menuComment.replies?.length || 0));
     closeMenu();
 
     // Optimistic remove
     deleteFromState(commentId, parentId);
+    if (onCommentCountChange) onCommentCountChange(-deletedCount);
 
     try {
       await API.remove(`mobile/comments/${commentId}`, token);
     } catch {
+      if (onCommentCountChange) onCommentCountChange(deletedCount);
       // Re-fetch on failure to restore correct state
       fetchComments();
     }
@@ -409,7 +412,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentAdded
         } else {
           setComments(prev => prev.map(c => c.id === tempId ? saved : c));
         }
-        if (onCommentAdded) onCommentAdded();
+        if (onCommentCountChange) onCommentCountChange(1);
       }
     } catch {
       // Revert
