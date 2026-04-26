@@ -225,7 +225,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, o
                     {searchQuery.trim() && !isSearchingUsers && searchResults.length === 0 && filteredConversations.length === 0 && (
                         <View className="mt-2 px-2 py-3">
                             <Text className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                                No users found. Make sure you're following them first.
+                                No users found. Make sure you are following them first.
                             </Text>
                         </View>
                     )}

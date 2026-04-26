@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,7 +9,6 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { router } from 'expo-router';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -46,7 +45,6 @@ export default function TabLayout() {
   const { user } = useAppContext();
   const userRoles = user?.roles || [];
   const isAdmin = userRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
-  const isStudent = userRoles.some(r => r?.toLowerCase?.() === 'student') || (!isAdmin && userRoles.length === 0);
 
   // Map SF Symbols icon names to Ionicons names for cross-platform support
   const getIconName = (sfSymbolName, focused = false) => {

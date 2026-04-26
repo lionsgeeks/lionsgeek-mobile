@@ -9,7 +9,7 @@ import API from '@/api';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationsScreen() {
-  const { user, token } = useAppContext();
+  const { token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
@@ -184,7 +184,7 @@ export default function NotificationsScreen() {
   };
 
   // Enhanced notifications with more types (fallback - not used anymore, kept for reference)
-  const fallbackNotifications = [
+  const _fallbackNotifications = [
     {
       id: 1,
       type: 'achievement',
@@ -250,6 +250,7 @@ export default function NotificationsScreen() {
       color: '#8b5cf6',
     },
   ];
+  void _fallbackNotifications;
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -472,7 +473,7 @@ export default function NotificationsScreen() {
                   No notifications yet
                 </Text>
                 <Text className="text-center text-black/40 dark:text-white/40 mt-2 text-sm">
-                  You're all caught up!
+                  You are all caught up!
                 </Text>
               </View>
             ) : (

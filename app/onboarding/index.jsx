@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as MediaLibrary from 'expo-media-library';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Home as LogoIcon } from '@/components/logo';
 import API from '@/api';
 

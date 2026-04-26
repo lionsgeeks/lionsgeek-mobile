@@ -1,221 +1,495 @@
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Dimensions, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
 import API from '@/api';
+import CommentsModal from '@/components/feed/CommentsModal';
+import LikesModal from '@/components/feed/LikesModal';
+import { router } from 'expo-router';
+
+const CAPTION_PREVIEW_LENGTH = 60;
+
+function resolveAvatarUrl(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  if (value.includes('storage/')) {
+    const cleanPath = value.startsWith('/') ? value : `/${value}`;
+    return `${API.APP_URL}${cleanPath}`;
+  }
+  return `${API.APP_URL}/storage/img/profile/${value}`;
+}
+
+function formatTime(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  if (weeks > 4) return date.toLocaleDateString();
+  if (weeks > 0) return `${weeks}w`;
+  if (days > 0) return `${days}d`;
+  if (hours > 0) return `${hours}h`;
+  if (mins > 0) return `${mins}m`;
+  return 'just now';
+}
+
+/**
+ * Renders a fully-tappable caption block.
+ * - Short captions (≤ CAPTION_PREVIEW_LENGTH chars) → plain text, no toggle.
+ * - Long captions → shows preview + "... see more" / full text + " see less".
+ * - Tapping anywhere on the text block toggles expanded state.
+ */
+function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!text) return null;
+
+  const isLong = text.length > CAPTION_PREVIEW_LENGTH;
+
+  const displayedText = isLong && !expanded
+    ? text.slice(0, CAPTION_PREVIEW_LENGTH).trimEnd()
+    : text;
+
+  return (
+    <Pressable onPress={() => isLong && setExpanded(p => !p)} className="active:opacity-75">
+      <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
+        <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
+        {displayedText}
+        {isLong && !expanded ? (
+          <Text style={{ color: mutedColor, fontWeight: '700' }}>{'... '}
+            <Text style={{ color: mutedColor, fontWeight: '700' }}>see more</Text>
+          </Text>
+        ) : null}
+        {isLong && expanded ? (
+          <Text style={{ color: mutedColor, fontWeight: '700' }}> see less</Text>
+        ) : null}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function FeedItem({ item, onPress }) {
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [liked, setLiked] = useState(Boolean(item.is_liked_by_user));
+  const [likeCount, setLikeCount] = useState(item.likes || 0);
+  const [saved, setSaved] = useState(false);
+  const [commentCount, setCommentCount] = useState(item.comments || 0);
+  const [showComments, setShowComments] = useState(false);
+  const [showLikes, setShowLikes] = useState(false);
+  const [showPostMenu, setShowPostMenu] = useState(false);
 
-  const formatTime = (dateString) => {
-    if (!dateString) return 'Just now';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now - date;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-    
-    if (days > 7) return date.toLocaleDateString();
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    const mins = Math.floor(diff / (1000 * 60));
-    if (mins > 0) return `${mins}m ago`;
-    return 'Just now';
-  };
+  const avatarUrl = resolveAvatarUrl(
+    item.user?.avatar || item.userAvatar || item.user?.image
+  );
+  const mediaUrls = useMemo(() => {
+    if (Array.isArray(item.images) && item.images.length > 0) return item.images.filter(Boolean);
+    if (item.postImage) return [item.postImage];
+    return [];
+  }, [item.images, item.postImage]);
+  const hasMedia = mediaUrls.length > 0;
+  const isCarousel = mediaUrls.length > 1;
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'project':
-        return 'folder-outline';
-      case 'reservation':
-        return 'calendar-outline';
-      case 'achievement':
-        return 'trophy';
-      default:
-        return 'document-outline';
-    }
-  };
+  const screenWidth = Dimensions.get('window').width;
+  const displayName = item.user?.name || 'Unknown';
+  const caption = item.description || item.content || '';
+  const repostCount = item.reposts || 0;
+  const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'project':
-        return '#f59e0b';
-      case 'reservation':
-        return '#10b981';
-      case 'achievement':
-        return '#ffc801';
-      default:
-        return isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
-    }
-  };
+  const handleLike = async () => {
+    // Optimistic update — flip immediately so UI feels instant
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount(c => wasLiked ? c - 1 : c + 1);
 
-  // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
-  const getAvatarUrl = () => {
-    const avatar = item.user?.avatar || item.userAvatar;
-    const image = item.user?.image;
-    
-    // First try avatar (might be full URL from API)
-    const avatarValue = avatar || image;
-    
-    if (!avatarValue) return null;
-    
-    // If it's already a full URL, return it
-    if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
-      return avatarValue;
-    }
-    
-    if (typeof avatarValue === 'string') {
-      // Check if it already includes storage path
-      if (avatarValue.includes('storage/')) {
-        const cleanPath = avatarValue.startsWith('/') ? avatarValue : `/${avatarValue}`;
-        return `${API.APP_URL}${cleanPath}`;
-      } else {
-        // If it's just a filename, use storage/img/profile/ like profile.jsx does
-        return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
+    try {
+      const response = await API.post(`mobile/posts/like/${item.id}`, {}, token);
+      // Sync with server truth
+      if (response?.data) {
+        setLiked(response.data.liked);
+        setLikeCount(response.data.likes_count);
       }
+    } catch {
+      // Revert optimistic update on failure
+      setLiked(wasLiked);
+      setLikeCount(c => wasLiked ? c + 1 : c - 1);
     }
-    
-    return null;
+  };
+
+  const iconColor = isDark ? '#e5e5e5' : '#262626';
+  const textColor = isDark ? '#f5f5f5' : '#111111';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
+
+  const handleDeletePost = () => {
+    setShowPostMenu(false);
+    Alert.alert(
+      'Delete post?',
+      'This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await API.remove(`mobile/posts/${item.id}`, token);
+              if (typeof item.onPostDeleted === 'function') {
+                item.onPostDeleted(item.id);
+              }
+            } catch (_error) {
+              Alert.alert('Error', 'Failed to delete the post. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleEditPost = () => {
+    setShowPostMenu(false);
+    router.push(`/posts/edit/${item.id}`);
   };
 
   return (
-    <Pressable onPress={onPress} className="mb-4">
-      <View className="bg-light dark:bg-dark rounded-2xl overflow-hidden border border-light/20 dark:border-dark/20 shadow-sm">
-        {/* Header */}
-        <View className="flex-row items-center p-4 pb-3">
-          {(() => {
-            const profileImageUrl = getAvatarUrl();
-            
-            console.log('[FeedItem] Profile image URL:', profileImageUrl, 'for user:', item.user?.name, 'avatar:', item.user?.avatar, 'image:', item.user?.image);
-            
-            return profileImageUrl ? (
-              <Image
-                source={{ uri: profileImageUrl }}
-                className="w-14 h-14 rounded-full mr-3 border-2 border-alpha/30"
-                defaultSource={require('@/assets/images/icon.png')}
-                onError={(error) => {
-                  console.log('[FeedItem] Error loading profile image:', profileImageUrl, error);
-                }}
-                onLoad={() => {
-                  console.log('[FeedItem] Profile image loaded successfully:', profileImageUrl);
-                }}
-              />
-            ) : (
-              <View className="w-14 h-14 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center border-2 border-beta/30">
-                <Ionicons 
-                  name={getTypeIcon(item.type)} 
-                  size={24} 
-                  color={getTypeColor(item.type)} 
+    <View
+      style={{
+        backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+        marginBottom: 8,
+        // Subtle top/bottom border for the card edge
+        borderTopWidth: 0.5,
+        borderBottomWidth: 0.5,
+        borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+      }}
+    >
+      {/* ── Repost banner ── */}
+      {item.reposted ? (
+        <View className="flex-row items-center px-4 pt-3 pb-1">
+          <Ionicons name="repeat" size={14} color={mutedColor} />
+          <Text style={{ color: mutedColor }} className="text-xs ml-1 font-semibold">
+            {item.reposted_by || 'Someone'} reposted
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Header ── */}
+      <View className="flex-row items-center px-3 py-3">
+        <Pressable onPress={onPress} className="flex-row items-center flex-1 active:opacity-80">
+          {/* Avatar with gold ring */}
+          <View
+            style={{
+              width: 42, height: 42, borderRadius: 21,
+              padding: 2,
+              backgroundColor: '#ffc801',
+              marginRight: 10,
+            }}
+          >
+            <View
+              style={{
+                flex: 1, borderRadius: 19,
+                backgroundColor: isDark ? '#171717' : '#fafafa',
+                padding: 1.5,
+              }}
+            >
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  defaultSource={require('@/assets/images/icon.png')}
+                  style={{ width: '100%', height: '100%', borderRadius: 18 }}
                 />
-              </View>
-            );
-          })()}
-          <View className="flex-1">
-            <View className="flex-row items-center">
-              <Text className="font-bold text-base text-black dark:text-white">
-                {item.user?.name || 'System'}
-              </Text>
-              {item.badge && (
-                <View 
-                  className="ml-2 px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: item.badgeColor || '#ef4444' }}
+              ) : (
+                <View
+                  style={{ flex: 1, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+                  className="bg-beta/10 dark:bg-beta/40"
                 >
-                  <Text className="text-xs font-bold text-white">{item.badge}</Text>
+                  <Text className="text-sm font-extrabold text-black/70 dark:text-white/70">
+                    {displayName.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
               )}
             </View>
-            <View className="flex-row items-center mt-0.5">
-              <Ionicons 
-                name={getTypeIcon(item.type)} 
-                size={12} 
-                color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
-              />
-              <Text className="text-xs text-black/60 dark:text-white/60 ml-1">
-                {formatTime(item.created_at)}
-              </Text>
-            </View>
           </View>
-          <TouchableOpacity>
-            <Ionicons name="ellipsis-horizontal" size={22} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+
+          {/* Name + time */}
+          <View className="flex-1">
+            <Text className="font-bold text-[14px] text-black dark:text-white" numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={{ color: mutedColor }} className="text-[11px]">
+              {formatTime(item.created_at)}
+            </Text>
+          </View>
+        </Pressable>
+
+        {isOwner ? (
+          <TouchableOpacity
+            onPress={() => setShowPostMenu(true)}
+            className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
+          </TouchableOpacity>
+        ) : (
+          <View className="h-8 w-8" />
+        )}
+      </View>
+
+      {/* ── Caption above image (text-only posts) ── */}
+      {!hasMedia && caption ? (
+        <View className="px-4 pb-3">
+          <Caption
+            name={displayName}
+            text={caption}
+            textSize={14}
+            lineHeight={22}
+            textColor={textColor}
+            mutedColor={mutedColor}
+          />
+        </View>
+      ) : null}
+
+      {/* ── Media (edge-to-edge) ── */}
+      {hasMedia ? (
+        <View style={{ width: '100%', backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}>
+          {isCarousel ? (
+            <View>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={(e) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  const nextIndex = Math.round(x / screenWidth);
+                  if (nextIndex !== carouselIndex) setCarouselIndex(nextIndex);
+                }}
+                scrollEventThrottle={16}
+              >
+                {mediaUrls.map((uri, idx) => (
+                  <Image
+                    key={`${uri}-${idx}`}
+                    source={{ uri }}
+                    style={{ width: screenWidth, aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+
+              {/* Counter (top-right) */}
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  backgroundColor: 'rgba(0,0,0,0.55)',
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>
+                  {carouselIndex + 1}/{mediaUrls.length}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: mediaUrls[0] }}
+              style={{ width: '100%', aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+      ) : null}
+
+      {/* Carousel dots (between media and actions) */}
+      {isCarousel ? (
+        <View
+          style={{
+            paddingTop: 10,
+            paddingBottom: 6,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {mediaUrls.map((_, idx) => {
+            const active = idx === carouselIndex;
+            return (
+              <View
+                key={idx}
+                style={{
+                  width: active ? 7 : 6,
+                  height: active ? 7 : 6,
+                  borderRadius: 10,
+                  backgroundColor: active ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)'),
+                }}
+              />
+            );
+          })}
+        </View>
+      ) : null}
+
+      {/* ── Action bar ── */}
+      <View className="px-3 pb-1">
+        {/* <View
+          style={{
+            height: 0.5,
+            backgroundColor: isDark ? '#2e2e2e' : '#ddd8d0',
+            marginBottom: 8,
+          }}
+        /> */}
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center" style={{ gap: 16 }}>
+            <TouchableOpacity
+              onPress={handleLike}
+              style={{
+                width: 40, height: 40,
+                borderRadius: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
+              }}
+            >
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={26}
+                color={liked ? '#ffc801' : iconColor}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
+              <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => { if (item.onRepost) item.onRepost(item); }}
+              className="active:opacity-60"
+            >
+              <Ionicons
+                name={item.isReposted ? 'repeat' : 'paper-plane-outline'}
+                size={24}
+                color={item.isReposted ? '#ffc801' : iconColor}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity onPress={() => setSaved(p => !p)} className="active:opacity-60">
+            <Ionicons
+              name={saved ? 'bookmark' : 'bookmark-outline'}
+              size={24}
+              color={saved ? '#ffc801' : iconColor}
+            />
           </TouchableOpacity>
         </View>
-
-        {/* Content - Post Image */}
-        {item.postImage && (() => {
-          // postImage should already be a full URL from normalization
-          const postImageUrl = item.postImage;
-          console.log('[FeedItem] Post image URL:', postImageUrl, 'for post:', item.id);
-          
-          return (
-            <Image
-              source={{ uri: postImageUrl }}
-              className="w-full h-64"
-              resizeMode="cover"
-              onError={(error) => {
-                console.log('[FeedItem] Error loading post image:', postImageUrl, error);
-              }}
-              onLoad={() => {
-                console.log('[FeedItem] Post image loaded successfully:', postImageUrl);
-              }}
-            />
-          );
-        })()}
-        
-        <View className="p-4 pt-3">
-          <Text className="text-lg font-bold text-black dark:text-white mb-2">
-            {item.title || 'New activity'}
-          </Text>
-          <Text className="text-sm text-black/80 dark:text-white/80 leading-6 mb-3" numberOfLines={3}>
-            {item.description || 'No description available'}
-          </Text>
-
-          {/* Repost Indicator */}
-          {item.reposted && (
-            <View className="flex-row items-center px-3 py-2 bg-alpha/10 dark:bg-alpha/20 rounded-xl mb-3 border border-alpha/20">
-              <Ionicons name="repeat" size={16} color="#ffc801" />
-              <Text className="text-xs text-black/70 dark:text-white/70 ml-2 font-medium">
-                Reposted by {item.reposted_by || 'someone'}
-              </Text>
-            </View>
-          )}
-
-          {/* Footer - Like, Comment, Repost, Share */}
-          <View className="flex-row items-center justify-between pt-3 border-t border-light/20 dark:border-dark/20">
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80 hover:bg-light/50 dark:hover:bg-dark/50">
-              <Ionicons name="heart-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-              <Text className="text-sm font-semibold text-black dark:text-white ml-2">
-                {item.likes || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80 hover:bg-light/50 dark:hover:bg-dark/50">
-              <Ionicons name="chatbubble-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-              <Text className="text-sm font-semibold text-black dark:text-white ml-2">
-                {item.comments || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => {
-                if (item.onRepost) {
-                  item.onRepost(item);
-                }
-              }}
-              className={`flex-row items-center px-4 py-2 rounded-xl active:opacity-80 ${item.isReposted ? 'bg-alpha/20' : ''}`}
-            >
-              <Ionicons 
-                name={item.isReposted ? "repeat" : "repeat-outline"} 
-                size={22} 
-                color={item.isReposted ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)')} 
-              />
-              <Text className={`text-sm font-semibold ml-2 ${item.isReposted ? 'text-alpha' : 'text-black dark:text-white'}`}>
-                {item.reposts || 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center px-4 py-2 rounded-xl active:opacity-80">
-              <Ionicons name="share-social-outline" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'} />
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
-    </Pressable>
+
+      {/* ── Like count ── */}
+      {likeCount > 0 ? (
+        <Pressable onPress={() => setShowLikes(true)} className="px-4 pb-1 active:opacity-60">
+          <Text className="font-extrabold text-[13px] text-black dark:text-white">
+            {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {/* ── Caption below image (media posts) ── */}
+      {hasMedia && caption ? (
+        <View className="px-4 pb-1">
+          <Caption
+            name={displayName}
+            text={caption}
+            textSize={13}
+            lineHeight={20}
+            textColor={textColor}
+            mutedColor={mutedColor}
+          />
+        </View>
+      ) : null}
+
+      {/* ── Comments + reposts info ── */}
+      {(commentCount > 0 || repostCount > 0) ? (
+        <Pressable onPress={() => setShowComments(true)} className="px-4 pb-1 active:opacity-60">
+          <Text style={{ color: mutedColor }} className="text-[12px]">
+            {commentCount > 0 ? `View all ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}
+            {commentCount > 0 && repostCount > 0 ? '  •  ' : ''}
+            {repostCount > 0 ? `${repostCount} repost${repostCount > 1 ? 's' : ''}` : ''}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      <View className="pb-3" />
+
+      {/* ── Comments modal ── */}
+      <CommentsModal
+        visible={showComments}
+        postId={item.id}
+        postAuthorName={displayName}
+        onClose={() => setShowComments(false)}
+        onCommentCountChange={(change) => {
+          // change can be a delta number OR { set: number } for server-truth sync
+          if (typeof change === 'number') {
+            if (Number.isNaN(change)) return;
+            setCommentCount((c) => Math.max(0, c + change));
+            return;
+          }
+          if (change && typeof change === 'object' && typeof change.set === 'number') {
+            setCommentCount(Math.max(0, change.set));
+          }
+        }}
+      />
+
+      <LikesModal
+        visible={showLikes}
+        postId={item.id}
+        onClose={() => setShowLikes(false)}
+      />
+
+      {/* Post menu (owner-only) */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showPostMenu}
+        onRequestClose={() => setShowPostMenu(false)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowPostMenu(false)} />
+        <View
+          style={{
+            position: 'absolute',
+            left: 12,
+            right: 12,
+            bottom: 24,
+            backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+            borderRadius: 16,
+            borderWidth: 0.5,
+            borderColor: isDark ? '#2e2e2e' : '#e8e5e0',
+            overflow: 'hidden',
+          }}
+        >
+          <Pressable
+            onPress={handleEditPost}
+            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Ionicons name="pencil" size={18} color={textColor} />
+            <Text style={{ color: textColor, fontWeight: '800' }}>Edit</Text>
+          </Pressable>
+          <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#e8e5e0' }} />
+          <Pressable
+            onPress={handleDeletePost}
+            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Ionicons name="trash" size={18} color="#ef4444" />
+            <Text style={{ color: '#ef4444', fontWeight: '900' }}>Delete</Text>
+          </Pressable>
+          <View style={{ height: 8, backgroundColor: 'transparent' }} />
+          <Pressable onPress={() => setShowPostMenu(false)} style={{ paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' }}>
+            <Text style={{ color: mutedColor, fontWeight: '800' }}>Cancel</Text>
+          </Pressable>
+        </View>
+      </Modal>
+    </View>
   );
 }

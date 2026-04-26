@@ -10,10 +10,8 @@ export default function VoiceMessage({
     onPlayStateChange 
 }) {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [progress, setProgress] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
     const soundRef = useRef(null);
-    const progressIntervalRef = useRef(null);
 
     // Format time as 0:00:06 (HH:MM:SS or MM:SS)
     const formatTime = (seconds) => {
@@ -41,12 +39,10 @@ export default function VoiceMessage({
                 sound.setOnPlaybackStatusUpdate((status) => {
                     if (status.isLoaded) {
                         setCurrentTime(status.positionMillis / 1000);
-                        setProgress((status.positionMillis / status.durationMillis) * 100);
                         setIsPlaying(status.isPlaying);
                         
                         if (status.didJustFinish) {
                             setIsPlaying(false);
-                            setProgress(0);
                             setCurrentTime(0);
                             if (onPlayStateChange) {
                                 onPlayStateChange(false);
@@ -87,9 +83,6 @@ export default function VoiceMessage({
         return async () => {
             if (soundRef.current) {
                 await soundRef.current.unloadAsync();
-            }
-            if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
             }
         };
     }, []);

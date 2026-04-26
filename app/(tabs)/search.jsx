@@ -247,7 +247,7 @@ export default function SearchScreen() {
                     {item.type === 'user' ? (
                       <>
                         <Image
-                          source={{ uri: `${API.APP_URL}/storage/img/profile/${item.image}` }}
+                          source={{ uri: getImageUrl(item) }}
                           className="w-12 h-12 rounded-full mr-3"
                           defaultSource={require('@/assets/images/icon.png')}
                         />

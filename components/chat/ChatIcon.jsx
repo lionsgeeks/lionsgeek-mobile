@@ -12,7 +12,6 @@ export default function ChatIcon() {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const conversationsListRef = useRef(null);
-    const conversationIdsRef = useRef([]);
 
     useEffect(() => {
         fetchUnreadCount();

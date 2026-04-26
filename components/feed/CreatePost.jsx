@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,46 +11,105 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
   const isDark = colorScheme === 'dark';
   const [showModal, setShowModal] = useState(false);
   const [postContent, setPostContent] = useState('');
+  const [newImages, setNewImages] = useState([]); // { uri, name, type }
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState('post'); // post, video, photo, article
+  const keyboardVerticalOffset = useMemo(() => (Platform.OS === 'ios' ? 0 : 24), []);
+
+  let ImagePicker = null;
+  try {
+    ImagePicker = require('expo-image-picker');
+  } catch {
+    // optional
+  }
 
   const handleCreatePost = () => {
     setShowModal(true);
   };
 
-    const handlePost = async () => {
-        if (!postContent.trim()) {
-            Alert.alert('Error', 'Please enter some content for your post');
-            return;
-        }
+  const pickImages = async () => {
+    if (!ImagePicker) {
+      Alert.alert('Not Available', 'This feature requires expo-image-picker.');
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow photo library access to pick images.');
+        return;
+      }
 
-        if (!token) {
-            Alert.alert('Error', 'Authentication required');
-            return;
-        }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.85,
+      });
 
-        setLoading(true);
-        try {
-            const response = await API.post('mobile/posts', {
-                content: postContent,
-                type: selectedType,
-            }, token);
+      if (!result.canceled && result.assets?.length) {
+        const picked = result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.fileName || asset.uri.split('/').pop() || 'photo.jpg',
+          type: asset.mimeType || 'image/jpeg',
+        }));
+        setNewImages((prev) => [...prev, ...picked].slice(0, 16));
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to pick images.');
+    }
+  };
 
-            if (response?.data) {
-                Alert.alert('Success', 'Post created successfully!');
-                setPostContent('');
-                setShowModal(false);
-                if (onPostCreated) {
-                    onPostCreated(response.data.post);
-                }
-            }
-        } catch (error) {
-            console.error('[CREATE_POST] Error:', error);
-            Alert.alert('Error', error?.response?.data?.message || 'Failed to create post. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const removeNewImageAt = (index) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePost = async () => {
+    const text = postContent.trim();
+    const hasImages = newImages.length > 0;
+
+    if (!text && !hasImages) {
+      Alert.alert('Error', 'Please add a description or at least one image.');
+      return;
+    }
+
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const form = new FormData();
+      form.append('description', text);
+      newImages.forEach((img) => {
+        form.append('images[]', {
+          uri: img.uri,
+          name: img.name,
+          type: img.type,
+        });
+      });
+
+      const response = await API.post('mobile/posts', form, token);
+
+      if (response?.data?.post) {
+        Alert.alert('Success', 'Post created successfully!');
+        setPostContent('');
+        setNewImages([]);
+        setShowModal(false);
+        setSelectedType('post');
+        if (onPostCreated) onPostCreated(response.data.post);
+      }
+    } catch (error) {
+      const data = error?.response?.data;
+      const msg =
+        (data && typeof data === 'object' && (data.message || data.error)) ||
+        (typeof data === 'string' ? data : null) ||
+        error?.message ||
+        'Failed to create post. Please try again.';
+      Alert.alert('Error', String(msg));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Helper function to get avatar URL - always use /storage/img/profile/
   const getImageUrl = () => {
@@ -101,75 +160,71 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
 
   return (
     <>
-      <View className="bg-light dark:bg-dark rounded-xl p-4 mb-4 border border-light/20 dark:border-dark/20 shadow-sm">
-        <View className="flex-row items-center mb-3">
-          {(() => {
-            const profileImageUrl = getImageUrl();
-            
-            console.log('[CreatePost] Profile image URL:', profileImageUrl, 'for user:', user?.name, 'avatar:', user?.avatar, 'image:', user?.image);
-            
-            return profileImageUrl ? (
-              <Image
-                source={{ uri: profileImageUrl }}
-                className="w-10 h-10 rounded-full mr-3 border-2 border-alpha/30"
-                defaultSource={require('@/assets/images/icon.png')}
-                onError={(error) => {
-                  console.log('[CreatePost] Error loading profile image:', profileImageUrl, error);
-                }}
-                onLoad={() => {
-                  console.log('[CreatePost] Profile image loaded successfully:', profileImageUrl);
-                }}
-              />
-            ) : (
-              <View className="w-10 h-10 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center">
-                <Text className="text-xs font-bold text-black/60 dark:text-white/60">
-                  {(user?.name || 'U').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            );
-          })()}
-          <TouchableOpacity 
-            onPress={handleCreatePost}
-            className="flex-1 bg-light/50 dark:bg-dark/50 rounded-full px-4 py-3 border border-light/30 dark:border-dark/30 active:opacity-80"
-          >
-            <Text className="text-black/60 dark:text-white/60">
-              Start a post
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {/* Composer row */}
+      <View className="flex-row items-center" style={{ gap: 10 }}>
+        {(() => {
+          const profileImageUrl = getImageUrl();
+          return profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              className="w-9 h-9 rounded-full"
+              style={{ borderWidth: 1.5, borderColor: '#ffc801' }}
+              defaultSource={require('@/assets/images/icon.png')}
+            />
+          ) : (
+            <View
+              className="w-9 h-9 rounded-full bg-beta/10 dark:bg-beta/40 items-center justify-center"
+              style={{ borderWidth: 1.5, borderColor: '#ffc801' }}
+            >
+              <Text className="text-xs font-extrabold text-black/60 dark:text-white/60">
+                {(user?.name || 'U').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          );
+        })()}
 
-        <View className="flex-row items-center justify-around pt-3 border-t border-light/20 dark:border-dark/20">
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('video');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="videocam-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Video</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('photo');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="image-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Photo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => {
-              setSelectedType('article');
-              handleCreatePost();
-            }}
-            className="flex-row items-center flex-1 justify-center py-2 active:opacity-80"
-          >
-            <Ionicons name="document-text-outline" size={22} color={isDark ? '#fff' : '#000'} />
-            <Text className="text-sm text-black/70 dark:text-white/70 ml-2 font-medium">Article</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={handleCreatePost}
+          className="flex-1 py-2 px-4 rounded-full active:opacity-70"
+          style={{
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)',
+          }}
+        >
+          <Text style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', fontWeight: '500' }}>
+            What are you thinking about?
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick-action row */}
+      <View
+        className="flex-row items-center mt-3 pt-3"
+        style={{ borderTopWidth: 0.5, borderTopColor: isDark ? '#2a2a2a' : '#e0e0e0', gap: 4 }}
+      >
+        <TouchableOpacity
+          onPress={() => { setSelectedType('photo'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="image-outline" size={20} color="#43b581" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Photo</Text>
+        </TouchableOpacity>
+
+        {/* <TouchableOpacity
+          onPress={() => { setSelectedType('video'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="videocam-outline" size={20} color="#5865f2" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Video</Text>
+        </TouchableOpacity> */}
+
+        {/* <TouchableOpacity
+          onPress={() => { setSelectedType('article'); handleCreatePost(); }}
+          className="flex-1 flex-row items-center justify-center py-2 rounded-xl active:opacity-70"
+        >
+          <Ionicons name="document-text-outline" size={20} color="#ffc801" />
+          <Text className="text-xs font-semibold ml-1.5 text-black/70 dark:text-white/70">Article</Text>
+        </TouchableOpacity> */}
       </View>
 
       {/* Create Post Modal - Full Screen */}
@@ -180,46 +235,71 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
         onRequestClose={() => {
           setShowModal(false);
           setPostContent('');
+          setNewImages([]);
           setSelectedType('post');
         }}
       >
-        <View className="flex-1 bg-light dark:bg-dark">
-          {/* Header */}
-          <View className="pt-12 pb-4 px-6 border-b border-light/20 dark:border-dark/20">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-2xl font-bold text-black dark:text-white">Create Post</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={keyboardVerticalOffset}
+          className="flex-1 bg-light dark:bg-dark"
+        >
+          {/* Header (like edit page) */}
+          <View
+            style={{
+              backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+              borderBottomWidth: 0.5,
+              borderBottomColor: isDark ? '#2e2e2e' : '#ddd8d0',
+            }}
+            className="pt-12 pb-3 px-4"
+          >
+            <View className="flex-row items-center justify-between">
               <TouchableOpacity
                 onPress={() => {
                   setShowModal(false);
                   setPostContent('');
+                  setNewImages([]);
                   setSelectedType('post');
                 }}
                 className="p-2"
               >
-                <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
+                <Ionicons name="chevron-back" size={22} color={isDark ? '#fff' : '#111'} />
               </TouchableOpacity>
+              <Text style={{ color: isDark ? '#fff' : '#111' }} className="text-base font-extrabold">
+                Create post
+              </Text>
+              <Pressable
+                onPress={handlePost}
+                disabled={loading || (!postContent.trim() && newImages.length === 0)}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: (loading || (!postContent.trim() && newImages.length === 0))
+                    ? (isDark ? '#2a2a2a' : '#e5e5e5')
+                    : '#ffc801',
+                }}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+                ) : (
+                  <Text style={{ fontWeight: '900', color: '#000' }}>Post</Text>
+                )}
+              </Pressable>
             </View>
           </View>
 
-          {/* Content */}
-          <View className="flex-1 px-6 pt-6">
+          {/* Content (redesign like edit page) */}
+          <View className="flex-1 px-4 pt-4">
             <View className="flex-row items-center mb-6 pb-4 border-b border-light/20 dark:border-dark/20">
               {(() => {
                 const profileImageUrl = getImageUrl();
-                
-                console.log('[CreatePost] Profile image URL in modal:', profileImageUrl, 'for user:', user?.name, 'avatar:', user?.avatar, 'image:', user?.image);
-                
+
                 return profileImageUrl ? (
                   <Image
                     source={{ uri: profileImageUrl }}
                     className="w-12 h-12 rounded-full mr-3 border-2 border-alpha/30"
                     defaultSource={require('@/assets/images/icon.png')}
-                    onError={(error) => {
-                      console.log('[CreatePost] Error loading profile image in modal:', profileImageUrl, error);
-                    }}
-                    onLoad={() => {
-                      console.log('[CreatePost] Profile image loaded successfully in modal:', profileImageUrl);
-                    }}
                   />
                 ) : (
                   <View className="w-12 h-12 rounded-full mr-3 bg-beta/20 dark:bg-beta/40 items-center justify-center">
@@ -247,69 +327,85 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
             </View>
 
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-              <TextInput
-                className="bg-light/50 dark:bg-dark/50 rounded-xl px-4 py-4 text-black dark:text-white text-base"
-                style={{ minHeight: 300 }}
-                placeholder="What's on your mind?"
-                placeholderTextColor={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                value={postContent}
-                onChangeText={setPostContent}
-                multiline
-                textAlignVertical="top"
-              />
+              {/* Description card */}
+              <View
+                style={{
+                  backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+                  borderRadius: 16,
+                  borderWidth: 0.5,
+                  borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                  padding: 14,
+                }}
+              >
+                <Text style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)', fontWeight: '800', fontSize: 12, marginBottom: 8 }}>
+                  Description
+                </Text>
+                <TextInput
+                  value={postContent}
+                  onChangeText={setPostContent}
+                  placeholder="Write something…"
+                  placeholderTextColor={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)'}
+                  multiline
+                  textAlignVertical="top"
+                  style={{ minHeight: 120, color: isDark ? '#f5f5f5' : '#111111', fontSize: 15, lineHeight: 22 }}
+                />
+              </View>
 
-              <View className="flex-row gap-3 mt-6 mb-4">
-                <Pressable
-                  onPress={() => setSelectedType('post')}
-                  className={`flex-1 py-3 rounded-xl items-center ${
-                    selectedType === 'post' ? 'bg-alpha' : 'bg-light/50 dark:bg-dark/50 border border-light/30 dark:border-dark/30'
-                  } active:opacity-80`}
-                >
-                  <Text className={`font-medium ${selectedType === 'post' ? 'text-black' : 'text-black/60 dark:text-white/60'}`}>
-                    Text Post
+              {/* Images card */}
+              <View
+                style={{
+                  marginTop: 12,
+                  backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+                  borderRadius: 16,
+                  borderWidth: 0.5,
+                  borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                  padding: 14,
+                }}
+              >
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)', fontWeight: '800', fontSize: 12 }}>
+                    Images ({newImages.length}/16)
                   </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setSelectedType('photo')}
-                  className={`flex-1 py-3 rounded-xl items-center ${
-                    selectedType === 'photo' ? 'bg-alpha' : 'bg-light/50 dark:bg-dark/50 border border-light/30 dark:border-dark/30'
-                  } active:opacity-80`}
-                >
-                  <Text className={`font-medium ${selectedType === 'photo' ? 'text-black' : 'text-black/60 dark:text-white/60'}`}>
-                    Photo
+                  <TouchableOpacity onPress={pickImages} className="flex-row items-center">
+                    <Ionicons name="add-circle-outline" size={18} color="#ffc801" />
+                    <Text style={{ color: '#ffc801', fontWeight: '900', marginLeft: 6 }}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {newImages.length > 0 ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                    {newImages.map((img, index) => (
+                      <View
+                        key={`${img.uri}-${index}`}
+                        style={{
+                          width: '31%',
+                          aspectRatio: 1,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          borderWidth: 0.5,
+                          borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                          backgroundColor: isDark ? '#2a2a2a' : '#f3f2ef',
+                        }}
+                      >
+                        <Image source={{ uri: img.uri }} style={{ width: '100%', height: '100%' }} />
+                        <TouchableOpacity
+                          onPress={() => removeNewImageAt(index)}
+                          style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 14, padding: 4 }}
+                        >
+                          <Ionicons name="close" size={14} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)' }}>
+                    No images selected.
                   </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setSelectedType('video')}
-                  className={`flex-1 py-3 rounded-xl items-center ${
-                    selectedType === 'video' ? 'bg-alpha' : 'bg-light/50 dark:bg-dark/50 border border-light/30 dark:border-dark/30'
-                  } active:opacity-80`}
-                >
-                  <Text className={`font-medium ${selectedType === 'video' ? 'text-black' : 'text-black/60 dark:text-white/60'}`}>
-                    Video
-                  </Text>
-                </Pressable>
+                )}
               </View>
             </ScrollView>
-
-            {/* Footer Button */}
-            <View className="pb-6 pt-4 border-t border-light/20 dark:border-dark/20">
-              <Pressable
-                onPress={handlePost}
-                disabled={loading || !postContent.trim()}
-                className={`bg-alpha dark:bg-alpha rounded-xl py-4 items-center ${
-                  loading || !postContent.trim() ? 'opacity-50' : 'active:opacity-80'
-                }`}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text className="text-base font-semibold text-black">Post</Text>
-                )}
-              </Pressable>
-            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

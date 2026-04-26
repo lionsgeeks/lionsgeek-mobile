@@ -93,7 +93,6 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                 const duration = Math.round(status.durationMillis / 1000) || recordingTime;
                 
                 // Create file object for upload
-                const filename = uri.split('/').pop();
                 const fileType = 'audio/m4a'; // iOS/Android default
                 
                 if (shouldSendDirectlyRef.current && onSendAudioDirect) {
@@ -216,13 +215,20 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                             <View className="w-4 h-4 bg-red-500 rounded-full" />
                         </View>
                         
-                        <View className="flex-row items-baseline gap-2">
-                            <Text className="text-lg font-bold text-red-500 tabular-nums">
-                                {formatTime(recordingTime)}
-                            </Text>
-                            <Text className="text-xs font-medium text-red-500/70">
-                                {canSend ? 'Ready to send' : 'Recording...'}
-                            </Text>
+                        <View>
+                            <View className="flex-row items-baseline gap-2">
+                                <Text className="text-lg font-bold text-red-500 tabular-nums">
+                                    {formatTime(recordingTime)}
+                                </Text>
+                                <Text className="text-xs font-medium text-red-500/70">
+                                    {canSend ? 'Ready to send' : 'Recording...'}
+                                </Text>
+                            </View>
+                            {error ? (
+                                <Text className="text-[11px] font-semibold text-red-600 mt-0.5" numberOfLines={1}>
+                                    {error}
+                                </Text>
+                            ) : null}
                         </View>
                         
                         <View className="flex-row items-center gap-1 flex-1 justify-center">
