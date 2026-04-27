@@ -88,8 +88,17 @@ export default function ProfileScreen() {
       <ScrollView className="flex-1 bg-light dark:bg-dark" showsVerticalScrollIndicator={false}>
         {/* LinkedIn-style Header with Cover */}
         <View className="relative">
+          
           {/* Cover Image */}
-          <View className="h-48 bg-alpha/20 dark:bg-alpha/30" />
+          <View className="h-52 bg-alpha/20 dark:bg-alpha/30">
+            {profile?.cover ? (
+              <Image
+                source={{ uri: `${API.APP_URL}/storage/${profile.cover}` }}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+            ) : null}
+          </View>
           
           {/* Profile Header */}
           <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pb-6">
@@ -97,18 +106,19 @@ export default function ProfileScreen() {
               <TouchableOpacity onPress={() => router.back()}>
                 <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
               </TouchableOpacity>
-              <Text className="text-lg font-bold text-black dark:text-white">Profile</Text>
-              <TouchableOpacity>
+              {/* <Text className="text-lg font-bold text-black dark:text-white">Profile</Text> */}
+              {/* <TouchableOpacity>
                 <Ionicons name="ellipsis-horizontal" size={24} color={isDark ? '#fff' : '#000'} />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
 
             {/* Profile Picture and Info */}
             <View className="px-6">
               <View className="items-center mb-4">
                 <View className="relative">
+                  
                   <Image
-                    source={{ uri: getImageUrl() }}
+                    source={{ uri: `${API.APP_URL}/storage/img/profile/${profile.image}` }}
                     className="w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark"
                     defaultSource={require('@/assets/images/icon.png')}
                   />
