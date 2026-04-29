@@ -7,6 +7,8 @@ import API from '@/api';
 import CommentsModal from '@/components/feed/CommentsModal';
 import LikesModal from '@/components/feed/LikesModal';
 import { router } from 'expo-router';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
@@ -71,6 +73,62 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
   );
 }
 
+function PostImage({ uri, width, isDark, onDoubleTap }) {
+  const heartScale = useSharedValue(0.25);
+  const heartOpacity = useSharedValue(0);
+
+  const heartStyle = useAnimatedStyle(() => ({
+    opacity: heartOpacity.value,
+    transform: [{ scale: heartScale.value }],
+  }));
+
+  const doubleTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(2)
+        .maxDelay(260)
+        .onStart(() => {
+          if (onDoubleTap) runOnJS(onDoubleTap)();
+          heartOpacity.value = 1;
+          heartScale.value = 0.25;
+          heartScale.value = withSpring(1, { damping: 10, stiffness: 220 });
+          heartOpacity.value = withDelay(450, withTiming(0, { duration: 220 }));
+        }),
+    [onDoubleTap]
+  );
+
+  return (
+    <GestureDetector gesture={doubleTapGesture}>
+      <View style={{ width, aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}>
+        <Image
+          source={{ uri }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+
+        {/* Instagram-like heart burst */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            heartStyle,
+          ]}
+        >
+          <Ionicons name="heart" size={120} color="#ffc801" />
+        </Animated.View>
+      </View>
+    </GestureDetector>
+  );
+}
+
 export default function FeedItem({ item, onPress }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
@@ -119,6 +177,11 @@ export default function FeedItem({ item, onPress }) {
       setLiked(wasLiked);
       setLikeCount(c => wasLiked ? c + 1 : c - 1);
     }
+  };
+
+  const handleDoubleTapLike = () => {
+    // Instagram behavior: double tap only LIKES (doesn't unlike)
+    if (!liked) handleLike();
   };
 
   const iconColor = isDark ? '#e5e5e5' : '#262626';
@@ -269,11 +332,12 @@ export default function FeedItem({ item, onPress }) {
                 scrollEventThrottle={16}
               >
                 {mediaUrls.map((uri, idx) => (
-                  <Image
+                  <PostImage
                     key={`${uri}-${idx}`}
-                    source={{ uri }}
-                    style={{ width: screenWidth, aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
-                    resizeMode="cover"
+                    uri={uri}
+                    width={screenWidth}
+                    isDark={isDark}
+                    onDoubleTap={handleDoubleTapLike}
                   />
                 ))}
               </ScrollView>
@@ -296,10 +360,11 @@ export default function FeedItem({ item, onPress }) {
               </View>
             </View>
           ) : (
-            <Image
-              source={{ uri: mediaUrls[0] }}
-              style={{ width: '100%', aspectRatio: 1, backgroundColor: isDark ? '#1f1f1f' : '#f0f0f0' }}
-              resizeMode="cover"
+            <PostImage
+              uri={mediaUrls[0]}
+              width="100%"
+              isDark={isDark}
+              onDoubleTap={handleDoubleTapLike}
             />
           )}
         </View>

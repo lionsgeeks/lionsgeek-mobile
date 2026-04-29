@@ -1,14 +1,15 @@
+import 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-// import 'react-native-reanimated';
 import "../index.css";
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider } from '@/context';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 function RootLayoutNav() {
   const notificationListenersRef = useRef(null);
@@ -52,11 +53,13 @@ export default function RootLayout() {
   }
 
   return (
-    <AppProvider>
-      <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
-        <RootLayoutNav />
-        <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
-      </ThemeProvider>
-    </AppProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppProvider>
+        <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
+          <RootLayoutNav />
+          <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
+        </ThemeProvider>
+      </AppProvider>
+    </GestureHandlerRootView>
   );
 }
