@@ -94,7 +94,7 @@ function PostImage({ uri, width, isDark, onDoubleTap }) {
           heartScale.value = withSpring(1, { damping: 10, stiffness: 220 });
           heartOpacity.value = withDelay(450, withTiming(0, { duration: 220 }));
         }),
-    [onDoubleTap]
+    [heartOpacity, heartScale, onDoubleTap]
   );
 
   return (
@@ -158,6 +158,16 @@ export default function FeedItem({ item, onPress }) {
   const caption = item.description || item.content || '';
   const repostCount = item.reposts || 0;
   const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
+  const profileUserId = item.user?.id ?? item.userId ?? item.user_id ?? item.user?.user_id;
+
+  const handleOpenProfile = () => {
+    // Uses the same route pattern as search/members screens
+    if (profileUserId) {
+      router.push(`/(tabs)/profile?userId=${profileUserId}`);
+      return;
+    }
+    router.push('/(tabs)/profile');
+  };
 
   const handleLike = async () => {
     // Optimistic update — flip immediately so UI feels instant
@@ -242,7 +252,7 @@ export default function FeedItem({ item, onPress }) {
 
       {/* ── Header ── */}
       <View className="flex-row items-center px-3 py-3">
-        <Pressable onPress={onPress} className="flex-row items-center flex-1 active:opacity-80">
+        <Pressable onPress={handleOpenProfile} className="flex-row items-center flex-1 active:opacity-80">
           {/* Avatar with gold ring */}
           <View
             style={{
