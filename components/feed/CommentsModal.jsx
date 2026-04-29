@@ -691,26 +691,19 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             returnKeyType="default"
           />
 
-          {/* Send button
-              onStartShouldSetResponder forces this view to claim the touch
-              immediately, before React Native can interpret it as a keyboard-
-              dismiss gesture. This is why a single tap always sends. */}
+          {/* Send button (use touch-down to avoid "first tap dismisses keyboard") */}
           <Pressable
-            // Capture the touch before the keyboard-dismiss gesture does.
-            onStartShouldSetResponder={() => true}
-            // Fire on touch-down so it always sends on first tap.
-            onPressIn={() => {
-              if (canSend && !sending) handleSend();
-            }}
-            // Keep onPress as a fallback for platforms that don't dispatch pressIn.
-            onPress={() => {
+            onTouchStart={() => {
               if (canSend && !sending) handleSend();
             }}
             disabled={!canSend || sending}
             style={{
-              width: 38, height: 38, borderRadius: 19,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
               backgroundColor: canSend ? '#ffc801' : (isDark ? '#2a2a2a' : '#e5e5e5'),
-              alignItems: 'center', justifyContent: 'center',
+              alignItems: 'center',
+              justifyContent: 'center',
               flexShrink: 0,
             }}
           >
