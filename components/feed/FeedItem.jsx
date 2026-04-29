@@ -123,7 +123,7 @@ function PostImage({ uri, width, isDark, onDoubleTap }) {
             heartStyle,
           ]}
         >
-          <Ionicons name="heart" size={120} color="#ffc801" />
+          <LionsgeekLikeIcon size={120} color="#ffc801" />
         </Animated.View>
       </View>
     </GestureDetector>
