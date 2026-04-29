@@ -15,6 +15,7 @@ const CAPTION_PREVIEW_LENGTH = 60;
 
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_PUNCTUATION_PATTERN = /[).,!?;:]+$/;
+const MENTION_PATTERN = /(^|[\s(])@([A-Za-z0-9_]+)/g;
 
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
@@ -59,6 +60,38 @@ function splitTextByUrls(text) {
   return parts;
 }
 
+function splitTextByMentions(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const matches = [...text.matchAll(MENTION_PATTERN)];
+  if (matches.length === 0) return [{ type: 'text', value: text }];
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const full = match[0];
+    const prefix = match[1] ?? '';
+    const handle = match[2] ?? '';
+    const index = match.index ?? 0;
+
+    if (index > cursor) {
+      parts.push({ type: 'text', value: text.slice(cursor, index) });
+    }
+
+    if (prefix) parts.push({ type: 'text', value: prefix });
+    parts.push({ type: 'mention', value: handle });
+
+    cursor = index + full.length;
+  }
+
+  if (cursor < text.length) {
+    parts.push({ type: 'text', value: text.slice(cursor) });
+  }
+
+  return parts;
+}
+
 function normalizeUrl(url) {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -66,8 +99,14 @@ function normalizeUrl(url) {
   return null;
 }
 
-function LinkifiedText({ text, textStyle, linkStyle }) {
-  const parts = useMemo(() => splitTextByUrls(text), [text]);
+function LinkifiedText({ text, textStyle, linkStyle, mentionStyle, onMentionPress }) {
+  const parts = useMemo(() => {
+    const urlParts = splitTextByUrls(text);
+    return urlParts.flatMap((p) => {
+      if (p.type !== 'text') return [p];
+      return splitTextByMentions(p.value);
+    });
+  }, [text]);
 
   const handleOpenUrl = async (url) => {
     const normalized = normalizeUrl(url);
@@ -88,6 +127,19 @@ function LinkifiedText({ text, textStyle, linkStyle }) {
   return (
     <Text style={textStyle}>
       {parts.map((part, index) => {
+        if (part.type === 'mention') {
+          return (
+            <Text
+              key={`m-${index}`}
+              onPress={() => onMentionPress?.(part.value)}
+              style={mentionStyle}
+              accessibilityRole="link"
+            >
+              @{part.value}
+            </Text>
+          );
+        }
+
         if (part.type !== 'url') return <Text key={`t-${index}`}>{part.value}</Text>;
 
         return (
@@ -126,7 +178,7 @@ function formatTime(dateString) {
  * - Short captions (≤ CAPTION_PREVIEW_LENGTH chars) → plain text, no toggle.
  * - Long captions → shows preview + "... see more" / full text + " see less".
  */
-function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor }) {
+function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor, onMentionPress }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!text) return null;
@@ -144,6 +196,8 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
         text={displayedText}
         textStyle={{ fontSize: textSize, lineHeight, color: textColor }}
         linkStyle={{ color: '#2563eb', textDecorationLine: 'underline', fontWeight: '700' }}
+        mentionStyle={{ color: '#ffc801', fontWeight: '900' }}
+        onMentionPress={onMentionPress}
       />
       {isLong && !expanded ? (
         <Text
@@ -279,6 +333,34 @@ export default function FeedItem({ item, onPress }) {
       return;
     }
     router.push('/(tabs)/profile');
+  };
+
+  const handleMentionPress = async (handle) => {
+    if (!handle || !token) return;
+    try {
+      const response = await API.getWithAuth(
+        `mobile/search?q=${encodeURIComponent(handle)}&type=students`,
+        token
+      );
+      const users = response?.data?.results;
+      const list = Array.isArray(users) ? users : [];
+
+      const normalized = String(handle).toLowerCase();
+      const match =
+        list.find((u) => String(u?.username || '').toLowerCase() === normalized) ||
+        list.find((u) => String(u?.name || '').toLowerCase().replace(/\s+/g, '') === normalized) ||
+        list[0];
+
+      const userId = match?.id;
+      if (!userId) {
+        Alert.alert('User not found', `Could not find @${handle}.`);
+        return;
+      }
+
+      router.push(`/(tabs)/profile?userId=${userId}`);
+    } catch (_error) {
+      Alert.alert('Error', 'Failed to open this profile. Please try again.');
+    }
   };
 
   const handleLike = async () => {
@@ -433,6 +515,7 @@ export default function FeedItem({ item, onPress }) {
             lineHeight={22}
             textColor={textColor}
             mutedColor={mutedColor}
+            onMentionPress={handleMentionPress}
           />
         </View>
       ) : null}
@@ -589,6 +672,7 @@ export default function FeedItem({ item, onPress }) {
             lineHeight={20}
             textColor={textColor}
             mutedColor={mutedColor}
+            onMentionPress={handleMentionPress}
           />
         </View>
       ) : null}
