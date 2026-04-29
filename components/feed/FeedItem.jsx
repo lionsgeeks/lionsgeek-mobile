@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Dimensions, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import CommentsModal from '@/components/feed/CommentsModal';
@@ -126,6 +127,24 @@ function PostImage({ uri, width, isDark, onDoubleTap }) {
         </Animated.View>
       </View>
     </GestureDetector>
+  );
+}
+
+function LionsgeekLikeIcon({ size = 26, color }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 36.932 35.121"
+      fill="none"
+      accessibilityRole="image"
+    >
+      <Path
+        d="M29.876 0H7.053L0 21.706l18.464 13.415 18.468-13.415zM18.465 27.506L7.243 19.353l4.286-13.192H25.4l4.286 13.192z"
+        fill={color}
+      />
+      <Path d="M13.177 19.326l5.288 3.841 5.288-3.841z" fill={color} />
+    </Svg>
   );
 }
 
@@ -430,11 +449,7 @@ export default function FeedItem({ item, onPress }) {
                 // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
               }}
             >
-              <Ionicons
-                name={liked ? 'heart' : 'heart-outline'}
-                size={26}
-                color={liked ? '#ffc801' : iconColor}
-              />
+              <LionsgeekLikeIcon size={26} color={liked ? '#ffc801' : iconColor} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
