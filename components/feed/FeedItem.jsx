@@ -390,7 +390,7 @@ export default function FeedItem({ item, onPress }) {
                 style={{
                   width: active ? 7 : 6,
                   height: active ? 7 : 6,
-                  borderRadius: 10,
+                  borderRadius: 50,
                   backgroundColor: active ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)'),
                 }}
               />
