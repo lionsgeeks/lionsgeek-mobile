@@ -149,18 +149,22 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
     const handle = getUserHandle(selectedUser);
     if (!candidate || !handle) return;
 
+    // Keep keyboard open during insert
+    postInputRef.current?.focus?.();
+
     const before = postContent.slice(0, candidate.startIndex);
     const after = postContent.slice(cursorIndex);
     const inserted = `@${handle} `;
     const next = `${before}${inserted}${after}`;
 
+    const nextCursor = before.length + inserted.length;
     setPostContent(next);
+    setCursorIndex(nextCursor);
     setMentionResults([]);
 
     // Keep keyboard open + keep input focused so selection feels instant
-    requestAnimationFrame(() => {
-      postInputRef.current?.focus?.();
-    });
+    requestAnimationFrame(() => postInputRef.current?.focus?.());
+    setTimeout(() => postInputRef.current?.focus?.(), 0);
   };
 
   const showMentions =
@@ -492,6 +496,8 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
 
                     return (
                       <View
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
                         style={{
                           position: 'absolute',
                           left: 0,
@@ -523,7 +529,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
 
                         <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#eee8df' }} />
 
-                        <ScrollView style={{ maxHeight: MENTION_PANEL_MAX_HEIGHT }} keyboardShouldPersistTaps="handled">
+                        <ScrollView style={{ maxHeight: MENTION_PANEL_MAX_HEIGHT }} keyboardShouldPersistTaps="always">
                           {mentionResults.map((u) => {
                             const displayName = getUserDisplayName(u);
                             const handle = getUserHandle(u);
