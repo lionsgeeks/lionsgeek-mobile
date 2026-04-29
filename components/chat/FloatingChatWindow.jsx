@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, Pressable, Image, ScrollView, TextInput, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import VoiceMessage from './VoiceMessage';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function FloatingChatWindow({ conversation, onClose, onMinimize, onExpand, isMinimized, isExpanded }) {
     const { user, token } = useAppContext();
@@ -265,7 +266,20 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
             >
                 {loading && messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
-                        <ActivityIndicator size="small" color="#ffc801" />
+                        <View style={{ width: '100%', paddingHorizontal: 12 }}>
+                            {Array.from({ length: 7 }).map((_, idx) => (
+                                <View
+                                    key={idx}
+                                    style={{
+                                        marginBottom: 8,
+                                        alignSelf: idx % 2 === 0 ? 'flex-start' : 'flex-end',
+                                        width: idx % 2 === 0 ? '78%' : '60%',
+                                    }}
+                                >
+                                    <Skeleton width="100%" height={32} borderRadius={12} isDark={false} />
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 ) : messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
@@ -312,7 +326,7 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                     className={`h-9 w-9 items-center justify-center rounded-lg ${sending || (!newMessage.trim() && !attachment) ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-yellow-500'}`}
                 >
                     {sending ? (
-                        <ActivityIndicator color="#000" size="small" />
+                        <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                     ) : (
                         <Ionicons name="send" size={16} color="#000" />
                     )}

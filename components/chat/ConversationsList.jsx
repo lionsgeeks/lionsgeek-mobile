@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
-import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, Image, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import ChatBox from './ChatBox';
 import ConversationDeletePopover from './partials/ConversationDeletePopover';
+import Skeleton from '@/components/ui/Skeleton';
 
 // Component dial list dial conversations - ybdl conversations w y7al chatbox
 const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, onUnreadCountChange }, ref) {
@@ -218,7 +219,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, o
                     
                     {searchQuery.trim() && isSearchingUsers && (
                         <View className="mt-2 px-2 py-3 items-center">
-                            <ActivityIndicator size="small" color="#ffc801" />
+                            <Skeleton width={18} height={18} borderRadius={9} isDark={false} />
                         </View>
                     )}
                     

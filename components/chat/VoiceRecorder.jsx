@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled, onStopRecordingRef, onSendAudioDirect }) {
     const [isRecording, setIsRecording] = useState(false);
@@ -253,7 +254,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                             disabled={isUploading}
                         >
                             {isUploading ? (
-                                <ActivityIndicator color="#000" />
+                                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                             ) : (
                                 <Text className="text-black font-semibold">Send</Text>
                             )}
@@ -279,7 +280,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
             disabled={disabled || isUploading}
         >
             {isUploading ? (
-                <ActivityIndicator color="#ffc801" />
+                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
             ) : (
                 <Ionicons name="mic" size={20} color="#ffc801" />
             )}

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -497,8 +497,19 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
 
         {/* Comments list */}
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="small" color="#ffc801" />
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <View key={idx} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 }}>
+                <Skeleton width={36} height={36} borderRadius={18} isDark={isDark} />
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <View style={{ borderRadius: 14, overflow: 'hidden' }}>
+                    <Skeleton width="100%" height={54} borderRadius={14} isDark={isDark} />
+                  </View>
+                  <View style={{ height: 10 }} />
+                  <Skeleton width={120} height={10} borderRadius={10} isDark={isDark} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : (
           <FlatList
@@ -690,7 +701,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             }}
           >
             {sending ? (
-              <ActivityIndicator size="small" color={canSend ? '#000' : mutedColor} />
+              <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
             ) : (
               <Ionicons name="send" size={16} color={canSend ? '#000' : mutedColor} />
             )}

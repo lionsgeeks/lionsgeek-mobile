@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import { router } from 'expo-router';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function SearchScreen() {
   const { token } = useAppContext();
@@ -122,9 +123,9 @@ export default function SearchScreen() {
               onSubmitEditing={handleSearch}
               autoCapitalize="none"
             />
-            {(isTyping || loading) && (
-              <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
-            )}
+            {(isTyping || loading) ? (
+              <Skeleton width={16} height={16} borderRadius={8} isDark={isDark} />
+            ) : null}
             {searchQuery.length > 0 && !isTyping && !loading && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
                 <Ionicons name="close-circle" size={20} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
@@ -203,18 +204,52 @@ export default function SearchScreen() {
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="px-6 pt-4 pb-8">
             {isTyping ? (
-              <View className="py-8 items-center">
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-                <Text className="text-center text-black/60 dark:text-white/60 mt-4">
-                  Typing...
-                </Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Skeleton width={180} height={12} borderRadius={10} isDark={isDark} />
+                      <View style={{ height: 8 }} />
+                      <Skeleton width={220} height={10} borderRadius={10} isDark={isDark} />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : loading ? (
-              <View className="py-8 items-center">
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-                <Text className="text-center text-black/60 dark:text-white/60 mt-4">
-                  Searching...
-                </Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Skeleton width={180} height={12} borderRadius={10} isDark={isDark} />
+                      <View style={{ height: 8 }} />
+                      <Skeleton width={220} height={10} borderRadius={10} isDark={isDark} />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : results.length === 0 && searchQuery.length > 0 ? (
               <View className="py-8 items-center">

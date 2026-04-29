@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Pressable, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, Pressable, TextInput, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import AudioRecorder from './AudioRecorder';
 import VoiceRecorder from '../VoiceRecorder';
+import Skeleton from '@/components/ui/Skeleton';
 
 // Conditionally import expo-image-picker
 let ImagePicker = null;
@@ -358,7 +359,7 @@ export default function MessageInput({
                             className={`h-10 w-10 items-center justify-center rounded-full ${sending || (!newMessage.trim() && !attachment && !audioBlob) ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-alpha'}`}
                         >
                             {sending ? (
-                                <ActivityIndicator color="#000" />
+                                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                             ) : (
                                 <Ionicons name="send" size={18} color="#000" />
                             )}

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function CreatePost({ onPostPress, onPostCreated }) {
   const { user, token } = useAppContext();
@@ -281,7 +282,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
                 }}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+                  <Skeleton width={18} height={18} borderRadius={9} isDark={isDark} />
                 ) : (
                   <Text style={{ fontWeight: '900', color: '#000' }}>Post</Text>
                 )}
