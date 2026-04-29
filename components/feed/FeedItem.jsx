@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Dimensions, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { Alert, Dimensions, Linking, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
@@ -13,6 +13,9 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpr
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
+const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const TRAILING_PUNCTUATION_PATTERN = /[).,!?;:]+$/;
+
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
@@ -21,6 +24,85 @@ function resolveAvatarUrl(value) {
     return `${API.APP_URL}${cleanPath}`;
   }
   return `${API.APP_URL}/storage/img/profile/${value}`;
+}
+
+function splitTextByUrls(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const matches = [...text.matchAll(URL_PATTERN)];
+  if (matches.length === 0) return [{ type: 'text', value: text }];
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const rawUrl = match[0];
+    const index = match.index ?? 0;
+
+    if (index > cursor) {
+      parts.push({ type: 'text', value: text.slice(cursor, index) });
+    }
+
+    const cleanUrl = rawUrl.replace(TRAILING_PUNCTUATION_PATTERN, '');
+    const trailing = rawUrl.slice(cleanUrl.length);
+
+    parts.push({ type: 'url', value: cleanUrl });
+    if (trailing) parts.push({ type: 'text', value: trailing });
+
+    cursor = index + rawUrl.length;
+  }
+
+  if (cursor < text.length) {
+    parts.push({ type: 'text', value: text.slice(cursor) });
+  }
+
+  return parts;
+}
+
+function normalizeUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('www.')) return `https://${url}`;
+  return null;
+}
+
+function LinkifiedText({ text, textStyle, linkStyle }) {
+  const parts = useMemo(() => splitTextByUrls(text), [text]);
+
+  const handleOpenUrl = async (url) => {
+    const normalized = normalizeUrl(url);
+    if (!normalized) return;
+
+    try {
+      const canOpen = await Linking.canOpenURL(normalized);
+      if (!canOpen) {
+        Alert.alert('Invalid link', 'This link cannot be opened on your device.');
+        return;
+      }
+      await Linking.openURL(normalized);
+    } catch (_error) {
+      Alert.alert('Link error', 'Failed to open this link. Please try again.');
+    }
+  };
+
+  return (
+    <Text style={textStyle}>
+      {parts.map((part, index) => {
+        if (part.type !== 'url') return <Text key={`t-${index}`}>{part.value}</Text>;
+
+        return (
+          <Text
+            key={`u-${index}`}
+            onPress={() => handleOpenUrl(part.value)}
+            style={linkStyle}
+            accessibilityRole="link"
+          >
+            {part.value}
+          </Text>
+        );
+      })}
+    </Text>
+  );
 }
 
 function formatTime(dateString) {
@@ -43,7 +125,6 @@ function formatTime(dateString) {
  * Renders a fully-tappable caption block.
  * - Short captions (≤ CAPTION_PREVIEW_LENGTH chars) → plain text, no toggle.
  * - Long captions → shows preview + "... see more" / full text + " see less".
- * - Tapping anywhere on the text block toggles expanded state.
  */
 function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor }) {
   const [expanded, setExpanded] = useState(false);
@@ -57,20 +138,32 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
     : text;
 
   return (
-    <Pressable onPress={() => isLong && setExpanded(p => !p)} className="active:opacity-75">
-      <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
-        <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
-        {displayedText}
-        {isLong && !expanded ? (
-          <Text style={{ color: mutedColor, fontWeight: '700' }}>{'... '}
-            <Text style={{ color: mutedColor, fontWeight: '700' }}>see more</Text>
-          </Text>
-        ) : null}
-        {isLong && expanded ? (
-          <Text style={{ color: mutedColor, fontWeight: '700' }}> see less</Text>
-        ) : null}
-      </Text>
-    </Pressable>
+    <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
+      <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
+      <LinkifiedText
+        text={displayedText}
+        textStyle={{ fontSize: textSize, lineHeight, color: textColor }}
+        linkStyle={{ color: '#2563eb', textDecorationLine: 'underline', fontWeight: '700' }}
+      />
+      {isLong && !expanded ? (
+        <Text
+          onPress={() => setExpanded(true)}
+          style={{ color: mutedColor, fontWeight: '800' }}
+          accessibilityRole="button"
+        >
+          {'... '}see more
+        </Text>
+      ) : null}
+      {isLong && expanded ? (
+        <Text
+          onPress={() => setExpanded(false)}
+          style={{ color: mutedColor, fontWeight: '800' }}
+          accessibilityRole="button"
+        >
+          {' '}see less
+        </Text>
+      ) : null}
+    </Text>
   );
 }
 
