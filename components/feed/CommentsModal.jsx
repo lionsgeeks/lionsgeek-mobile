@@ -99,6 +99,10 @@ function CommentRow({
   const [showReplies, setShowReplies] = useState(false);
 
   const bubbleBg = isDark ? '#2a2a2a' : '#f3f2ef';
+  const isMyComment =
+    currentUserId != null &&
+    comment?.user?.id != null &&
+    Number(comment.user.id) === Number(currentUserId);
 
   const handleLike = async () => {
     const wasLiked = liked;
@@ -132,21 +136,31 @@ function CommentRow({
         {/* Content */}
         <View style={{ flex: 1 }}>
           {/* Bubble */}
-          <View style={{ backgroundColor: bubbleBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 }}>
+          <Pressable
+            onLongPress={() => {
+              if (isMyComment) onOpenMenu(comment);
+            }}
+            delayLongPress={350}
+            android_ripple={isMyComment ? { color: isDark ? '#3a3a3a' : '#e7e4df' } : undefined}
+            style={({ pressed }) => ([
+              {
+                backgroundColor: bubbleBg,
+                borderRadius: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                opacity: pressed && isMyComment ? 0.92 : 1,
+              },
+            ])}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2, flex: 1 }} numberOfLines={1}>
                 {comment.user?.name || 'User'}
               </Text>
-              {currentUserId && comment.user?.id === currentUserId ? (
-                <TouchableOpacity onPress={() => onOpenMenu(comment)} style={{ paddingLeft: 10, paddingVertical: 2 }}>
-                  <Ionicons name="ellipsis-horizontal" size={16} color={mutedColor} />
-                </TouchableOpacity>
-              ) : null}
             </View>
             <Text style={{ fontSize: 14, color: textColor, lineHeight: 20 }}>
               {comment.body}
             </Text>
-          </View>
+          </Pressable>
 
           {/* Meta row: time · Like · Reply */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, marginLeft: 4, gap: 14 }}>
