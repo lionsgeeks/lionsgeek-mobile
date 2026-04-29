@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useAppContext } from '@/context';
 import StoryItem from '@/components/feed/StoryItem';
 import FeedItem from '@/components/feed/FeedItem';
@@ -8,6 +8,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function HomeScreen() {
   const { user, token } = useAppContext();
@@ -257,9 +258,52 @@ export default function HomeScreen() {
 
         {/* Feed cards */}
         {loading ? (
-          <View className="py-16 items-center">
-            <ActivityIndicator size="large" color="#ffc801" />
-            <Text className="text-black/60 dark:text-white/60 mt-4">Loading feed...</Text>
+          <View style={{ paddingTop: 10 }}>
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <View
+                key={idx}
+                style={{
+                  backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+                  marginBottom: 8,
+                  borderTopWidth: 0.5,
+                  borderBottomWidth: 0.5,
+                  borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                  paddingBottom: 14,
+                }}
+              >
+                {/* Header skeleton */}
+                <View style={{ paddingHorizontal: 12, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', alignItems: 'center' }}>
+                  <Skeleton width={42} height={42} borderRadius={21} isDark={isDark} />
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <Skeleton width={160} height={12} borderRadius={8} isDark={isDark} />
+                    <View style={{ height: 8 }} />
+                    <Skeleton width={90} height={10} borderRadius={8} isDark={isDark} />
+                  </View>
+                </View>
+
+                {/* Media skeleton */}
+                <Skeleton width="100%" height={360} borderRadius={0} isDark={isDark} />
+
+                {/* Action bar skeleton */}
+                <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                    </View>
+                    <Skeleton width={26} height={26} borderRadius={13} isDark={isDark} />
+                  </View>
+
+                  <View style={{ height: 10 }} />
+                  <Skeleton width={140} height={12} borderRadius={8} isDark={isDark} />
+                  <View style={{ height: 10 }} />
+                  <Skeleton width="92%" height={12} borderRadius={8} isDark={isDark} />
+                  <View style={{ height: 8 }} />
+                  <Skeleton width="70%" height={12} borderRadius={8} isDark={isDark} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : posts.length === 0 ? (
           <View

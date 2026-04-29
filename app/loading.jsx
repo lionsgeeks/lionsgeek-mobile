@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { useAppContext } from '@/context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -103,13 +103,6 @@ export default function LoadingScreen() {
   return (
     <View className={`flex-1 items-center justify-center bg-light dark:bg-dark`}>
       <LogoIcon color={isDark ? '#fff' : '#000'} width={120} height={120} />
-      <Text className="text-3xl font-bold text-black dark:text-white mt-6 mb-2">
-        LIONSGEEK
-      </Text>
-      <Text className="text-sm text-black/60 dark:text-white/60 mb-8">
-        Loading...
-      </Text>
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
     </View>
   );
 }
