@@ -52,6 +52,21 @@ function formatTime(dateString) {
   return 'just now';
 }
 
+function sortByNewestFirst(items) {
+  if (!Array.isArray(items)) return [];
+  const safeTime = (value) => {
+    const time = new Date(value || 0).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+
+  return [...items]
+    .sort((a, b) => safeTime(b?.created_at) - safeTime(a?.created_at))
+    .map((comment) => ({
+      ...comment,
+      replies: sortByNewestFirst(comment?.replies || []),
+    }));
+}
+
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
 function Avatar({ value, name, size = 36, isDark }) {
@@ -262,7 +277,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
     setLoading(true);
     try {
       const res = await API.get(`mobile/posts/${postId}/comments`, token);
-      if (res?.data?.comments) setComments(res.data.comments);
+      if (res?.data?.comments) setComments(sortByNewestFirst(res.data.comments));
     } catch {
       // show empty state
     } finally {
@@ -410,13 +425,12 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
       setComments(prev =>
         prev.map(c =>
           c.id === replyingTo.id
-            ? { ...c, replies: [...(c.replies || []), tempComment] }
+            ? { ...c, replies: [tempComment, ...(c.replies || [])] }
             : c
         )
       );
     } else {
-      setComments(prev => [...prev, tempComment]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      setComments(prev => [tempComment, ...prev]);
     }
 
     const parentId = replyingTo?.id ?? null;
@@ -434,12 +448,17 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
           setComments(prev =>
             prev.map(c =>
               c.id === parentId
-                ? { ...c, replies: (c.replies || []).map(r => r.id === tempId ? saved : r) }
+                ? {
+                  ...c,
+                  replies: sortByNewestFirst(
+                    (c.replies || []).map(r => r.id === tempId ? saved : r)
+                  ),
+                }
                 : c
             )
           );
         } else {
-          setComments(prev => prev.map(c => c.id === tempId ? saved : c));
+          setComments(prev => sortByNewestFirst(prev.map(c => c.id === tempId ? saved : c)));
         }
         if (onCommentCountChange) onCommentCountChange(1);
         await syncRealCount();
@@ -553,9 +572,6 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"
-            onContentSizeChange={() =>
-              comments.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
-            }
           />
         )}
 
