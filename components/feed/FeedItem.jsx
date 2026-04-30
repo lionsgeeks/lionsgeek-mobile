@@ -605,7 +605,7 @@ export default function FeedItem({ item, onPress }) {
       ) : null}
 
       {/* ── Action bar ── */}
-      <View className="px-3 pb-1">
+      <View className="px-3 pb-1 mt-5">
         {/* <View
           style={{
             height: 0.5,
