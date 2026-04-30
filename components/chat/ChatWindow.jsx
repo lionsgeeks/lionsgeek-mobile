@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, Image, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function ChatWindow({ conversation, onBack }) {
     const { user, token } = useAppContext();
@@ -119,7 +120,20 @@ export default function ChatWindow({ conversation, onBack }) {
             >
                 {loading && messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
-                        <ActivityIndicator size="large" color="#ffc801" />
+                        <View style={{ width: '100%', paddingHorizontal: 16 }}>
+                            {Array.from({ length: 8 }).map((_, idx) => (
+                                <View
+                                    key={idx}
+                                    style={{
+                                        marginBottom: 10,
+                                        alignSelf: idx % 2 === 0 ? 'flex-start' : 'flex-end',
+                                        width: idx % 2 === 0 ? '76%' : '64%',
+                                    }}
+                                >
+                                    <Skeleton width="100%" height={34} borderRadius={12} isDark={false} />
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 ) : messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
@@ -178,7 +192,7 @@ export default function ChatWindow({ conversation, onBack }) {
                     className={`h-11 px-4 items-center justify-center rounded-lg ${sending || !newMessage.trim() ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-yellow-500'}`}
                 >
                     {sending ? (
-                        <ActivityIndicator color="#000" />
+                        <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                     ) : (
                         <Ionicons name="send" size={16} color="#000" />
                     )}

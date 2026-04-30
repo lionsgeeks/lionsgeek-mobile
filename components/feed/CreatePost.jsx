@@ -1,16 +1,59 @@
-import { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Pressable, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
+
+function getMentionCandidate(text, cursorIndex) {
+  if (typeof text !== 'string') return null;
+  if (typeof cursorIndex !== 'number' || Number.isNaN(cursorIndex)) return null;
+
+  const beforeCursor = text.slice(0, cursorIndex);
+  const lastAt = beforeCursor.lastIndexOf('@');
+  if (lastAt === -1) return null;
+
+  const charBeforeAt = lastAt === 0 ? ' ' : beforeCursor[lastAt - 1];
+  if (!/\s/.test(charBeforeAt)) return null;
+
+  const query = beforeCursor.slice(lastAt + 1);
+  if (/\s/.test(query)) return null;
+
+  return { startIndex: lastAt, query };
+}
+
+function getUserDisplayName(user) {
+  const raw = user?.username || user?.name || '';
+  if (!raw) return null;
+  return String(raw).trim();
+}
+
+function getUserHandle(user) {
+  const username = user?.username ? String(user.username).trim() : '';
+  if (username) return username;
+
+  const display = getUserDisplayName(user);
+  if (!display) return null;
+  return display.replace(/\s+/g, '');
+}
+
+const DESCRIPTION_LINE_HEIGHT = 22;
+const DESCRIPTION_MIN_HEIGHT = 120;
+const MENTION_ROW_HEIGHT_ESTIMATE = 54;
+const MENTION_PANEL_MAX_HEIGHT = 220;
 
 export default function CreatePost({ onPostPress, onPostCreated }) {
   const { user, token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const postInputRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [postContent, setPostContent] = useState('');
+  const [cursorIndex, setCursorIndex] = useState(0);
+  const [mentionResults, setMentionResults] = useState([]);
+  const [isSearchingMentions, setIsSearchingMentions] = useState(false);
+  const mentionSearchTimeoutRef = useRef(null);
   const [newImages, setNewImages] = useState([]); // { uri, name, type }
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState('post'); // post, video, photo, article
@@ -25,6 +68,32 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
 
   const handleCreatePost = () => {
     setShowModal(true);
+  };
+
+  const searchUsersForMentions = ({ query }) => {
+    if (!token) return;
+
+    if (mentionSearchTimeoutRef.current) clearTimeout(mentionSearchTimeoutRef.current);
+
+    setIsSearchingMentions(true);
+    mentionSearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await API.getWithAuth(
+          `mobile/search?q=${encodeURIComponent(query ?? '')}&type=students`,
+          token
+        );
+
+        const users = response?.data?.results;
+        const list = Array.isArray(users) ? users : [];
+
+        const filtered = list.filter((u) => String(u?.id) !== String(user?.id));
+        setMentionResults(filtered.slice(0, 12));
+      } catch (_error) {
+        setMentionResults([]);
+      } finally {
+        setIsSearchingMentions(false);
+      }
+    }, 250);
   };
 
   const pickImages = async () => {
@@ -61,6 +130,46 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
   const removeNewImageAt = (index) => {
     setNewImages((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const handleChangePostContent = (nextText) => {
+    setPostContent(nextText);
+
+    const candidate = getMentionCandidate(nextText, cursorIndex);
+    if (!candidate) {
+      setMentionResults([]);
+      setIsSearchingMentions(false);
+      return;
+    }
+
+    searchUsersForMentions({ query: candidate.query });
+  };
+
+  const handleMentionSelect = (selectedUser) => {
+    const candidate = getMentionCandidate(postContent, cursorIndex);
+    const handle = getUserHandle(selectedUser);
+    if (!candidate || !handle) return;
+
+    // Keep keyboard open during insert
+    postInputRef.current?.focus?.();
+
+    const before = postContent.slice(0, candidate.startIndex);
+    const after = postContent.slice(cursorIndex);
+    const inserted = `@${handle} `;
+    const next = `${before}${inserted}${after}`;
+
+    const nextCursor = before.length + inserted.length;
+    setPostContent(next);
+    setCursorIndex(nextCursor);
+    setMentionResults([]);
+
+    // Keep keyboard open + keep input focused so selection feels instant
+    requestAnimationFrame(() => postInputRef.current?.focus?.());
+    setTimeout(() => postInputRef.current?.focus?.(), 0);
+  };
+
+  const showMentions =
+    Boolean(getMentionCandidate(postContent, cursorIndex)) &&
+    (mentionResults.length > 0 || isSearchingMentions);
 
   const handlePost = async () => {
     const text = postContent.trim();
@@ -281,7 +390,7 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
                 }}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+                  <Skeleton width={18} height={18} borderRadius={9} isDark={isDark} />
                 ) : (
                   <Text style={{ fontWeight: '900', color: '#000' }}>Post</Text>
                 )}
@@ -326,7 +435,11 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
               </View>
             </View>
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              className="flex-1"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="always"
+            >
               {/* Description card */}
               <View
                 style={{
@@ -340,15 +453,145 @@ export default function CreatePost({ onPostPress, onPostCreated }) {
                 <Text style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)', fontWeight: '800', fontSize: 12, marginBottom: 8 }}>
                   Description
                 </Text>
-                <TextInput
-                  value={postContent}
-                  onChangeText={setPostContent}
-                  placeholder="Write something…"
-                  placeholderTextColor={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)'}
-                  multiline
-                  textAlignVertical="top"
-                  style={{ minHeight: 120, color: isDark ? '#f5f5f5' : '#111111', fontSize: 15, lineHeight: 22 }}
-                />
+                <View style={{ position: 'relative' }}>
+                  <TextInput
+                    ref={postInputRef}
+                    value={postContent}
+                    onChangeText={handleChangePostContent}
+                    onSelectionChange={(e) => {
+                      const nextCursor = e?.nativeEvent?.selection?.start ?? 0;
+                      setCursorIndex(nextCursor);
+                    }}
+                    placeholder="Write something… (type @ to tag)"
+                    placeholderTextColor={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)'}
+                    multiline
+                    textAlignVertical="top"
+                    style={{
+                      minHeight: DESCRIPTION_MIN_HEIGHT,
+                      paddingBottom: showMentions ? 12 : 0,
+                      color: isDark ? '#f5f5f5' : '#111111',
+                      fontSize: 15,
+                      lineHeight: DESCRIPTION_LINE_HEIGHT,
+                    }}
+                  />
+
+                  {(() => {
+                    if (!showMentions) return null;
+
+                    // Approximate cursor line using explicit newlines (doesn't account for word-wrapping)
+                    const lineIndex = postContent.slice(0, cursorIndex).split('\n').length - 1;
+                    const cursorLineBottomY = (lineIndex + 1) * DESCRIPTION_LINE_HEIGHT;
+
+                    const headerHeightEstimate = 40;
+                    const panelHeightEstimate = Math.min(
+                      headerHeightEstimate + mentionResults.length * MENTION_ROW_HEIGHT_ESTIMATE,
+                      MENTION_PANEL_MAX_HEIGHT
+                    );
+
+                    // Keep panel within the text area bounds
+                    let top = cursorLineBottomY + 8;
+                    if (top + panelHeightEstimate > DESCRIPTION_MIN_HEIGHT) {
+                      top = Math.max(0, DESCRIPTION_MIN_HEIGHT - panelHeightEstimate);
+                    }
+
+                    return (
+                      <View
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          top,
+                          borderRadius: 14,
+                          borderWidth: 0.5,
+                          borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                          backgroundColor: isDark ? '#171717' : '#ffffff',
+                          overflow: 'hidden',
+                          zIndex: 50,
+                          elevation: 6,
+                          shadowColor: '#000',
+                          shadowOpacity: 0.18,
+                          shadowRadius: 10,
+                          shadowOffset: { width: 0, height: 6 },
+                        }}
+                      >
+                        <View style={{ paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)', fontWeight: '800', fontSize: 12 }}>
+                            Tag someone
+                          </Text>
+                          {isSearchingMentions ? (
+                            <Text style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', fontWeight: '700', fontSize: 12 }}>
+                              searching…
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#eee8df' }} />
+
+                        <ScrollView style={{ maxHeight: MENTION_PANEL_MAX_HEIGHT }} keyboardShouldPersistTaps="always">
+                          {mentionResults.map((u) => {
+                            const displayName = getUserDisplayName(u);
+                            const handle = getUserHandle(u);
+                            const avatar = u?.image || u?.avatar;
+
+                            return (
+                              <Pressable
+                                key={String(u?.id ?? `${displayName}-${handle}`)}
+                                onPressIn={() => {
+                                  // Prevent keyboard dismiss on first tap
+                                  postInputRef.current?.focus?.();
+                                }}
+                                onPress={() => handleMentionSelect(u)}
+                                style={{
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 10,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                }}
+                              >
+                                {avatar ? (
+                                  <Image
+                                    source={{ uri: avatar.startsWith('http') ? avatar : `${API.APP_URL}/storage/img/profile/${avatar}` }}
+                                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: isDark ? '#2a2a2a' : '#f3f2ef' }}
+                                    defaultSource={require('@/assets/images/icon.png')}
+                                  />
+                                ) : (
+                                  <View
+                                    style={{
+                                      width: 34,
+                                      height: 34,
+                                      borderRadius: 17,
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      backgroundColor: isDark ? '#2a2a2a' : '#f3f2ef',
+                                    }}
+                                  >
+                                    <Text style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontWeight: '900', fontSize: 12 }}>
+                                      {(displayName || '?').charAt(0).toUpperCase()}
+                                    </Text>
+                                  </View>
+                                )}
+
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }} numberOfLines={1}>
+                                    {displayName || 'User'}
+                                  </Text>
+                                  <Text style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', fontWeight: '700', marginTop: 1 }} numberOfLines={1}>
+                                    @{handle || 'user'}
+                                  </Text>
+                                </View>
+
+                                <Ionicons name="at" size={18} color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'} />
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    );
+                  })()}
+                </View>
               </View>
 
               {/* Images card */}

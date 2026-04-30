@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, RefreshControl } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { router } from 'expo-router';
 import API from '@/api';
 import { formatDistanceToNow } from 'date-fns';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function NotificationsScreen() {
   const { token } = useAppContext();
@@ -462,9 +463,32 @@ export default function NotificationsScreen() {
         >
           <View className="px-6 pt-4 pb-8">
             {loading ? (
-              <View className="py-16 items-center">
-                <ActivityIndicator size="large" color="#ffc801" />
-                <Text className="text-black/60 dark:text-white/60 mt-4">Loading notifications...</Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 8 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                      <Skeleton width={56} height={56} borderRadius={28} isDark={isDark} />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Skeleton width={160} height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 10 }} />
+                        <Skeleton width="92%" height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 8 }} />
+                        <Skeleton width="70%" height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 12 }} />
+                        <Skeleton width={90} height={10} borderRadius={10} isDark={isDark} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : notifications.length === 0 ? (
               <View className="py-16 items-center">

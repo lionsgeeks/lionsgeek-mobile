@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import CreatePost from '@/components/feed/CreatePost';
 import FeedItem from '@/components/feed/FeedItem';
 import Rolegard from '@/components/Rolegard';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function ProfileScreen() {
   const { user: currentUser, token } = useAppContext();
@@ -59,9 +60,59 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <AppLayout showNavbar={false}>
-        <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
-          <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-          <Text className="text-black/60 dark:text-white/60 mt-4">Loading profile...</Text>
+        <View className="flex-1 bg-light dark:bg-dark">
+          <View className="h-52 bg-alpha/20 dark:bg-alpha/30" />
+
+          <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pb-6">
+            <View className="flex-row items-center justify-between px-6 -mt-24 mb-4">
+              <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+              <View style={{ width: 24, height: 24 }} />
+            </View>
+
+            <View className="px-6">
+              <View className="items-center mb-4">
+                <Skeleton width={128} height={128} borderRadius={64} isDark={isDark} />
+                <View style={{ height: 14 }} />
+                <Skeleton width={190} height={16} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 10 }} />
+                <Skeleton width={150} height={12} borderRadius={10} isDark={isDark} />
+              </View>
+
+              <View className="flex-row justify-around mb-4 py-4 border-t border-light/20 dark:border-dark/20">
+                <View className="items-center">
+                  <Skeleton width={44} height={18} borderRadius={10} isDark={isDark} />
+                  <View style={{ height: 8 }} />
+                  <Skeleton width={52} height={10} borderRadius={10} isDark={isDark} />
+                </View>
+                <View className="items-center">
+                  <Skeleton width={44} height={18} borderRadius={10} isDark={isDark} />
+                  <View style={{ height: 8 }} />
+                  <Skeleton width={70} height={10} borderRadius={10} isDark={isDark} />
+                </View>
+                <View className="items-center">
+                  <Skeleton width={44} height={18} borderRadius={10} isDark={isDark} />
+                  <View style={{ height: 8 }} />
+                  <Skeleton width={72} height={10} borderRadius={10} isDark={isDark} />
+                </View>
+              </View>
+
+              <View className="flex-row gap-2">
+                <Skeleton width="100%" height={44} borderRadius={12} isDark={isDark} />
+              </View>
+            </View>
+          </View>
+
+          <View className="px-6 pt-6 pb-8">
+            <View className="rounded-xl p-4 mb-4 border border-light/20 dark:border-dark/20">
+              <Skeleton width={120} height={14} borderRadius={10} isDark={isDark} />
+              <View style={{ height: 14 }} />
+              <Skeleton width="95%" height={12} borderRadius={10} isDark={isDark} />
+              <View style={{ height: 10 }} />
+              <Skeleton width="78%" height={12} borderRadius={10} isDark={isDark} />
+            </View>
+          </View>
         </View>
       </AppLayout>
     );

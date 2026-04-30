@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, TouchableOpacity } from 'react-native';
 import { useAppContext } from '@/context';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -7,6 +7,7 @@ import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import Rolegard from '@/components/Rolegard';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function More() {
   const { user, token, signOut } = useAppContext();
@@ -110,9 +111,18 @@ export default function More() {
             >
               <View className="bg-light dark:bg-dark rounded-2xl p-5 border border-light/20 dark:border-dark/20 shadow-sm">
                 {loading ? (
-                  <View className="flex-row items-center justify-center py-8">
-                    <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
-                    <Text className="text-sm text-black/60 dark:text-white/60 ml-3">Loading profile...</Text>
+                  <View className="py-6">
+                    <View className="flex-row items-center mb-4">
+                      <Skeleton width={80} height={80} borderRadius={40} isDark={isDark} />
+                      <View style={{ marginLeft: 16, flex: 1 }}>
+                        <Skeleton width={180} height={16} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 10 }} />
+                        <Skeleton width={220} height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 12 }} />
+                        <Skeleton width={140} height={18} borderRadius={999} isDark={isDark} />
+                      </View>
+                    </View>
+                    <Skeleton width="100%" height={90} borderRadius={14} isDark={isDark} />
                   </View>
                 ) : (
                   <View>

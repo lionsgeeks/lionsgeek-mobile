@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 let ImagePicker = null;
 try {
@@ -230,7 +231,7 @@ export default function EditPostScreen() {
               }}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
+                <Skeleton width={18} height={18} borderRadius={9} isDark={isDark} />
               ) : (
                 <Text style={{ fontWeight: '900', color: '#000' }}>Save</Text>
               )}
@@ -285,8 +286,24 @@ export default function EditPostScreen() {
         </View>
 
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" color="#ffc801" />
+          <View style={{ padding: 16 }}>
+            <View style={{ backgroundColor: card, borderRadius: 16, borderWidth: 0.5, borderColor: border, padding: 14 }}>
+              <Skeleton width={110} height={12} borderRadius={10} isDark={isDark} />
+              <View style={{ height: 12 }} />
+              <Skeleton width="100%" height={90} borderRadius={14} isDark={isDark} />
+            </View>
+
+            <View style={{ marginTop: 12, backgroundColor: card, borderRadius: 16, borderWidth: 0.5, borderColor: border, padding: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Skeleton width={120} height={12} borderRadius={10} isDark={isDark} />
+                <Skeleton width={70} height={28} borderRadius={999} isDark={isDark} />
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <Skeleton key={idx} width="31%" height={110} borderRadius={12} isDark={isDark} />
+                ))}
+              </View>
+            </View>
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>

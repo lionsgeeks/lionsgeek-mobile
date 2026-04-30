@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Alert, Dimensions, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { Alert, Dimensions, Linking, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import CommentsModal from '@/components/feed/CommentsModal';
@@ -12,6 +13,10 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpr
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
+const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const TRAILING_PUNCTUATION_PATTERN = /[).,!?;:]+$/;
+const MENTION_PATTERN = /(^|[\s(])@([A-Za-z0-9_]+)/g;
+
 function resolveAvatarUrl(value) {
   if (!value || typeof value !== 'string') return null;
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
@@ -20,6 +25,136 @@ function resolveAvatarUrl(value) {
     return `${API.APP_URL}${cleanPath}`;
   }
   return `${API.APP_URL}/storage/img/profile/${value}`;
+}
+
+function splitTextByUrls(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const matches = [...text.matchAll(URL_PATTERN)];
+  if (matches.length === 0) return [{ type: 'text', value: text }];
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const rawUrl = match[0];
+    const index = match.index ?? 0;
+
+    if (index > cursor) {
+      parts.push({ type: 'text', value: text.slice(cursor, index) });
+    }
+
+    const cleanUrl = rawUrl.replace(TRAILING_PUNCTUATION_PATTERN, '');
+    const trailing = rawUrl.slice(cleanUrl.length);
+
+    parts.push({ type: 'url', value: cleanUrl });
+    if (trailing) parts.push({ type: 'text', value: trailing });
+
+    cursor = index + rawUrl.length;
+  }
+
+  if (cursor < text.length) {
+    parts.push({ type: 'text', value: text.slice(cursor) });
+  }
+
+  return parts;
+}
+
+function splitTextByMentions(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const matches = [...text.matchAll(MENTION_PATTERN)];
+  if (matches.length === 0) return [{ type: 'text', value: text }];
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const full = match[0];
+    const prefix = match[1] ?? '';
+    const handle = match[2] ?? '';
+    const index = match.index ?? 0;
+
+    if (index > cursor) {
+      parts.push({ type: 'text', value: text.slice(cursor, index) });
+    }
+
+    if (prefix) parts.push({ type: 'text', value: prefix });
+    parts.push({ type: 'mention', value: handle });
+
+    cursor = index + full.length;
+  }
+
+  if (cursor < text.length) {
+    parts.push({ type: 'text', value: text.slice(cursor) });
+  }
+
+  return parts;
+}
+
+function normalizeUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('www.')) return `https://${url}`;
+  return null;
+}
+
+function LinkifiedText({ text, textStyle, linkStyle, mentionStyle, onMentionPress }) {
+  const parts = useMemo(() => {
+    const urlParts = splitTextByUrls(text);
+    return urlParts.flatMap((p) => {
+      if (p.type !== 'text') return [p];
+      return splitTextByMentions(p.value);
+    });
+  }, [text]);
+
+  const handleOpenUrl = async (url) => {
+    const normalized = normalizeUrl(url);
+    if (!normalized) return;
+
+    try {
+      const canOpen = await Linking.canOpenURL(normalized);
+      if (!canOpen) {
+        Alert.alert('Invalid link', 'This link cannot be opened on your device.');
+        return;
+      }
+      await Linking.openURL(normalized);
+    } catch (_error) {
+      Alert.alert('Link error', 'Failed to open this link. Please try again.');
+    }
+  };
+
+  return (
+    <Text style={textStyle}>
+      {parts.map((part, index) => {
+        if (part.type === 'mention') {
+          return (
+            <Text
+              key={`m-${index}`}
+              onPress={() => onMentionPress?.(part.value)}
+              style={mentionStyle}
+              accessibilityRole="link"
+            >
+              @{part.value}
+            </Text>
+          );
+        }
+
+        if (part.type !== 'url') return <Text key={`t-${index}`}>{part.value}</Text>;
+
+        return (
+          <Text
+            key={`u-${index}`}
+            onPress={() => handleOpenUrl(part.value)}
+            style={linkStyle}
+            accessibilityRole="link"
+          >
+            {part.value}
+          </Text>
+        );
+      })}
+    </Text>
+  );
 }
 
 function formatTime(dateString) {
@@ -42,9 +177,8 @@ function formatTime(dateString) {
  * Renders a fully-tappable caption block.
  * - Short captions (≤ CAPTION_PREVIEW_LENGTH chars) → plain text, no toggle.
  * - Long captions → shows preview + "... see more" / full text + " see less".
- * - Tapping anywhere on the text block toggles expanded state.
  */
-function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor }) {
+function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedColor, onMentionPress }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!text) return null;
@@ -56,20 +190,34 @@ function Caption({ name, text, textSize = 14, lineHeight = 22, textColor, mutedC
     : text;
 
   return (
-    <Pressable onPress={() => isLong && setExpanded(p => !p)} className="active:opacity-75">
-      <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
-        <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
-        {displayedText}
-        {isLong && !expanded ? (
-          <Text style={{ color: mutedColor, fontWeight: '700' }}>{'... '}
-            <Text style={{ color: mutedColor, fontWeight: '700' }}>see more</Text>
-          </Text>
-        ) : null}
-        {isLong && expanded ? (
-          <Text style={{ color: mutedColor, fontWeight: '700' }}> see less</Text>
-        ) : null}
-      </Text>
-    </Pressable>
+    <Text style={{ fontSize: textSize, lineHeight, color: textColor }}>
+      <Text style={{ fontWeight: '800', color: textColor }}>{name} </Text>
+      <LinkifiedText
+        text={displayedText}
+        textStyle={{ fontSize: textSize, lineHeight, color: textColor }}
+        linkStyle={{ color: '#2563eb', textDecorationLine: 'underline', fontWeight: '700' }}
+        mentionStyle={{ color: '#ffc801', fontWeight: '900' }}
+        onMentionPress={onMentionPress}
+      />
+      {isLong && !expanded ? (
+        <Text
+          onPress={() => setExpanded(true)}
+          style={{ color: mutedColor, fontWeight: '800' }}
+          accessibilityRole="button"
+        >
+          {'... '}see more
+        </Text>
+      ) : null}
+      {isLong && expanded ? (
+        <Text
+          onPress={() => setExpanded(false)}
+          style={{ color: mutedColor, fontWeight: '800' }}
+          accessibilityRole="button"
+        >
+          {' '}see less
+        </Text>
+      ) : null}
+    </Text>
   );
 }
 
@@ -94,7 +242,7 @@ function PostImage({ uri, width, isDark, onDoubleTap }) {
           heartScale.value = withSpring(1, { damping: 10, stiffness: 220 });
           heartOpacity.value = withDelay(450, withTiming(0, { duration: 220 }));
         }),
-    [onDoubleTap]
+    [heartOpacity, heartScale, onDoubleTap]
   );
 
   return (
@@ -122,10 +270,28 @@ function PostImage({ uri, width, isDark, onDoubleTap }) {
             heartStyle,
           ]}
         >
-          <Ionicons name="heart" size={120} color="#ffc801" />
+          <LionsgeekLikeIcon size={120} color="#ffc801" />
         </Animated.View>
       </View>
     </GestureDetector>
+  );
+}
+
+function LionsgeekLikeIcon({ size = 26, color }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 36.932 35.121"
+      fill="none"
+      accessibilityRole="image"
+    >
+      <Path
+        d="M29.876 0H7.053L0 21.706l18.464 13.415 18.468-13.415zM18.465 27.506L7.243 19.353l4.286-13.192H25.4l4.286 13.192z"
+        fill={color}
+      />
+      <Path d="M13.177 19.326l5.288 3.841 5.288-3.841z" fill={color} />
+    </Svg>
   );
 }
 
@@ -158,6 +324,44 @@ export default function FeedItem({ item, onPress }) {
   const caption = item.description || item.content || '';
   const repostCount = item.reposts || 0;
   const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
+  const profileUserId = item.user?.id ?? item.userId ?? item.user_id ?? item.user?.user_id;
+
+  const handleOpenProfile = () => {
+    // Uses the same route pattern as search/members screens
+    if (profileUserId) {
+      router.push(`/(tabs)/profile?userId=${profileUserId}`);
+      return;
+    }
+    router.push('/(tabs)/profile');
+  };
+
+  const handleMentionPress = async (handle) => {
+    if (!handle || !token) return;
+    try {
+      const response = await API.getWithAuth(
+        `mobile/search?q=${encodeURIComponent(handle)}&type=students`,
+        token
+      );
+      const users = response?.data?.results;
+      const list = Array.isArray(users) ? users : [];
+
+      const normalized = String(handle).toLowerCase();
+      const match =
+        list.find((u) => String(u?.username || '').toLowerCase() === normalized) ||
+        list.find((u) => String(u?.name || '').toLowerCase().replace(/\s+/g, '') === normalized) ||
+        list[0];
+
+      const userId = match?.id;
+      if (!userId) {
+        Alert.alert('User not found', `Could not find @${handle}.`);
+        return;
+      }
+
+      router.push(`/(tabs)/profile?userId=${userId}`);
+    } catch (_error) {
+      Alert.alert('Error', 'Failed to open this profile. Please try again.');
+    }
+  };
 
   const handleLike = async () => {
     // Optimistic update — flip immediately so UI feels instant
@@ -242,7 +446,7 @@ export default function FeedItem({ item, onPress }) {
 
       {/* ── Header ── */}
       <View className="flex-row items-center px-3 py-3">
-        <Pressable onPress={onPress} className="flex-row items-center flex-1 active:opacity-80">
+        <Pressable onPress={handleOpenProfile} className="flex-row items-center flex-1 active:opacity-80">
           {/* Avatar with gold ring */}
           <View
             style={{
@@ -311,6 +515,7 @@ export default function FeedItem({ item, onPress }) {
             lineHeight={22}
             textColor={textColor}
             mutedColor={mutedColor}
+            onMentionPress={handleMentionPress}
           />
         </View>
       ) : null}
@@ -420,11 +625,7 @@ export default function FeedItem({ item, onPress }) {
                 // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
               }}
             >
-              <Ionicons
-                name={liked ? 'heart' : 'heart-outline'}
-                size={26}
-                color={liked ? '#ffc801' : iconColor}
-              />
+              <LionsgeekLikeIcon size={26} color={liked ? '#ffc801' : iconColor} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
@@ -471,6 +672,7 @@ export default function FeedItem({ item, onPress }) {
             lineHeight={20}
             textColor={textColor}
             mutedColor={mutedColor}
+            onMentionPress={handleMentionPress}
           />
         </View>
       ) : null}

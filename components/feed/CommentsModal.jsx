@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,21 @@ function formatTime(dateString) {
   if (hours > 0) return `${hours}h`;
   if (mins > 0) return `${mins}m`;
   return 'just now';
+}
+
+function sortByNewestFirst(items) {
+  if (!Array.isArray(items)) return [];
+  const safeTime = (value) => {
+    const time = new Date(value || 0).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+
+  return [...items]
+    .sort((a, b) => safeTime(b?.created_at) - safeTime(a?.created_at))
+    .map((comment) => ({
+      ...comment,
+      replies: sortByNewestFirst(comment?.replies || []),
+    }));
 }
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
@@ -99,6 +114,10 @@ function CommentRow({
   const [showReplies, setShowReplies] = useState(false);
 
   const bubbleBg = isDark ? '#2a2a2a' : '#f3f2ef';
+  const isMyComment =
+    currentUserId != null &&
+    comment?.user?.id != null &&
+    Number(comment.user.id) === Number(currentUserId);
 
   const handleLike = async () => {
     const wasLiked = liked;
@@ -132,21 +151,31 @@ function CommentRow({
         {/* Content */}
         <View style={{ flex: 1 }}>
           {/* Bubble */}
-          <View style={{ backgroundColor: bubbleBg, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 }}>
+          <Pressable
+            onLongPress={() => {
+              if (isMyComment) onOpenMenu(comment);
+            }}
+            delayLongPress={350}
+            android_ripple={isMyComment ? { color: isDark ? '#3a3a3a' : '#e7e4df' } : undefined}
+            style={({ pressed }) => ([
+              {
+                backgroundColor: bubbleBg,
+                borderRadius: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                opacity: pressed && isMyComment ? 0.92 : 1,
+              },
+            ])}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ fontWeight: '700', fontSize: 13, color: textColor, marginBottom: 2, flex: 1 }} numberOfLines={1}>
                 {comment.user?.name || 'User'}
               </Text>
-              {currentUserId && comment.user?.id === currentUserId ? (
-                <TouchableOpacity onPress={() => onOpenMenu(comment)} style={{ paddingLeft: 10, paddingVertical: 2 }}>
-                  <Ionicons name="ellipsis-horizontal" size={16} color={mutedColor} />
-                </TouchableOpacity>
-              ) : null}
             </View>
             <Text style={{ fontSize: 14, color: textColor, lineHeight: 20 }}>
               {comment.body}
             </Text>
-          </View>
+          </Pressable>
 
           {/* Meta row: time · Like · Reply */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, marginLeft: 4, gap: 14 }}>
@@ -248,7 +277,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
     setLoading(true);
     try {
       const res = await API.get(`mobile/posts/${postId}/comments`, token);
-      if (res?.data?.comments) setComments(res.data.comments);
+      if (res?.data?.comments) setComments(sortByNewestFirst(res.data.comments));
     } catch {
       // show empty state
     } finally {
@@ -396,13 +425,12 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
       setComments(prev =>
         prev.map(c =>
           c.id === replyingTo.id
-            ? { ...c, replies: [...(c.replies || []), tempComment] }
+            ? { ...c, replies: [tempComment, ...(c.replies || [])] }
             : c
         )
       );
     } else {
-      setComments(prev => [...prev, tempComment]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      setComments(prev => [tempComment, ...prev]);
     }
 
     const parentId = replyingTo?.id ?? null;
@@ -420,12 +448,17 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
           setComments(prev =>
             prev.map(c =>
               c.id === parentId
-                ? { ...c, replies: (c.replies || []).map(r => r.id === tempId ? saved : r) }
+                ? {
+                  ...c,
+                  replies: sortByNewestFirst(
+                    (c.replies || []).map(r => r.id === tempId ? saved : r)
+                  ),
+                }
                 : c
             )
           );
         } else {
-          setComments(prev => prev.map(c => c.id === tempId ? saved : c));
+          setComments(prev => sortByNewestFirst(prev.map(c => c.id === tempId ? saved : c)));
         }
         if (onCommentCountChange) onCommentCountChange(1);
         await syncRealCount();
@@ -497,8 +530,19 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
 
         {/* Comments list */}
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="small" color="#ffc801" />
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <View key={idx} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 }}>
+                <Skeleton width={36} height={36} borderRadius={18} isDark={isDark} />
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <View style={{ borderRadius: 14, overflow: 'hidden' }}>
+                    <Skeleton width="100%" height={54} borderRadius={14} isDark={isDark} />
+                  </View>
+                  <View style={{ height: 10 }} />
+                  <Skeleton width={120} height={10} borderRadius={10} isDark={isDark} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : (
           <FlatList
@@ -528,9 +572,6 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"
-            onContentSizeChange={() =>
-              comments.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
-            }
           />
         )}
 
@@ -666,31 +707,24 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             returnKeyType="default"
           />
 
-          {/* Send button
-              onStartShouldSetResponder forces this view to claim the touch
-              immediately, before React Native can interpret it as a keyboard-
-              dismiss gesture. This is why a single tap always sends. */}
+          {/* Send button (use touch-down to avoid "first tap dismisses keyboard") */}
           <Pressable
-            // Capture the touch before the keyboard-dismiss gesture does.
-            onStartShouldSetResponder={() => true}
-            // Fire on touch-down so it always sends on first tap.
-            onPressIn={() => {
-              if (canSend && !sending) handleSend();
-            }}
-            // Keep onPress as a fallback for platforms that don't dispatch pressIn.
-            onPress={() => {
+            onTouchStart={() => {
               if (canSend && !sending) handleSend();
             }}
             disabled={!canSend || sending}
             style={{
-              width: 38, height: 38, borderRadius: 19,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
               backgroundColor: canSend ? '#ffc801' : (isDark ? '#2a2a2a' : '#e5e5e5'),
-              alignItems: 'center', justifyContent: 'center',
+              alignItems: 'center',
+              justifyContent: 'center',
               flexShrink: 0,
             }}
           >
             {sending ? (
-              <ActivityIndicator size="small" color={canSend ? '#000' : mutedColor} />
+              <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
             ) : (
               <Ionicons name="send" size={16} color={canSend ? '#000' : mutedColor} />
             )}
