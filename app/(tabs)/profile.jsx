@@ -202,8 +202,7 @@ export default function ProfileScreen() {
       </AppLayout>
     );
   }
-  console.log(profile);
-  
+
   return (
     <AppLayout showNavbar={false}>
       <ScrollView className="flex-1 bg-light dark:bg-dark" showsVerticalScrollIndicator={false}>
@@ -245,11 +244,17 @@ export default function ProfileScreen() {
                 {/* <Text className="text-xs text-white dark:text-white mb-1">{}</Text> */}
                 <View className="relative">
 
-                  <Image
-                    source={{ uri: API.APP_URL + "/storage/img/profile/" + profile?.image }}
-                    className="w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark"
-                    defaultSource={require('@/assets/images/icon.png')}
-                  />
+                  {profile?.image ? (
+                    <Image
+                      source={{ uri: API.APP_URL + "/storage/img/profile/" + profile.image }}
+                      className="w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark"
+                      defaultSource={require('@/assets/images/icon.png')}
+                    />
+                  ) : (
+                    <View className='w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark bg-alpha/20 flex items-center justify-center' >
+                      <Ionicons name="person-outline" size={24} color={isDark ? '#fff' : '#000'} />
+                    </View>
+                  )}
                 </View>
 
                 {/* Last Online Indicator - Below Profile Image */}

@@ -93,11 +93,8 @@ export default function SearchScreen() {
     { value: 'hashtags', label: 'Hashtags', icon: 'pricetag-outline' },
   ];
 
-  const getImageUrl = (item) => {
-    if (item?.avatar) return item.avatar;
-    if (item?.image) return `${API.APP_URL}/storage/img/profile/${item.image}`;
-    return null;
-  };
+  console.log();
+
 
   return (
     <AppLayout showNavbar={false}>
@@ -140,11 +137,10 @@ export default function SearchScreen() {
                 <Pressable
                   key={btn.value}
                   onPress={() => setSearchType(btn.value)}
-                  className={`px-4 py-2 rounded-full flex-row items-center ${
-                    searchType === btn.value
-                      ? 'bg-alpha dark:bg-alpha'
-                      : 'bg-light/50 dark:bg-dark/50'
-                  }`}
+                  className={`px-4 py-2 rounded-full flex-row items-center ${searchType === btn.value
+                    ? 'bg-alpha dark:bg-alpha'
+                    : 'bg-light/50 dark:bg-dark/50'
+                    }`}
                 >
                   <Ionicons
                     name={btn.icon}
@@ -152,11 +148,10 @@ export default function SearchScreen() {
                     color={searchType === btn.value ? (isDark ? '#000' : '#000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)')}
                   />
                   <Text
-                    className={`ml-2 text-sm font-medium ${
-                      searchType === btn.value
-                        ? 'text-black'
-                        : 'text-black/60 dark:text-white/60'
-                    }`}
+                    className={`ml-2 text-sm font-medium ${searchType === btn.value
+                      ? 'text-black'
+                      : 'text-black/60 dark:text-white/60'
+                      }`}
                   >
                     {btn.label}
                   </Text>
@@ -173,11 +168,10 @@ export default function SearchScreen() {
                   <Pressable
                     key={btn.value}
                     onPress={() => setFilter(btn.value)}
-                    className={`px-4 py-2 rounded-full flex-row items-center ${
-                      filter === btn.value
-                        ? 'bg-alpha dark:bg-alpha'
-                        : 'bg-light/50 dark:bg-dark/50'
-                    }`}
+                    className={`px-4 py-2 rounded-full flex-row items-center ${filter === btn.value
+                      ? 'bg-alpha dark:bg-alpha'
+                      : 'bg-light/50 dark:bg-dark/50'
+                      }`}
                   >
                     <Ionicons
                       name={btn.icon}
@@ -185,11 +179,10 @@ export default function SearchScreen() {
                       color={filter === btn.value ? (isDark ? '#000' : '#000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)')}
                     />
                     <Text
-                      className={`ml-2 text-sm font-medium ${
-                        filter === btn.value
-                          ? 'text-black'
-                          : 'text-black/60 dark:text-white/60'
-                      }`}
+                      className={`ml-2 text-sm font-medium ${filter === btn.value
+                        ? 'text-black'
+                        : 'text-black/60 dark:text-white/60'
+                        }`}
                     >
                       {btn.label}
                     </Text>
@@ -281,11 +274,19 @@ export default function SearchScreen() {
                   >
                     {item.type === 'user' ? (
                       <>
-                        <Image
-                          source={{ uri: getImageUrl(item) }}
-                          className="w-12 h-12 rounded-full mr-3"
-                          defaultSource={require('@/assets/images/icon.png')}
-                        />
+                        {
+                          item.image ? (
+                            <Image
+                              source={{ uri: API.APP_URL + "/storage/img/profile/" + item.image }}
+                              className="w-12 h-12 rounded-full mr-3"
+                              defaultSource={require('@/assets/images/icon.png')}
+                            />
+                          ) : (
+                            <View className="w-12 h-12 rounded-full mr-3 bg-alpha/20 flex items-center justify-center">
+                              <Ionicons name="person-outline" size={24} color={isDark ? '#fff' : '#000'} />
+                            </View>
+                          )
+                        }
                         <View className="flex-1">
                           <Text className="text-base font-semibold text-black dark:text-white">
                             {item.name}
