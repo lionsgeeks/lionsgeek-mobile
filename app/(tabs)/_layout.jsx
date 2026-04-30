@@ -123,6 +123,21 @@ export default function TabLayout() {
           options={{
             headerShown: false,
             title: screen.name,
+            ...(screen.route === 'profile'
+              ? {
+                  // Tabs keep screens mounted; if we previously opened someone via
+                  // `/(tabs)/profile?userId=...`, tapping the Profile tab must reset
+                  // back to your own profile (no params).
+                  tabBarButton: (props) => (
+                    <HapticTab
+                      {...props}
+                      onPress={() => {
+                        router.replace('/(tabs)/profile');
+                      }}
+                    />
+                  ),
+                }
+              : {}),
             tabBarIcon: ({ color, focused }) => {
               if (screen.route === 'profile') {
                 const avatarUrl = API.APP_URL + "/storage/img/profile/" + user?.image;

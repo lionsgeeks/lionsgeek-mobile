@@ -251,7 +251,7 @@ export default function TrainingDetails() {
               {training.users.map((user, idx) => (
                 <Pressable
                   key={user.id || idx}
-                  onPress={() => router.push({ pathname: '/profile/[id]', params: { id: user.id } })}
+                  onPress={() => router.push(`/(tabs)/profile?userId=${user.id}`)}
                   className={`flex-row items-center justify-between py-3 border-b ${isDark ? 'border-dark' : 'border-beta/20'} last:border-b-0`}
                 >
                   <View className="flex-row items-center gap-3 flex-1 pr-2">

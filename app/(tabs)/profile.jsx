@@ -14,7 +14,7 @@ import { resolveAvatarUrl, resolveCoverUrl, resolvePostMediaUrl } from '@/compon
 
 export default function ProfileScreen() {
   const { user: currentUser, token } = useAppContext();
-  const { userId } = useLocalSearchParams();
+  const { userId, id } = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [profile, setProfile] = useState(null);
@@ -22,7 +22,16 @@ export default function ProfileScreen() {
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
 
-  const isOwnProfile = !userId || userId === currentUser?.id?.toString();
+  const resolvedUserId = userId ?? id;
+  const isOwnProfile = !resolvedUserId || resolvedUserId === currentUser?.id?.toString();
+
+  useEffect(() => {
+    // Route params can change without unmounting (especially in tabs).
+    // Reset state so we don't momentarily show a previous user's profile.
+    setLoading(true);
+    setProfile(null);
+    setPosts([]);
+  }, [resolvedUserId]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -44,7 +53,7 @@ export default function ProfileScreen() {
           setProfile(response?.data || currentUser);
         } else {
           // Fetch other user's profile
-          const response = await API.getWithAuth(`mobile/profile/${userId}`, token);
+          const response = await API.getWithAuth(`mobile/profile/${resolvedUserId}`, token);
           if (response?.data) {
             setProfile(response.data);
           }
@@ -62,7 +71,7 @@ export default function ProfileScreen() {
     if (token || (isOwnProfile && currentUser)) {
       fetchProfile();
     }
-  }, [token, userId, isOwnProfile, currentUser]);
+  }, [token, resolvedUserId, isOwnProfile, currentUser]);
 
   useEffect(() => {
     const fetchUserPosts = async () => {
