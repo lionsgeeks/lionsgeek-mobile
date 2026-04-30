@@ -15,20 +15,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
-
-function resolveAvatarUrl(value) {
-  if (!value || typeof value !== 'string') return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  if (value.includes('img/profile/')) {
-    const cleanPath = value.startsWith('/') ? value : `/${value}`;
-    return `${API.APP_URL}${cleanPath}`;
-  }
-  if (value.includes('storage/')) {
-    const filename = value.split('/').pop();
-    return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : null;
-  }
-  return `${API.APP_URL}/storage/img/profile/${value}`;
-}
+import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 function LikeRow({ item, isDark, textColor, mutedColor, token, onFollowed }) {
   const avatarUrl = resolveAvatarUrl(item.avatar);

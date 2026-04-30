@@ -10,6 +10,7 @@ import CreatePost from '@/components/feed/CreatePost';
 import FeedItem from '@/components/feed/FeedItem';
 import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
+import { resolveAvatarUrl, resolveCoverUrl, resolvePostMediaUrl } from '@/components/helpers/helpers';
 
 export default function ProfileScreen() {
   const { user: currentUser, token } = useAppContext();
@@ -18,23 +19,29 @@ export default function ProfileScreen() {
   const isDark = colorScheme === 'dark';
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [posts] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   const isOwnProfile = !userId || userId === currentUser?.id?.toString();
 
   useEffect(() => {
     const fetchProfile = async () => {
+      // Don't try to fetch if we don't have auth for other users.
       if (!token && !isOwnProfile) return;
+
+      // For your own profile, wait until we have either token or cached user.
+      if (isOwnProfile && !token && !currentUser) return;
       
       try {
         if (isOwnProfile) {
           // Fetch own profile
-          const response = await API.getWithAuth('mobile/profile', token);
-          if (response?.data) {
-            setProfile(response.data);
-          } else {
+          if (!token) {
             setProfile(currentUser);
+            return;
           }
+
+          const response = await API.getWithAuth('mobile/profile', token);
+          setProfile(response?.data || currentUser);
         } else {
           // Fetch other user's profile
           const response = await API.getWithAuth(`mobile/profile/${userId}`, token);
@@ -52,10 +59,69 @@ export default function ProfileScreen() {
       }
     };
 
-    if (token || isOwnProfile) {
+    if (token || (isOwnProfile && currentUser)) {
       fetchProfile();
     }
   }, [token, userId, isOwnProfile, currentUser]);
+
+  useEffect(() => {
+    const fetchUserPosts = async () => {
+      if (!token || !profile?.id) return;
+
+      setPostsLoading(true);
+      try {
+        const response = await API.getWithAuth('mobile/feed', token);
+        const feedData = response?.data?.feed || response?.data?.posts || [];
+        const list = Array.isArray(feedData) ? feedData : [];
+
+        const filtered = list.filter((post) => {
+          const postUserId = post?.user?.id ?? post?.author?.id ?? post?.user_id ?? post?.userId;
+          return postUserId != null && Number(postUserId) === Number(profile.id);
+        });
+
+        const normalized = filtered.map((post) => {
+          const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
+          const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
+          const avatarUrl = resolveAvatarUrl(userAvatar || userImage);
+
+          const normalizedUser = {
+            ...(post.user || post.author || {}),
+            id: post.user?.id || post.author?.id || post.user_id || post.userId || profile.id,
+            name:
+              post.user?.name ||
+              post.author?.name ||
+              post.user_name ||
+              post.author_name ||
+              profile?.name ||
+              'Unknown',
+            avatar: avatarUrl,
+            image: userImage,
+          };
+
+          const mediaUrl = resolvePostMediaUrl(post);
+
+          return {
+            ...post,
+            user: normalizedUser,
+            userAvatar: avatarUrl,
+            postImage: mediaUrl,
+            image: mediaUrl,
+          };
+        });
+
+        setPosts(normalized);
+      } catch (error) {
+        console.error('[PROFILE] Error fetching posts:', error);
+        setPosts([]);
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+
+    fetchUserPosts();
+  }, [token, profile?.id, profile?.name]);
+
+  const profileImageUrl = profile ? resolveAvatarUrl(profile?.avatar || profile?.image) : null;
 
   if (loading) {
     return (
@@ -128,12 +194,6 @@ export default function ProfileScreen() {
     );
   }
 
-  const getImageUrl = () => {
-    if (profile?.avatar) return profile.avatar;
-    if (profile?.image) return `${API.APP_URL}/storage/img/profile/${profile.image}`;
-    return 'https://via.placeholder.com/100';
-  };
-
   return (
     <AppLayout showNavbar={false}>
       <ScrollView className="flex-1 bg-light dark:bg-dark" showsVerticalScrollIndicator={false}>
@@ -142,9 +202,9 @@ export default function ProfileScreen() {
           
           {/* Cover Image */}
           <View className="h-52 bg-alpha/20 dark:bg-alpha/30">
-            {profile?.cover ? (
+            {resolveCoverUrl(profile?.cover || profile?.cover_image || profile?.coverImage) ? (
               <Image
-                source={{ uri: `${API.APP_URL}/storage/${profile.cover}` }}
+                source={{ uri: resolveCoverUrl(profile?.cover || profile?.cover_image || profile?.coverImage) }}
                 className="w-full h-full"
                 resizeMode="cover"
               />
@@ -154,22 +214,31 @@ export default function ProfileScreen() {
           {/* Profile Header */}
           <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pb-6">
             <View className="flex-row items-center justify-between px-6 -mt-24 mb-4">
-              <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
-              </TouchableOpacity>
+              {isOwnProfile && !userId ? (
+                <View style={{ width: 24, height: 24 }} />
+              ) : (
+                <TouchableOpacity onPress={() => router.back()}>
+                  <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
+                </TouchableOpacity>
+              )}
               {/* <Text className="text-lg font-bold text-black dark:text-white">Profile</Text> */}
-              {/* <TouchableOpacity>
-                <Ionicons name="ellipsis-horizontal" size={24} color={isDark ? '#fff' : '#000'} />
-              </TouchableOpacity> */}
+              {isOwnProfile ? (
+                <TouchableOpacity onPress={() => router.push('/more')}>
+                  <Ionicons name="settings-outline" size={22} color={isDark ? '#fff' : '#000'} />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 24, height: 24 }} />
+              )}
             </View>
 
             {/* Profile Picture and Info */}
             <View className="px-6">
               <View className="items-center mb-4">
+                {/* <Text className="text-xs text-white dark:text-white mb-1">{}</Text> */}
                 <View className="relative">
                   
                   <Image
-                    source={{ uri: `${API.APP_URL}/storage/img/profile/${profile.image}` }}
+                    source={{ uri: API.APP_URL + "/storage/img/profile/" + profile?.image }}
                     className="w-32 h-32 rounded-full mb-3 border-4 border-light dark:border-dark"
                     defaultSource={require('@/assets/images/icon.png')}
                   />
@@ -405,14 +474,20 @@ export default function ProfileScreen() {
               <Text className="text-lg font-bold text-black dark:text-white">
                 {isOwnProfile ? 'Your Posts' : 'Posts'}
               </Text>
-              {posts.length > 0 && (
+              {!postsLoading && posts.length > 0 && (
                 <TouchableOpacity>
                   <Text className="text-sm text-alpha">See all</Text>
                 </TouchableOpacity>
               )}
             </View>
             
-            {posts.length === 0 ? (
+            {postsLoading ? (
+              <View className="py-12 items-center bg-light/50 dark:bg-dark/50 rounded-xl">
+                <Skeleton width={220} height={14} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 12 }} />
+                <Skeleton width={160} height={12} borderRadius={10} isDark={isDark} />
+              </View>
+            ) : posts.length === 0 ? (
               <View className="py-12 items-center bg-light/50 dark:bg-dark/50 rounded-xl">
                 <Ionicons name="document-text-outline" size={48} color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} />
                 <Text className="text-center text-black/60 dark:text-white/60 mt-4">

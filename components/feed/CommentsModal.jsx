@@ -16,28 +16,9 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
+import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-
-function resolveAvatarUrl(value) {
-  if (!value || typeof value !== 'string') return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) {
-    if (value.includes('/storage/') && !value.includes('/storage/img/profile/')) {
-      const filename = value.split('/').pop();
-      return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : value;
-    }
-    return value;
-  }
-  if (value.includes('img/profile/')) {
-    const cleanPath = value.startsWith('/') ? value : `/${value}`;
-    return `${API.APP_URL}${cleanPath}`;
-  }
-  if (value.includes('storage/')) {
-    const filename = value.split('/').pop();
-    return filename ? `${API.APP_URL}/storage/img/profile/${filename}` : null;
-  }
-  return `${API.APP_URL}/storage/img/profile/${value}`;
-}
 
 function formatTime(dateString) {
   if (!dateString) return '';

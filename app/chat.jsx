@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -64,3 +64,4 @@ export default function ChatScreen() {
     </AppLayout>
   );
 }
+

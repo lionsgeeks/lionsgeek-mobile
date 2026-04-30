@@ -1,17 +1,7 @@
 import { View, Text, Pressable, Image } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import API from '@/api';
-
-function resolveAvatarUrl(value) {
-  if (!value || typeof value !== 'string') return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  if (value.includes('storage/')) {
-    const cleanPath = value.startsWith('/') ? value : `/${value}`;
-    return `${API.APP_URL}${cleanPath}`;
-  }
-  return `${API.APP_URL}/storage/img/profile/${value}`;
-}
+import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 export default function StoryItem({ user, isOwn = false, onPress }) {
   const colorScheme = useColorScheme();
