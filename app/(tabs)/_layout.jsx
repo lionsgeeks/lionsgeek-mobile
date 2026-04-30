@@ -143,7 +143,7 @@ export default function TabLayout() {
                 const avatarUrl = API.APP_URL + "/storage/img/profile/" + user?.image;
                 const ringClassName = focused ? 'border-2' : 'border';
                 const ringStyle = { borderColor: focused ? activeRingColor : 'transparent' };
-                console.log(avatarUrl);
+                // console.log(avatarUrl);
                 
                 return (
                   <View className={`w-8 h-8 rounded-full overflow-hidden ${ringClassName}`} style={ringStyle}>
