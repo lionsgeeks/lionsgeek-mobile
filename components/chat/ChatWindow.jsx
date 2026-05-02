@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function ChatWindow({ conversation, onBack }) {
     const { user, token } = useAppContext();
@@ -106,9 +107,11 @@ export default function ChatWindow({ conversation, onBack }) {
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
                         {conversation.other_user?.name || 'User'}
                     </Text>
-                    <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
-                        {conversation.other_user?.email || ''}
-                    </Text>
+                    {userHasAdminRole(currentUser) && conversation.other_user?.email ? (
+                        <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                            {conversation.other_user.email}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
 

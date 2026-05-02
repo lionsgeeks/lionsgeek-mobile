@@ -19,7 +19,7 @@ export default function More() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!token) return;
-      
+
       try {
         const response = await API.getWithAuth('mobile/profile', token);
         if (response?.data) {
@@ -50,7 +50,7 @@ export default function More() {
 
   // Check if user is admin
   const userRoles = user?.roles || [];
-  const isAdmin = userRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
+  const isAdmin = userRoles.some((r) => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
 
   const menuItems = [
     {
@@ -58,13 +58,15 @@ export default function More() {
       icon: 'qr-code-outline',
       onPress: () => router.push('/(tabs)/training/qr-scanner'),
     },
-    ...(isAdmin ? [
-      {
-        label: 'View All Members',
-        icon: 'people-outline',
-        onPress: () => router.push('/(tabs)/members'),
-      },
-    ] : []),
+    ...(isAdmin
+      ? [
+          {
+            label: 'View All Members',
+            icon: 'people-outline',
+            onPress: () => router.push('/(tabs)/members'),
+          },
+        ]
+      : []),
   ];
 
   const getImageUrl = () => {
@@ -95,20 +97,17 @@ export default function More() {
   return (
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
-        <ScrollView 
-          className="flex-1" 
+        <ScrollView
+          className="flex-1"
           contentContainerStyle={{ paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Header Section */}
           <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-6 px-6">
             <Text className="text-2xl font-bold text-black dark:text-white mb-6">More</Text>
-            
+
             {/* Profile Card - Enhanced */}
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/profile')}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
               <View className="bg-light dark:bg-dark rounded-2xl p-5 border border-light/20 dark:border-dark/20 shadow-sm">
                 {loading ? (
                   <View className="py-6">
@@ -137,12 +136,10 @@ export default function More() {
                         />
                       ) : (
                         <View className="w-20 h-20 rounded-full mr-4 bg-alpha/20 dark:bg-alpha/40 items-center justify-center border-2 border-alpha/30">
-                          <Text className="text-2xl font-bold text-alpha">
-                            {initials}
-                          </Text>
+                          <Text className="text-2xl font-bold text-alpha">{initials}</Text>
                         </View>
                       )}
-                      
+
                       {/* User Info */}
                       <View className="flex-1">
                         <Text className="text-xl font-bold text-black dark:text-white mb-1">
@@ -157,20 +154,18 @@ export default function More() {
                           <View className="flex-row items-center flex-wrap mt-1">
                             {displayProfile.roles.map((role, idx) => (
                               <View key={idx} className="px-2 py-0.5 rounded-full bg-alpha/20 mr-1 mb-1">
-                                <Text className="text-xs font-medium text-alpha capitalize">
-                                  {role}
-                                </Text>
+                                <Text className="text-xs font-medium text-alpha capitalize">{role}</Text>
                               </View>
                             ))}
                           </View>
                         )}
                       </View>
-                      
+
                       {/* View Profile Indicator */}
-                      <Ionicons 
-                        name="chevron-forward" 
-                        size={20} 
-                        color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                       />
                     </View>
 
@@ -179,84 +174,85 @@ export default function More() {
                       {/* Status */}
                       {displayProfile?.status && (
                         <View className="flex-row items-center mb-3">
-                          <Ionicons 
-                            name="briefcase-outline" 
-                            size={18} 
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                          <Ionicons
+                            name="briefcase-outline"
+                            size={18}
+                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                           />
                           <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
                             {displayProfile.status}
                           </Text>
                         </View>
                       )}
-                      
+
                       {/* Promo */}
                       {displayProfile?.promo && (
                         <View className="flex-row items-center mb-3">
-                          <Ionicons 
-                            name="school-outline" 
-                            size={18} 
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                          <Ionicons
+                            name="school-outline"
+                            size={18}
+                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                           />
                           <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
                             Promo: {displayProfile.promo}
                           </Text>
                         </View>
                       )}
-                      
+
                       {/* Joined Date */}
                       {displayProfile?.created_at && (
                         <View className="flex-row items-center mb-3">
-                          <Ionicons 
-                            name="calendar-outline" 
-                            size={18} 
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                          <Ionicons
+                            name="calendar-outline"
+                            size={18}
+                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                           />
                           <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
-                            Joined {new Date(displayProfile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            Joined{' '}
+                            {new Date(displayProfile.created_at).toLocaleDateString('en-US', {
+                              month: 'long',
+                              year: 'numeric',
+                            })}
                           </Text>
                         </View>
                       )}
 
                       {/* Last Online */}
-                      {displayProfile?.last_online && (() => {
-                        const lastOnlineDate = new Date(displayProfile.last_online);
-                        const now = new Date();
-                        const diffMinutes = Math.floor((now - lastOnlineDate) / (1000 * 60));
-                        const diffHours = Math.floor(diffMinutes / 60);
-                        const diffDays = Math.floor(diffHours / 24);
-                        const isOnline = diffMinutes <= 5;
-                        
-                        return (
-                          <View className="flex-row items-center">
-                            <Ionicons 
-                              name="time-outline" 
-                              size={18} 
-                              color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
-                            />
-                            <View className="flex-row items-center ml-3 flex-1">
-                              {isOnline ? (
-                                <>
-                                  <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
+                      {displayProfile?.last_online &&
+                        (() => {
+                          const lastOnlineDate = new Date(displayProfile.last_online);
+                          const now = new Date();
+                          const diffMinutes = Math.floor((now - lastOnlineDate) / (1000 * 60));
+                          const diffHours = Math.floor(diffMinutes / 60);
+                          const diffDays = Math.floor(diffHours / 24);
+                          const isOnline = diffMinutes <= 5;
+
+                          return (
+                            <View className="flex-row items-center">
+                              <Ionicons
+                                name="time-outline"
+                                size={18}
+                                color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
+                              />
+                              <View className="flex-row items-center ml-3 flex-1">
+                                {isOnline ? (
+                                  <>
+                                    <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
+                                    <Text className="text-sm text-black/80 dark:text-white/80">Online</Text>
+                                  </>
+                                ) : (
                                   <Text className="text-sm text-black/80 dark:text-white/80">
-                                    Online
+                                    {diffDays > 0
+                                      ? `Last seen ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+                                      : diffHours > 0
+                                        ? `Last seen ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
+                                        : `Last seen ${diffMinutes} ${diffMinutes === 1 ? 'min' : 'mins'} ago`}
                                   </Text>
-                                </>
-                              ) : (
-                                <Text className="text-sm text-black/80 dark:text-white/80">
-                                  {diffDays > 0 ? (
-                                    `Last seen ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
-                                  ) : diffHours > 0 ? (
-                                    `Last seen ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
-                                  ) : (
-                                    `Last seen ${diffMinutes} ${diffMinutes === 1 ? 'min' : 'mins'} ago`
-                                  )}
-                                </Text>
-                              )}
+                                )}
+                              </View>
                             </View>
-                          </View>
-                        );
-                      })()}
+                          );
+                        })()}
 
                       {/* Admin Details - Only for admins viewing their own profile */}
                       <Rolegard authorized={['admin', 'coach']}>
@@ -267,10 +263,10 @@ export default function More() {
                             </Text>
                             {displayProfile?.phone && (
                               <View className="flex-row items-center mb-2">
-                                <Ionicons 
-                                  name="call-outline" 
-                                  size={16} 
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                                <Ionicons
+                                  name="call-outline"
+                                  size={16}
+                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                                 />
                                 <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
                                   {displayProfile.phone}
@@ -279,10 +275,10 @@ export default function More() {
                             )}
                             {displayProfile?.cin && (
                               <View className="flex-row items-center mb-2">
-                                <Ionicons 
-                                  name="card-outline" 
-                                  size={16} 
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                                <Ionicons
+                                  name="card-outline"
+                                  size={16}
+                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                                 />
                                 <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
                                   CIN: {displayProfile.cin}
@@ -291,10 +287,10 @@ export default function More() {
                             )}
                             {displayProfile?.formation_id && (
                               <View className="flex-row items-center mb-2">
-                                <Ionicons 
-                                  name="school-outline" 
-                                  size={16} 
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} 
+                                <Ionicons
+                                  name="school-outline"
+                                  size={16}
+                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
                                 />
                                 <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
                                   Formation ID: {displayProfile.formation_id}
@@ -309,14 +305,8 @@ export default function More() {
                     {/* View Full Profile Link */}
                     <View className="mt-4 pt-4 border-t border-light/20 dark:border-dark/20">
                       <View className="flex-row items-center justify-center">
-                        <Text className="text-sm text-alpha font-medium mr-2">
-                          View Full Profile
-                        </Text>
-                        <Ionicons 
-                          name="arrow-forward" 
-                          size={16} 
-                          color="#ffc801" 
-                        />
+                        <Text className="text-sm text-alpha font-medium mr-2">View Full Profile</Text>
+                        <Ionicons name="arrow-forward" size={16} color="#ffc801" />
                       </View>
                     </View>
                   </View>
@@ -337,25 +327,17 @@ export default function More() {
                     key={index}
                     onPress={item?.onPress}
                     className={`flex-row items-center py-4 px-4 ${
-                      index !== menuItems.length - 1 
-                        ? 'border-b border-light/20 dark:border-dark/20' 
-                        : ''
+                      index !== menuItems.length - 1 ? 'border-b border-light/20 dark:border-dark/20' : ''
                     } active:opacity-70`}
                   >
                     <View className="w-10 h-10 rounded-full bg-alpha/10 dark:bg-alpha/20 items-center justify-center mr-3">
-                      <Ionicons 
-                        name={item?.icon} 
-                        size={22} 
-                        color={isDark ? '#ffc801' : '#ffc801'} 
-                      />
+                      <Ionicons name={item?.icon} size={22} color={isDark ? '#ffc801' : '#ffc801'} />
                     </View>
-                    <Text className="flex-1 text-base font-medium text-black dark:text-white">
-                      {item?.label}
-                    </Text>
-                    <Ionicons 
-                      name="chevron-forward" 
-                      size={20} 
-                      color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'} 
+                    <Text className="flex-1 text-base font-medium text-black dark:text-white">{item?.label}</Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
                     />
                   </TouchableOpacity>
                 ))}
@@ -374,19 +356,13 @@ export default function More() {
                 className="flex-row items-center py-4 px-4 active:opacity-70"
               >
                 <View className="w-10 h-10 rounded-full bg-alpha/10 dark:bg-alpha/20 items-center justify-center mr-3">
-                  <Ionicons 
-                    name="person-outline" 
-                    size={22} 
-                    color={isDark ? '#ffc801' : '#ffc801'} 
-                  />
+                  <Ionicons name="person-outline" size={22} color={isDark ? '#ffc801' : '#ffc801'} />
                 </View>
-                <Text className="flex-1 text-base font-medium text-black dark:text-white">
-                  Edit Profile
-                </Text>
-                <Ionicons 
-                  name="chevron-forward" 
-                  size={20} 
-                  color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'} 
+                <Text className="flex-1 text-base font-medium text-black dark:text-white">Edit Profile</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
                 />
               </TouchableOpacity>
             </View>
@@ -394,15 +370,13 @@ export default function More() {
 
           {/* Logout Section */}
           <View className="px-6 mt-6 mb-6">
-            <Pressable 
-              onPress={logout} 
+            <Pressable
+              onPress={logout}
               className="bg-red-500 dark:bg-red-600 rounded-2xl py-4 shadow-sm active:opacity-80"
             >
               <View className="flex-row items-center justify-center">
                 <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text className="text-center text-white font-semibold text-base">
-                  Log out
-                </Text>
+                <Text className="text-center text-white font-semibold text-base">Log out</Text>
               </View>
             </Pressable>
           </View>
@@ -411,6 +385,4 @@ export default function More() {
     </AppLayout>
   );
 }
-
-
 

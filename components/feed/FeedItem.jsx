@@ -10,22 +10,13 @@ import LikesModal from '@/components/feed/LikesModal';
 import { router } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 const CAPTION_PREVIEW_LENGTH = 60;
 
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_PUNCTUATION_PATTERN = /[).,!?;:]+$/;
 const MENTION_PATTERN = /(^|[\s(])@([A-Za-z0-9_]+)/g;
-
-function resolveAvatarUrl(value) {
-  if (!value || typeof value !== 'string') return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  if (value.includes('storage/')) {
-    const cleanPath = value.startsWith('/') ? value : `/${value}`;
-    return `${API.APP_URL}${cleanPath}`;
-  }
-  return `${API.APP_URL}/storage/img/profile/${value}`;
-}
 
 function splitTextByUrls(text) {
   if (!text || typeof text !== 'string') return [];
@@ -605,7 +596,7 @@ export default function FeedItem({ item, onPress }) {
       ) : null}
 
       {/* ── Action bar ── */}
-      <View className="px-3 pb-1">
+      <View className="px-2 pb-1 mt-5">
         {/* <View
           style={{
             height: 0.5,

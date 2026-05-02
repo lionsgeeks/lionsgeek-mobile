@@ -18,6 +18,10 @@ export default function Navbar() {
     router.push('/(tabs)/search');
   };
 
+  const handleChatPress = () => {
+    router.push('/chat');
+  };
+
   const handleNotificationsPress = () => {
     router.push('/(tabs)/notifications');
   };
@@ -135,6 +139,9 @@ export default function Navbar() {
         <View className="flex-row items-center">
           <TouchableOpacity className="mr-4" onPress={handleSearchPress}>
             <Ionicons name="search-outline" size={24} color={isDark ? '#fff' : '#000'} />
+          </TouchableOpacity>
+          <TouchableOpacity className="mr-4" onPress={handleChatPress}>
+            <Ionicons name="chatbubbles-outline" size={24} color={isDark ? '#fff' : '#000'} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleNotificationsPress}>
             <Ionicons name="notifications-outline" size={24} color={isDark ? '#fff' : '#000'} />

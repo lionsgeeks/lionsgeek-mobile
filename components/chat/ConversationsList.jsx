@@ -7,6 +7,7 @@ import API from '@/api';
 import ChatBox from './ChatBox';
 import ConversationDeletePopover from './partials/ConversationDeletePopover';
 import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 // Component dial list dial conversations - ybdl conversations w y7al chatbox
 const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, onUnreadCountChange }, ref) {
@@ -119,10 +120,14 @@ const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, o
         }, 300);
     }, [searchQuery, currentUser?.id, token]);
 
-    const filteredConversations = conversations.filter(conv => 
-        conv.other_user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.other_user?.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const viewerIsAdmin = userHasAdminRole(currentUser);
+    const q = searchQuery.toLowerCase();
+    const filteredConversations = conversations.filter((conv) => {
+        const nameMatch = conv.other_user?.name?.toLowerCase().includes(q);
+        const emailMatch =
+            viewerIsAdmin && conv.other_user?.email?.toLowerCase().includes(q);
+        return nameMatch || emailMatch;
+    });
 
     // Handle user selection from search
     const handleUserSelect = async (userId) => {
@@ -208,9 +213,11 @@ const ConversationsList = forwardRef(function ConversationsList({ onCloseChat, o
                                         <Text className="text-sm font-medium text-black dark:text-white" numberOfLines={1}>
                                             {user.name}
                                         </Text>
-                                        <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
-                                            {user.email}
-                                        </Text>
+                                        {viewerIsAdmin && user.email ? (
+                                            <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                                                {user.email}
+                                            </Text>
+                                        ) : null}
                                     </View>
                                 </Pressable>
                             ))}
