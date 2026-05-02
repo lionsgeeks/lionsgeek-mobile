@@ -10,6 +10,7 @@ import {
   Modal,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -124,9 +125,11 @@ function PostsGrid({ posts, isDark, onCellPress }) {
   );
 }
 
-function ProfileSkeleton({ isDark }) {
+function ProfileSkeleton({ isDark, topInset = 0 }) {
   return (
     <View className="flex-1 bg-light dark:bg-dark">
+      {/* Skeleton top bar placeholder */}
+      <View style={{ height: topInset + 46 }} className="bg-light dark:bg-dark border-b border-black/5 dark:border-white/5" />
       {/* Cover */}
       <View className="h-44 bg-alpha/10 dark:bg-alpha/5" />
 
@@ -180,6 +183,8 @@ export default function ProfileScreen() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
+
+  const insets = useSafeAreaInsets();
 
   const resolvedUserId = userId ?? id;
   const isOwnProfile = !resolvedUserId || resolvedUserId === currentUser?.id?.toString();
@@ -288,7 +293,7 @@ export default function ProfileScreen() {
     return (
       <AppLayout showNavbar={false}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
-        <ProfileSkeleton isDark={isDark} />
+        <ProfileSkeleton isDark={isDark} topInset={insets.top} />
       </AppLayout>
     );
   }
@@ -310,8 +315,8 @@ export default function ProfileScreen() {
 
       {/* ─── Sticky Top Bar ─── */}
       <View
-        className="flex-row items-center justify-between px-4 py-3 bg-light dark:bg-dark border-b border-black/5 dark:border-white/5"
-        style={{ zIndex: 10 }}
+        className="flex-row items-center justify-between px-4 bg-light dark:bg-dark border-b border-black/5 dark:border-white/5"
+        style={{ paddingTop: insets.top + 10, paddingBottom: 10, zIndex: 10 }}
       >
         {isOwnProfile && !userId ? (
           <View style={{ width: 28 }} />
