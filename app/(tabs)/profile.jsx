@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   FlatList,
+  RefreshControl,
   Image,
   TouchableOpacity,
   Pressable,
@@ -363,6 +364,10 @@ export default function ProfileScreen() {
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
@@ -376,93 +381,114 @@ export default function ProfileScreen() {
     setPosts([]);
   }, [resolvedUserId]);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!token && !isOwnProfile) return;
-      if (isOwnProfile && !token && !currentUser) return;
+  const loadProfile = useCallback(async () => {
+    if (!token && !isOwnProfile) return;
+    if (isOwnProfile && !token && !currentUser) return;
 
-      try {
-        if (isOwnProfile) {
-          if (!token) {
-            setProfile(currentUser);
-            return;
-          }
-          const response = await API.getWithAuth('mobile/profile', token);
-          setProfile(response?.data || currentUser);
-        } else {
-          const response = await API.getWithAuth(`mobile/profile/${resolvedUserId}`, token);
-          if (response?.data) setProfile(response.data);
-        }
-      } catch (error) {
-        console.error('[PROFILE] fetch error:', error);
-        if (isOwnProfile) setProfile(currentUser);
-      } finally {
-        setLoading(false);
+    try {
+      if (isOwnProfile) {
+        if (!token) { setProfile(currentUser); return; }
+        const res = await API.getWithAuth('mobile/profile', token);
+        setProfile(res?.data || currentUser);
+      } else {
+        const res = await API.getWithAuth(`mobile/profile/${resolvedUserId}`, token);
+        if (res?.data) setProfile(res.data);
       }
-    };
-
-    if (token || (isOwnProfile && currentUser)) fetchProfile();
+    } catch (err) {
+      console.error('[PROFILE] fetch error:', err);
+      if (isOwnProfile) setProfile(currentUser);
+    } finally {
+      setLoading(false);
+    }
   }, [token, resolvedUserId, isOwnProfile, currentUser]);
 
-  useEffect(() => {
-    const fetchUserPosts = async () => {
-      if (!token || !profile?.id) return;
+  const loadPosts = useCallback(async (profileId, profileName) => {
+    if (!token || !profileId) return;
 
-      setPostsLoading(true);
-      try {
-        const response = await API.getWithAuth('mobile/feed', token);
-        const feedData = response?.data?.feed || response?.data?.posts || [];
-        const list = Array.isArray(feedData) ? feedData : [];
+    setPostsLoading(true);
+    try {
+      const res = await API.getWithAuth('mobile/feed', token);
+      const list = Array.isArray(res?.data?.feed ?? res?.data?.posts)
+        ? (res?.data?.feed ?? res?.data?.posts)
+        : [];
 
-        const filtered = list.filter((post) => {
-          const postUserId = post?.user?.id ?? post?.author?.id ?? post?.user_id ?? post?.userId;
-          return postUserId != null && Number(postUserId) === Number(profile.id);
-        });
-
-        const normalized = filtered.map((post) => {
-          const userAvatar =
-            post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
-          const userImage =
-            post.user?.image || post.author?.image || post.user_image || post.author_image;
-          const avatarUrl = resolveAvatarUrl(userAvatar || userImage);
-
-          const normalizedUser = {
-            ...(post.user || post.author || {}),
-            id:
-              post.user?.id || post.author?.id || post.user_id || post.userId || profile.id,
-            name:
-              post.user?.name ||
-              post.author?.name ||
-              post.user_name ||
-              post.author_name ||
-              profile?.name ||
-              'Unknown',
-            avatar: avatarUrl,
-            image: userImage,
-          };
-
-          const mediaUrl = resolvePostMediaUrl(post);
-
+      const normalized = list
+        .filter((post) => {
+          const pid = post?.user?.id ?? post?.author?.id ?? post?.user_id ?? post?.userId;
+          return pid != null && Number(pid) === Number(profileId);
+        })
+        .map((post) => {
+          const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
+          const userImage  = post.user?.image  || post.author?.image  || post.user_image  || post.author_image;
+          const avatarUrl  = resolveAvatarUrl(userAvatar || userImage);
+          const mediaUrl   = resolvePostMediaUrl(post);
           return {
             ...post,
-            user: normalizedUser,
+            user: {
+              ...(post.user || post.author || {}),
+              id:     post.user?.id || post.author?.id || post.user_id || post.userId || profileId,
+              name:   post.user?.name || post.author?.name || post.user_name || post.author_name || profileName || 'Unknown',
+              avatar: avatarUrl,
+              image:  userImage,
+            },
             userAvatar: avatarUrl,
-            postImage: mediaUrl,
-            image: mediaUrl,
+            postImage:  mediaUrl,
+            image:      mediaUrl,
           };
         });
 
-        setPosts(normalized);
-      } catch (error) {
-        console.error('[PROFILE] fetch posts error:', error);
-        setPosts([]);
-      } finally {
-        setPostsLoading(false);
-      }
-    };
+      setPosts(normalized);
+    } catch (err) {
+      console.error('[PROFILE] fetch posts error:', err);
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [token]);
 
-    fetchUserPosts();
-  }, [token, profile?.id, profile?.name]);
+  // Initial load
+  useEffect(() => {
+    if (token || (isOwnProfile && currentUser)) loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    loadPosts(profile?.id, profile?.name);
+  }, [loadPosts, profile?.id, profile?.name]);
+
+  const onRefresh = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    await Promise.all([loadProfile(), loadPosts(profile?.id, profile?.name)]);
+    setRefreshing(false);
+  }, [loadProfile, loadPosts, token, profile?.id, profile?.name]);
+
+  // Sync reactive follow state whenever the profile data arrives / refreshes
+  useEffect(() => {
+    if (!profile) return;
+    setIsFollowing(!!profile.is_following);
+    setFollowersCount(profile.followers_count ?? 0);
+  }, [profile?.id, profile?.is_following, profile?.followers_count]);
+
+  const handleFollowToggle = async () => {
+    if (followLoading || !token || !profile?.id) return;
+
+    const willFollow = !isFollowing;
+    // Optimistic update
+    setIsFollowing(willFollow);
+    setFollowersCount((prev) => prev + (willFollow ? 1 : -1));
+    setFollowLoading(true);
+
+    try {
+      await API.postWithAuth(`mobile/users/${profile.id}/follow`, {}, token);
+    } catch (err) {
+      console.error('[PROFILE] follow toggle error:', err);
+      // Revert on failure
+      setIsFollowing(!willFollow);
+      setFollowersCount((prev) => prev + (willFollow ? -1 : 1));
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const profileImageUrl = profile
     ? resolveAvatarUrl(profile?.avatar || profile?.image)
@@ -526,6 +552,14 @@ export default function ProfileScreen() {
         className="flex-1 bg-light dark:bg-dark"
         showsVerticalScrollIndicator={false}
         bounces
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#ffc801"
+            colors={['#ffc801']}
+          />
+        }
       >
         {/* ─── Cover Image ─── */}
         <View className="h-44 bg-alpha/10 dark:bg-alpha/5 overflow-hidden">
@@ -567,7 +601,7 @@ export default function ProfileScreen() {
             <StatColumn label="Posts" value={profile?.posts_count ?? posts.length} />
             <StatColumn
               label="Followers"
-              value={profile?.followers_count ?? 0}
+              value={followersCount}
               onPress={() => setFollowModal('followers')}
             />
             <StatColumn
@@ -654,11 +688,27 @@ export default function ProfileScreen() {
           ) : (
             <>
               <Pressable
-                onPress={() => {}}
-                className="flex-1 bg-alpha rounded-xl py-2.5 items-center flex-row justify-center active:opacity-70"
+                onPress={handleFollowToggle}
+                disabled={followLoading}
+                style={{ opacity: followLoading ? 0.6 : 1 }}
+                className={`flex-1 rounded-xl py-2.5 items-center flex-row justify-center active:opacity-70 ${
+                  isFollowing
+                    ? 'border border-black/20 dark:border-white/20 bg-transparent'
+                    : 'bg-alpha'
+                }`}
               >
-                <Ionicons name="person-add-outline" size={17} color="#212529" />
-                <Text className="ml-1.5 text-sm font-bold text-beta">Follow</Text>
+                <Ionicons
+                  name={isFollowing ? 'person-remove-outline' : 'person-add-outline'}
+                  size={17}
+                  color={isFollowing ? (isDark ? '#fff' : '#000') : '#212529'}
+                />
+                <Text
+                  className={`ml-1.5 text-sm font-bold ${
+                    isFollowing ? 'text-black dark:text-white' : 'text-beta'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => {}}
