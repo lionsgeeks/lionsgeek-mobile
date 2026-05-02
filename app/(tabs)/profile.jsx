@@ -23,6 +23,7 @@ import CreatePost from '@/components/feed/CreatePost';
 import FeedItem from '@/components/feed/FeedItem';
 import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
+import EditProfileModal from '@/components/profile/EditProfileModal';
 import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
@@ -363,6 +364,7 @@ export default function ProfileScreen() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -666,7 +668,7 @@ export default function ProfileScreen() {
           {isOwnProfile ? (
             <>
               <Pressable
-                onPress={() => {}}
+                onPress={() => setShowEditProfile(true)}
                 className="flex-1 bg-alpha rounded-xl py-2.5 items-center flex-row justify-center active:opacity-70"
               >
                 <Ionicons name="create-outline" size={17} color="#212529" />
@@ -853,6 +855,18 @@ export default function ProfileScreen() {
           </View>
         </Modal>
       )}
+
+      {/* ─── Edit Profile Modal ─── */}
+      <EditProfileModal
+        visible={showEditProfile}
+        profile={profile}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowEditProfile(false)}
+        onSaved={(updated) => {
+          if (updated) setProfile((prev) => ({ ...prev, ...updated }));
+        }}
+      />
 
       {/* ─── Followers / Following Modal ─── */}
       <FollowListModal
