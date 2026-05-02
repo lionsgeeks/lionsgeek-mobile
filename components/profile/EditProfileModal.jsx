@@ -25,16 +25,123 @@ const { width: SW } = Dimensions.get('window');
 
 // ─── Social platform config ────────────────────────────────────────────────────
 
-const PLATFORMS = [
-  { value: 'github',    label: 'GitHub',      icon: 'logo-github',    color: '#24292e' },
-  { value: 'linkedin',  label: 'LinkedIn',    icon: 'logo-linkedin',  color: '#0077b5' },
-  { value: 'instagram', label: 'Instagram',   icon: 'logo-instagram', color: '#e1306c' },
-  { value: 'twitter',   label: 'Twitter',     icon: 'logo-twitter',   color: '#1da1f2' },
-  { value: 'behance',   label: 'Behance',     icon: 'globe-outline',  color: '#053eff' },
-  { value: 'portfolio', label: 'Portfolio',   icon: 'briefcase-outline', color: '#ffc801' },
-  { value: 'facebook',  label: 'Facebook',    icon: 'logo-facebook',  color: '#1877f2' },
-  { value: 'other',     label: 'Other',       icon: 'link-outline',   color: '#888' },
+// ─── Status options ────────────────────────────────────────────────────────────
+
+const STATUS_OPTIONS = [
+  { value: 'Studying',     label: 'Studying',     icon: 'school-outline' },
+  { value: 'Working',      label: 'Working',      icon: 'briefcase-outline' },
+  { value: 'Internship',   label: 'Internship',   icon: 'business-outline' },
+  { value: 'Freelancing',  label: 'Freelancing',  icon: 'laptop-outline' },
+  { value: 'Unemployed',   label: 'Unemployed',   icon: 'search-outline' },
 ];
+
+// ─── Status selector ───────────────────────────────────────────────────────────
+
+function StatusSelector({ value, onChange, isDark }) {
+  return (
+    <View
+      style={{
+        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 10,
+        borderWidth: 1.5,
+        borderColor: value
+          ? '#ffc801'
+          : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      }}
+    >
+      {/* Label */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <Ionicons
+          name="radio-button-on-outline"
+          size={13}
+          color={value ? '#ffc801' : isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+          style={{ marginRight: 5 }}
+        />
+        <Text
+          style={{
+            fontSize: 11, fontWeight: '700', letterSpacing: 0.5,
+            textTransform: 'uppercase',
+            color: value ? '#ffc801' : isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+          }}
+        >
+          Status
+        </Text>
+      </View>
+
+      {/* Option grid */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {STATUS_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              onPress={() => onChange(active ? '' : opt.value)}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 13,
+                paddingVertical: 8,
+                borderRadius: 24,
+                backgroundColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                borderWidth: 1.5,
+                borderColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              }}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={14}
+                color={active ? '#212529' : isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: active ? '700' : '500',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                }}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── Social platform config ────────────────────────────────────────────────────
+
+const PLATFORMS = [
+  { value: 'github',    label: 'GitHub',    icon: 'logo-github',       color: '#24292e', domains: ['github.com']    },
+  { value: 'linkedin',  label: 'LinkedIn',  icon: 'logo-linkedin',     color: '#0077b5', domains: ['linkedin.com']  },
+  { value: 'instagram', label: 'Instagram', icon: 'logo-instagram',    color: '#e1306c', domains: ['instagram.com'] },
+  { value: 'behance',   label: 'Behance',   icon: 'color-palette-outline', color: '#053eff', domains: ['behance.net'] },
+  { value: 'portfolio', label: 'Portfolio', icon: 'briefcase-outline', color: '#ffc801', domains: []               },
+];
+
+/**
+ * Returns null if the URL is valid for the platform, or an error string if not.
+ * Portfolio has no domain restriction.
+ */
+function validatePlatformUrl(platformValue, url) {
+  const plat = PLATFORMS.find((p) => p.value === platformValue);
+  if (!plat || plat.domains.length === 0) return null; // portfolio — any URL allowed
+
+  const lower = url.toLowerCase();
+  const matchesDomain = plat.domains.some((domain) => lower.includes(domain));
+  if (!matchesDomain) {
+    return `Link must contain "${plat.domains[0]}"`;
+  }
+  return null;
+}
 
 function getPlatform(title) {
   return PLATFORMS.find((p) => p.value === title?.toLowerCase()) ?? PLATFORMS[PLATFORMS.length - 1];
@@ -289,19 +396,61 @@ function SocialLinkRow({ link, onDelete, isDark }) {
 
 // ─── Add link form ─────────────────────────────────────────────────────────────
 
-function AddLinkForm({ isDark, onAdd, onCancel }) {
+function AddLinkForm({ isDark, existingTitles, onAdd, onCancel }) {
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const canAdd = selectedPlatform && url.trim().length > 4;
+  // Only show platforms that haven't been added yet
+  const available = PLATFORMS.filter(
+    (p) => !existingTitles.includes(p.value)
+  );
+
+  const canAdd = selectedPlatform && url.trim().length > 4 && !urlError;
+
+  // Validate on every URL change once a platform is selected
+  const handleUrlChange = (text) => {
+    setUrl(text);
+    if (selectedPlatform && text.trim().length > 4) {
+      setUrlError(validatePlatformUrl(selectedPlatform, text.trim()) ?? '');
+    } else {
+      setUrlError('');
+    }
+  };
+
+  // Also re-validate when platform changes
+  const handleSelectPlatform = (value) => {
+    setSelectedPlatform(value);
+    if (url.trim().length > 4) {
+      setUrlError(validatePlatformUrl(value, url.trim()) ?? '');
+    }
+  };
 
   const handleAdd = async () => {
     if (!canAdd || adding) return;
+    const error = validatePlatformUrl(selectedPlatform, url.trim());
+    if (error) { setUrlError(error); return; }
     setAdding(true);
     await onAdd(selectedPlatform, url.trim());
     setAdding(false);
   };
+
+  if (available.length === 0) {
+    return (
+      <View
+        style={{
+          borderRadius: 16, borderWidth: 1.5,
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+          padding: 16, alignItems: 'center',
+        }}
+      >
+        <Text style={{ fontSize: 13, color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
+          All platforms added
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -323,30 +472,31 @@ function AddLinkForm({ isDark, onAdd, onCancel }) {
         Choose Platform
       </Text>
 
-      {/* Platform grid */}
+      {/* Available platforms only */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {PLATFORMS.map((p) => {
+        {available.map((p) => {
           const active = selectedPlatform === p.value;
           return (
             <TouchableOpacity
               key={p.value}
-              onPress={() => setSelectedPlatform(p.value)}
+              onPress={() => handleSelectPlatform(p.value)}
               activeOpacity={0.7}
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 10,
-                paddingVertical: 6,
+                flexDirection: 'row', alignItems: 'center',
+                paddingHorizontal: 11, paddingVertical: 7,
                 borderRadius: 20,
                 backgroundColor: active ? p.color : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
-                borderWidth: 1,
+                borderWidth: 1.5,
                 borderColor: active ? p.color : 'transparent',
               }}
             >
-              <Ionicons name={p.icon} size={13} color={active ? '#fff' : isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'} />
+              <Ionicons
+                name={p.icon} size={14}
+                color={active ? '#fff' : isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}
+              />
               <Text
                 style={{
-                  fontSize: 12, fontWeight: '600', marginLeft: 5,
+                  fontSize: 13, fontWeight: '600', marginLeft: 6,
                   color: active ? '#fff' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
                 }}
               >
@@ -358,26 +508,44 @@ function AddLinkForm({ isDark, onAdd, onCancel }) {
       </View>
 
       {/* URL input */}
-      <TextInput
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://..."
-        placeholderTextColor={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}
-        keyboardType="url"
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={{
-          backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#fff',
-          borderRadius: 12,
-          paddingHorizontal: 14,
-          paddingVertical: 11,
-          fontSize: 14,
-          color: isDark ? '#fff' : '#000',
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-        }}
-      />
+      <View style={{ marginBottom: urlError ? 6 : 12 }}>
+        <TextInput
+          value={url}
+          onChangeText={handleUrlChange}
+          placeholder={
+            selectedPlatform
+              ? PLATFORMS.find((p) => p.value === selectedPlatform)?.domains[0]
+                ? `https://${PLATFORMS.find((p) => p.value === selectedPlatform).domains[0]}/...`
+                : 'https://your-portfolio.com'
+              : 'Select a platform first'
+          }
+          placeholderTextColor={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!!selectedPlatform}
+          style={{
+            backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#fff',
+            borderRadius: 12,
+            paddingHorizontal: 14,
+            paddingVertical: 11,
+            fontSize: 14,
+            color: isDark ? '#fff' : '#000',
+            borderWidth: 1.5,
+            borderColor: urlError
+              ? '#ef4444'
+              : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+            opacity: selectedPlatform ? 1 : 0.45,
+          }}
+        />
+        {/* Inline error */}
+        {!!urlError && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, marginBottom: 6 }}>
+            <Ionicons name="alert-circle-outline" size={13} color="#ef4444" style={{ marginRight: 4 }} />
+            <Text style={{ fontSize: 12, color: '#ef4444', flex: 1 }}>{urlError}</Text>
+          </View>
+        )}
+      </View>
 
       {/* Actions */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -690,16 +858,7 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
               keyboardType="phone-pad"
               isDark={isDark}
             />
-            <LabeledInput
-              label="Bio / Status"
-              icon="create-outline"
-              value={status}
-              onChangeText={setStatus}
-              placeholder="What do you do? e.g. Full-stack developer"
-              multiline
-              maxLength={150}
-              isDark={isDark}
-            />
+            <StatusSelector value={status} onChange={setStatus} isDark={isDark} />
           </View>
 
           {/* ─── CV / Resume ───────────────────────────────────────────────────── */}
@@ -727,34 +886,46 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
                   />
                 ))}
 
-                {showAddLink ? (
-                  <AddLinkForm
-                    isDark={isDark}
-                    onAdd={handleAddLink}
-                    onCancel={() => setShowAddLink(false)}
-                  />
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => setShowAddLink(true)}
-                    activeOpacity={0.7}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 14,
-                      borderRadius: 16,
-                      borderWidth: 1.5,
-                      borderStyle: 'dashed',
-                      borderColor: isDark ? 'rgba(255,200,1,0.35)' : 'rgba(255,200,1,0.5)',
-                      backgroundColor: 'rgba(255,200,1,0.04)',
-                    }}
-                  >
-                    <Ionicons name="add-circle-outline" size={18} color="#ffc801" style={{ marginRight: 6 }} />
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#ffc801' }}>
-                      Add Social Link
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                {(() => {
+                  const usedTitles = socialLinks.map((l) => l.title?.toLowerCase());
+                  const allUsed = PLATFORMS.every((p) => usedTitles.includes(p.value));
+
+                  if (showAddLink) {
+                    return (
+                      <AddLinkForm
+                        isDark={isDark}
+                        existingTitles={usedTitles}
+                        onAdd={handleAddLink}
+                        onCancel={() => setShowAddLink(false)}
+                      />
+                    );
+                  }
+
+                  if (allUsed) return null;
+
+                  return (
+                    <TouchableOpacity
+                      onPress={() => setShowAddLink(true)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 14,
+                        borderRadius: 16,
+                        borderWidth: 1.5,
+                        borderStyle: 'dashed',
+                        borderColor: isDark ? 'rgba(255,200,1,0.35)' : 'rgba(255,200,1,0.5)',
+                        backgroundColor: 'rgba(255,200,1,0.04)',
+                      }}
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color="#ffc801" style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#ffc801' }}>
+                        Add Social Link
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </>
             )}
           </View>
