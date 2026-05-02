@@ -58,6 +58,184 @@ function StatColumn({ label, value, onPress }) {
   );
 }
 
+// ─── Follow List Modal (shared for followers + following) ───────────────────
+
+function FollowUserRow({ user, isDark, currentUserId, token, onPress }) {
+  const avatarUrl = resolveAvatarUrl(user.avatar || user.image);
+  const isSelf = Number(user.id) === Number(currentUserId);
+
+  // Initialised from the API field; toggled optimistically on press.
+  const [isFollowing, setIsFollowing] = useState(!!user.is_following);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  const handleFollow = async () => {
+    if (followLoading) return;
+    const next = !isFollowing;
+    setIsFollowing(next); // optimistic
+    setFollowLoading(true);
+    try {
+      await API.postWithAuth(`mobile/users/${user.id}/follow`, {}, token);
+    } catch (err) {
+      console.error('[FOLLOW] error:', err);
+      setIsFollowing(!next); // revert on failure
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      className="flex-row items-center px-4 py-3"
+      onPress={() => onPress(user)}
+      activeOpacity={0.7}
+    >
+      {/* Avatar */}
+      <View className="w-12 h-12 rounded-full overflow-hidden bg-alpha/10 items-center justify-center mr-3">
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        ) : (
+          <Ionicons name="person" size={22} color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'} />
+        )}
+      </View>
+
+      {/* Info */}
+      <View className="flex-1 mr-3">
+        <Text className="text-sm font-semibold text-black dark:text-white" numberOfLines={1}>
+          {user.name}
+        </Text>
+        {user.status ? (
+          <Text className="text-xs text-black/50 dark:text-white/50 mt-0.5" numberOfLines={1}>
+            {user.status}
+          </Text>
+        ) : user.promo ? (
+          <Text className="text-xs text-black/50 dark:text-white/50 mt-0.5">Promo {user.promo}</Text>
+        ) : null}
+      </View>
+
+      {/* Follow button — hidden for the current user's own row */}
+      {!isSelf && (
+        <Pressable
+          onPress={handleFollow}
+          disabled={followLoading}
+          className={`px-4 py-1.5 rounded-lg ${
+            isFollowing
+              ? 'border border-black/20 dark:border-white/20 bg-transparent'
+              : 'bg-alpha'
+          }`}
+          style={{ opacity: followLoading ? 0.5 : 1 }}
+        >
+          <Text
+            className={`text-xs font-bold ${
+              isFollowing ? 'text-black dark:text-white' : 'text-beta'
+            }`}
+          >
+            {isFollowing ? 'Following' : 'Follow'}
+          </Text>
+        </Pressable>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function FollowListModal({ visible, type, profileId, token, currentUserId, insets, isDark, onClose }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Fetch only when the modal opens
+  useEffect(() => {
+    if (!visible || !profileId || !token) return;
+
+    const endpoint = `mobile/profile/${profileId}/${type}`;
+    setLoading(true);
+    setError(null);
+    setUsers([]);
+
+    API.getWithAuth(endpoint, token)
+      .then((res) => setUsers(res?.data?.data || []))
+      .catch((err) => {
+        console.error(`[PROFILE] ${type} fetch error:`, err);
+        setError('Could not load list. Try again.');
+      })
+      .finally(() => setLoading(false));
+  }, [visible, profileId, type, token]);
+
+  const title = type === 'followers' ? 'Followers' : 'Following';
+
+  const handleUserPress = (user) => {
+    onClose();
+    router.push({ pathname: '/(tabs)/profile', params: { userId: user.id } });
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-light dark:bg-dark">
+        {/* Header */}
+        <View
+          className="flex-row items-center px-4 bg-light dark:bg-dark border-b border-black/10 dark:border-white/10"
+          style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+        >
+          <TouchableOpacity onPress={onClose} hitSlop={12} activeOpacity={0.7}>
+            <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
+          </TouchableOpacity>
+          <Text className="ml-3 text-base font-bold text-black dark:text-white">{title}</Text>
+        </View>
+
+        {/* Content */}
+        {loading ? (
+          <View className="flex-1 px-4 pt-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <View key={i} className="flex-row items-center gap-3">
+                <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                <View className="flex-1 gap-2">
+                  <Skeleton width="55%" height={13} borderRadius={8} isDark={isDark} />
+                  <Skeleton width="38%" height={10} borderRadius={8} isDark={isDark} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : error ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Ionicons name="cloud-offline-outline" size={48} color={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} />
+            <Text className="text-black/50 dark:text-white/50 mt-4 text-sm text-center">{error}</Text>
+          </View>
+        ) : users.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Ionicons name="people-outline" size={52} color={isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'} />
+            <Text className="text-black/40 dark:text-white/40 mt-4 text-sm font-medium">
+              No {title.toLowerCase()} yet
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={users}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <FollowUserRow
+                user={item}
+                isDark={isDark}
+                currentUserId={currentUserId}
+                token={token}
+                onPress={handleUserPress}
+              />
+            )}
+            ItemSeparatorComponent={() => (
+              <View className="h-px mx-4 bg-black/5 dark:bg-white/5" />
+            )}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 function GridCell({ post, onPress, isDark }) {
   const hasImage = !!post.postImage;
 
@@ -184,6 +362,7 @@ export default function ProfileScreen() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
   const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
@@ -386,8 +565,16 @@ export default function ProfileScreen() {
           {/* Stats */}
           <View className="flex-1 flex-row justify-around mt-14 ml-2">
             <StatColumn label="Posts" value={profile?.posts_count ?? posts.length} />
-            <StatColumn label="Followers" value={profile?.followers_count ?? 0} />
-            <StatColumn label="Following" value={profile?.following_count ?? 0} />
+            <StatColumn
+              label="Followers"
+              value={profile?.followers_count ?? 0}
+              onPress={() => setFollowModal('followers')}
+            />
+            <StatColumn
+              label="Following"
+              value={profile?.following_count ?? 0}
+              onPress={() => setFollowModal('following')}
+            />
           </View>
         </View>
 
@@ -616,6 +803,18 @@ export default function ProfileScreen() {
           </View>
         </Modal>
       )}
+
+      {/* ─── Followers / Following Modal ─── */}
+      <FollowListModal
+        visible={followModal === 'followers' || followModal === 'following'}
+        type={followModal ?? 'followers'}
+        profileId={profile?.id}
+        token={token}
+        currentUserId={currentUser?.id}
+        insets={insets}
+        isDark={isDark}
+        onClose={() => setFollowModal(null)}
+      />
 
       {/* ─── Posts Feed Modal (all posts, scrolled to tapped index) ─── */}
       <Modal
