@@ -8,6 +8,7 @@ import { useAppContext } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function TrainingDetails() {
   const { id } = useLocalSearchParams();
@@ -17,7 +18,8 @@ export default function TrainingDetails() {
 
   const [training, setTraining] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { token } = useAppContext();
+  const { token, user: currentUser } = useAppContext();
+  const showUserEmails = userHasAdminRole(currentUser);
 
   useEffect(() => {
     const fetchTraining = async () => {
@@ -168,9 +170,9 @@ export default function TrainingDetails() {
                 <Thumbnail uri={training.coach.image} size={48} radius={999} />
                 <View className="flex-1">
                   <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? Colors.light : Colors.beta }}>{training.coach.name}</Text>
-                  {training.coach.email && (
+                  {showUserEmails && training.coach.email ? (
                     <Text style={{ fontSize: 13, color: isDark ? Colors.light + 'CC' : Colors.beta + 'CC', marginTop: 2 }}>{training.coach.email}</Text>
-                  )}
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -258,9 +260,9 @@ export default function TrainingDetails() {
                     <Thumbnail uri={user.image} size={48} radius={999} />
                     <View className="flex-1">
                       <Text className={`text-base font-semibold ${isDark ? 'text-light' : 'text-beta'}`} numberOfLines={1}>{user.name}</Text>
-                      {user.email && (
+                      {showUserEmails && user.email ? (
                         <Text className={`text-sm ${isDark ? 'text-light/60' : 'text-beta/60'}`} numberOfLines={1}>{user.email}</Text>
-                      )}
+                      ) : null}
                     </View>
                   </View>
                 </Pressable>

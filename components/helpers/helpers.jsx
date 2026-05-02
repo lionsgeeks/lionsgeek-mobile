@@ -71,3 +71,20 @@ export function resolvePostMediaUrl(postOrValue) {
   return `${API.APP_URL}/storage/img/posts/${value}`;
 }
 
+// Normalizes a user's roles to lowercase strings (handles array or single string).
+export function getUserRolesNormalized(user) {
+  if (!user?.roles) return [];
+  if (Array.isArray(user.roles)) {
+    return user.roles.map((r) =>
+      typeof r === 'string' ? r.toLowerCase() : String(r).toLowerCase()
+    );
+  }
+  const single = user.roles;
+  return [typeof single === 'string' ? single.toLowerCase() : String(single).toLowerCase()];
+}
+
+// True when the viewer may see other users' email addresses (admin only).
+export function userHasAdminRole(user) {
+  return getUserRolesNormalized(user).includes('admin');
+}
+

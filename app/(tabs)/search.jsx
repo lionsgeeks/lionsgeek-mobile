@@ -7,9 +7,10 @@ import AppLayout from '@/components/layout/AppLayout';
 import { router } from 'expo-router';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function SearchScreen() {
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
@@ -282,7 +283,7 @@ export default function SearchScreen() {
                               defaultSource={require('@/assets/images/icon.png')}
                             />
                           ) : (
-                            <View className="w-12 h-12 rounded-full mr-3 bg-alpha/20 flex items-center justify-center">
+                            <View className="w-12 h-12 rounded-full mr-3 feed">
                               <Ionicons name="person-outline" size={24} color={isDark ? '#fff' : '#000'} />
                             </View>
                           )
@@ -291,9 +292,11 @@ export default function SearchScreen() {
                           <Text className="text-base font-semibold text-black dark:text-white">
                             {item.name}
                           </Text>
-                          <Text className="text-sm text-black/60 dark:text-white/60">
-                            {item.email}
-                          </Text>
+                          {userHasAdminRole(user) && item.email ? (
+                            <Text className="text-sm text-black/60 dark:text-white/60">
+                              {item.email}
+                            </Text>
+                          ) : null}
                           <View className="flex-row items-center mt-1">
                             {item.promo && (
                               <Text className="text-xs text-black/50 dark:text-white/50 mr-2">

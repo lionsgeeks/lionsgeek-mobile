@@ -10,7 +10,7 @@ import CreatePost from '@/components/feed/CreatePost';
 import FeedItem from '@/components/feed/FeedItem';
 import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
-import { resolveAvatarUrl, resolveCoverUrl, resolvePostMediaUrl } from '@/components/helpers/helpers';
+import { resolveAvatarUrl, resolveCoverUrl, resolvePostMediaUrl, userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function ProfileScreen() {
   const { user: currentUser, token } = useAppContext();
@@ -292,9 +292,11 @@ export default function ProfileScreen() {
                 <Text className="text-2xl font-bold text-black dark:text-white mb-1">
                   {profile?.name || 'User'}
                 </Text>
-                <Text className="text-sm text-black/60 dark:text-white/60 mb-1">
-                  {profile?.email || ''}
-                </Text>
+                {(isOwnProfile || userHasAdminRole(currentUser)) && profile?.email ? (
+                  <Text className="text-sm text-black/60 dark:text-white/60 mb-1">
+                    {profile.email}
+                  </Text>
+                ) : null}
                 {profile?.status && (
                   <Text className="text-xs text-black/50 dark:text-white/50 mb-1">
                     {profile.status}

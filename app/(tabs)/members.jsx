@@ -7,6 +7,7 @@ import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function MembersScreen() {
   const { user: currentUser, token } = useAppContext();
@@ -167,11 +168,11 @@ export default function MembersScreen() {
                       <Text className="text-base font-semibold text-black dark:text-white">
                         {member.name || member.username || 'Unknown'}
                       </Text>
-                      {member.email && (
+                      {userHasAdminRole(currentUser) && member.email ? (
                         <Text className="text-sm text-black/60 dark:text-white/60">
                           {member.email}
                         </Text>
-                      )}
+                      ) : null}
                       <View className="flex-row items-center mt-1">
                         {member.promo && (
                           <Text className="text-xs text-black/50 dark:text-white/50 mr-2">
