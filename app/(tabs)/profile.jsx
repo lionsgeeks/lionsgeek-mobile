@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   Image,
   TouchableOpacity,
   Pressable,
@@ -181,8 +182,9 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
 
@@ -582,7 +584,13 @@ export default function ProfileScreen() {
             )}
           </View>
         ) : (
-          <PostsGrid posts={posts} isDark={isDark} onCellPress={setSelectedPost} />
+          <PostsGrid
+            posts={posts}
+            isDark={isDark}
+            onCellPress={(post) =>
+              setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
+            }
+          />
         )}
 
         {/* Bottom spacer */}
@@ -609,27 +617,53 @@ export default function ProfileScreen() {
         </Modal>
       )}
 
-      {/* ─── Post Detail Modal ─── */}
-      {selectedPost && (
-        <Modal
-          visible={!!selectedPost}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setSelectedPost(null)}
-        >
-          <View className="flex-1 bg-light dark:bg-dark">
-            <View className="flex-row items-center px-4 py-3 border-b border-black/10 dark:border-white/10">
-              <TouchableOpacity onPress={() => setSelectedPost(null)} hitSlop={12}>
-                <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
-              </TouchableOpacity>
-              <Text className="ml-3 text-base font-bold text-black dark:text-white">Post</Text>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <FeedItem item={selectedPost} />
-            </ScrollView>
+      {/* ─── Posts Feed Modal (all posts, scrolled to tapped index) ─── */}
+      <Modal
+        visible={selectedPostIndex >= 0}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedPostIndex(-1)}
+      >
+        <View className="flex-1 bg-light dark:bg-dark">
+          {/* Modal header */}
+          <View
+            className="flex-row items-center px-4 bg-light dark:bg-dark border-b border-black/10 dark:border-white/10"
+            style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+          >
+            <TouchableOpacity onPress={() => setSelectedPostIndex(-1)} hitSlop={12} activeOpacity={0.7}>
+              <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
+            </TouchableOpacity>
+            <Text className="ml-3 text-base font-bold text-black dark:text-white">
+              {profile?.name || 'Posts'}
+            </Text>
           </View>
-        </Modal>
-      )}
+
+          {/* Full feed list — starts at the tapped post, scroll freely */}
+          <FlatList
+            ref={feedListRef}
+            data={posts}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => <FeedItem item={item} />}
+            showsVerticalScrollIndicator={false}
+            initialScrollIndex={selectedPostIndex >= 0 ? selectedPostIndex : 0}
+            // Required for initialScrollIndex to work reliably on variable-height items:
+            // We provide a generous estimate; onScrollToIndexFailed handles edge cases.
+            getItemLayout={(_, index) => ({
+              length: 520,
+              offset: 520 * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              // Fallback: wait for list to finish rendering then retry
+              feedListRef.current?.scrollToOffset({
+                offset: 520 * info.index,
+                animated: false,
+              });
+            }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          />
+        </View>
+      </Modal>
     </AppLayout>
   );
 }
