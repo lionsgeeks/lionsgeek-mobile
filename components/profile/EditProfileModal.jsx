@@ -120,11 +120,11 @@ function StatusSelector({ value, onChange, isDark }) {
 // ─── Social platform config ────────────────────────────────────────────────────
 
 const PLATFORMS = [
-  { value: 'github',    label: 'GitHub',    icon: 'logo-github',       color: '#24292e', domains: ['github.com']    },
-  { value: 'linkedin',  label: 'LinkedIn',  icon: 'logo-linkedin',     color: '#0077b5', domains: ['linkedin.com']  },
-  { value: 'instagram', label: 'Instagram', icon: 'logo-instagram',    color: '#e1306c', domains: ['instagram.com'] },
-  { value: 'behance',   label: 'Behance',   icon: 'color-palette-outline', color: '#053eff', domains: ['behance.net'] },
-  { value: 'portfolio', label: 'Portfolio', icon: 'briefcase-outline', color: '#ffc801', domains: []               },
+  { value: 'github',    label: 'GitHub',    icon: 'logo-github',           domains: ['github.com']    },
+  { value: 'linkedin',  label: 'LinkedIn',  icon: 'logo-linkedin',         domains: ['linkedin.com']  },
+  { value: 'instagram', label: 'Instagram', icon: 'logo-instagram',        domains: ['instagram.com'] },
+  { value: 'behance',   label: 'Behance',   icon: 'color-palette-outline', domains: ['behance.net']   },
+  { value: 'portfolio', label: 'Portfolio', icon: 'briefcase-outline',     domains: []                },
 ];
 
 /**
@@ -328,6 +328,9 @@ function CvCard({ resumeName, onPress, isDark }) {
 
 function SocialLinkRow({ link, onDelete, isDark }) {
   const plat = getPlatform(link.title);
+  const iconColor = '#ffc801';
+  const iconBg = 'rgba(255,200,1,0.12)';
+
   return (
     <View
       style={{
@@ -345,12 +348,12 @@ function SocialLinkRow({ link, onDelete, isDark }) {
       <View
         style={{
           width: 36, height: 36, borderRadius: 10,
-          backgroundColor: plat.color + '20',
+          backgroundColor: iconBg,
           alignItems: 'center', justifyContent: 'center',
           marginRight: 10,
         }}
       >
-        <Ionicons name={plat.icon} size={18} color={plat.color} />
+        <Ionicons name={plat.icon} size={18} color={iconColor} />
       </View>
 
       {/* Info */}
@@ -359,7 +362,7 @@ function SocialLinkRow({ link, onDelete, isDark }) {
           style={{
             fontSize: 12,
             fontWeight: '700',
-            color: plat.color,
+            color: isDark ? '#fff' : '#212529',
             textTransform: 'capitalize',
           }}
         >
@@ -368,7 +371,7 @@ function SocialLinkRow({ link, onDelete, isDark }) {
         <Text
           style={{
             fontSize: 12,
-            color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)',
+            color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)',
             marginTop: 1,
           }}
           numberOfLines={1}
@@ -384,11 +387,11 @@ function SocialLinkRow({ link, onDelete, isDark }) {
         activeOpacity={0.7}
         style={{
           width: 30, height: 30, borderRadius: 10,
-          backgroundColor: 'rgba(239,68,68,0.1)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
           alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <Ionicons name="trash-outline" size={15} color="#ef4444" />
+        <Ionicons name="trash-outline" size={15} color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'} />
       </TouchableOpacity>
     </View>
   );
@@ -485,19 +488,19 @@ function AddLinkForm({ isDark, existingTitles, onAdd, onCancel }) {
                 flexDirection: 'row', alignItems: 'center',
                 paddingHorizontal: 11, paddingVertical: 7,
                 borderRadius: 20,
-                backgroundColor: active ? p.color : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                backgroundColor: active ? '#ffc801' : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
                 borderWidth: 1.5,
-                borderColor: active ? p.color : 'transparent',
+                borderColor: active ? '#ffc801' : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
               }}
             >
               <Ionicons
                 name={p.icon} size={14}
-                color={active ? '#fff' : isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}
+                color={active ? '#212529' : isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}
               />
               <Text
                 style={{
                   fontSize: 13, fontWeight: '600', marginLeft: 6,
-                  color: active ? '#fff' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
                 }}
               >
                 {p.label}
