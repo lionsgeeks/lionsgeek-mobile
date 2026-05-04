@@ -12,7 +12,7 @@ import TypingIndicator from './partials/TypingIndicator';
 import RecordingIndicator from './partials/RecordingIndicator';
 
 // Main ChatBox component - refactored b components so9or
-export default function ChatBox({ conversation, onBack, isExpanded, onExpand }) {
+export default function ChatBox({ conversation, onBack, isExpanded, onExpand, suppressMessageListLoadingSkeleton }) {
     const { user, token } = useAppContext();
     const currentUser = user;
     const [messages, setMessages] = useState(conversation.messages || []);
@@ -467,6 +467,7 @@ export default function ChatBox({ conversation, onBack, isExpanded, onExpand }) 
                     <MessageList
                         messages={messages}
                         loading={loading}
+                        suppressInitialLoadingSkeleton={suppressMessageListLoadingSkeleton}
                         currentUser={currentUser}
                         conversation={conversation}
                         isPlayingAudio={isPlayingAudio}

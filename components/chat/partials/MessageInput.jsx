@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Pressable, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, Pressable, TextInput, Alert, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -110,6 +110,15 @@ export default function MessageInput({
             }
         };
     }, [newMessage, onTypingStop]);
+
+    const isImageAttachment = (a) =>
+        a?.uri &&
+        (a.type?.startsWith?.('image/') ||
+            /\.(jpe?g|png|gif|webp|heic)$/i.test(a.name || '') ||
+            (!a.type && a.uri && !/\.(mp4|mov|webm|m4v|pdf|doc|zip)$/i.test(a.name || '')));
+
+    const isVideoAttachment = (a) =>
+        a?.uri && (a.type?.startsWith?.('video/') || /\.(mp4|mov|webm|m4v)$/i.test(a.name || ''));
 
     // Format audio duration
     const formatAudioDuration = (seconds) => {
@@ -264,39 +273,105 @@ export default function MessageInput({
             style={{ paddingBottom: Math.max(insets.bottom, 6) }}
         >
             {attachment && (
-                <View className="mb-2 px-3 py-2.5 bg-white dark:bg-zinc-900 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] flex-row items-center gap-2 shadow-sm shadow-black/5">
-                    {attachment.type?.startsWith('image/') ? (
-                        <Text className="text-xs font-medium text-black dark:text-white">Image attached</Text>
+                <View className="mb-2 rounded-2xl overflow-hidden border border-black/[0.08] dark:border-white/[0.12] bg-white dark:bg-zinc-900 shadow-sm shadow-black/10">
+                    {isImageAttachment(attachment) ? (
+                        <View className="relative">
+                            <Image
+                                source={{ uri: attachment.uri }}
+                                style={{ width: '100%', height: 200 }}
+                                resizeMode="cover"
+                            />
+                            <View className="absolute bottom-0 left-0 right-0 px-3 py-2 bg-black/45">
+                                <Text className="text-xs font-semibold text-white" numberOfLines={1}>
+                                    {attachment.name || 'Photo'}
+                                </Text>
+                            </View>
+                            <Pressable
+                                onPress={() => setAttachment(null)}
+                                hitSlop={10}
+                                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 items-center justify-center"
+                            >
+                                <Ionicons name="close" size={18} color="#fff" />
+                            </Pressable>
+                        </View>
+                    ) : isVideoAttachment(attachment) ? (
+                        <View className="relative w-full h-48 bg-zinc-900">
+                            <View className="absolute inset-0 items-center justify-center">
+                                <View className="w-16 h-16 rounded-full bg-white/15 items-center justify-center border border-white/25">
+                                    <Ionicons name="play" size={34} color="#fff" style={{ marginLeft: 4 }} />
+                                </View>
+                            </View>
+                            <View className="absolute bottom-0 left-0 right-0 px-3 py-2 bg-black/55">
+                                <Text className="text-xs font-semibold text-white" numberOfLines={1}>
+                                    {attachment.name || 'Video'}
+                                </Text>
+                            </View>
+                            <Pressable
+                                onPress={() => setAttachment(null)}
+                                hitSlop={10}
+                                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 items-center justify-center"
+                            >
+                                <Ionicons name="close" size={18} color="#fff" />
+                            </Pressable>
+                        </View>
                     ) : (
-                        <Text className="text-xs font-medium text-black dark:text-white flex-1" numberOfLines={1}>
-                            {attachment.name}
-                        </Text>
+                        <View className="flex-row items-center gap-3 px-3 py-3">
+                            <View className="w-14 h-14 rounded-xl bg-alpha/20 items-center justify-center border border-alpha/35">
+                                <Ionicons name="document-text" size={28} color="#ffc801" />
+                            </View>
+                            <View className="flex-1 min-w-0">
+                                <Text className="text-sm font-semibold text-black dark:text-white" numberOfLines={2}>
+                                    {attachment.name || 'File'}
+                                </Text>
+                                {attachment.size ? (
+                                    <Text className="text-[11px] text-black/45 dark:text-white/45 mt-0.5">
+                                        {(attachment.size / 1024).toFixed(1)} KB
+                                    </Text>
+                                ) : null}
+                            </View>
+                            <Pressable onPress={() => setAttachment(null)} hitSlop={8} className="p-2 rounded-full bg-black/[0.06] dark:bg-white/[0.08]">
+                                <Ionicons name="close" size={20} color={ph} />
+                            </Pressable>
+                        </View>
                     )}
-                    <Pressable onPress={() => setAttachment(null)} hitSlop={8} className="p-1">
-                        <Ionicons name="close-circle" size={18} color={ph} />
-                    </Pressable>
                 </View>
             )}
 
             {audioURL && audioBlob && (
-                <View className="mb-2 px-3 py-2.5 bg-white dark:bg-zinc-900 rounded-2xl border border-alpha/40 flex-row items-center gap-2 shadow-sm shadow-black/5">
-                    <View className="w-2 h-2 bg-alpha rounded-full" />
-                    <Ionicons name="mic" size={14} color="#ffc801" />
-                    <Text className="text-xs flex-1 font-semibold text-black dark:text-white">Voice note ready to send</Text>
-                    {audioDuration ? (
-                        <Text className="text-xs text-black/45 dark:text-white/45 tabular-nums">
-                            {formatAudioDuration(audioDuration)}
-                        </Text>
-                    ) : null}
-                    <Pressable
-                        onPress={() => {
-                            setAudioBlob(null);
-                            setAudioURL(null);
-                        }}
-                        hitSlop={8}
-                    >
-                        <Ionicons name="close-circle" size={18} color={ph} />
-                    </Pressable>
+                <View className="mb-2 rounded-2xl overflow-hidden border border-alpha/35 bg-alpha/8 dark:bg-alpha/10">
+                    <View className="flex-row items-center gap-3 px-3 py-3">
+                        <View className="w-12 h-12 rounded-2xl bg-alpha items-center justify-center shadow-sm shadow-black/20">
+                            <Ionicons name="mic" size={22} color="#000" />
+                        </View>
+                        <View className="flex-1 min-w-0">
+                            <Text className="text-sm font-bold text-black dark:text-white">Voice message</Text>
+                            <Text className="text-[11px] text-black/50 dark:text-white/50 mt-0.5">Ready to send</Text>
+                            {audioDuration ? (
+                                <Text className="text-xs text-alpha font-semibold tabular-nums mt-1">
+                                    {formatAudioDuration(audioDuration)}
+                                </Text>
+                            ) : null}
+                        </View>
+                        <View className="flex-row items-end gap-[2px] h-9 px-1">
+                            {Array.from({ length: 16 }, (_, i) => (
+                                <View
+                                    key={i}
+                                    className="w-[3px] rounded-full bg-alpha/80"
+                                    style={{ height: 8 + (i % 5) * 4, opacity: 0.35 + ((i * 7) % 5) * 0.12 }}
+                                />
+                            ))}
+                        </View>
+                        <Pressable
+                            onPress={() => {
+                                setAudioBlob(null);
+                                setAudioURL(null);
+                            }}
+                            hitSlop={8}
+                            className="w-9 h-9 rounded-full bg-black/10 dark:bg-white/10 items-center justify-center"
+                        >
+                            <Ionicons name="trash-outline" size={18} color={ph} />
+                        </Pressable>
+                    </View>
                 </View>
             )}
 

@@ -209,22 +209,20 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     }, [isRecording, canSend, stopRecordingAndSend, onStopRecordingRef]);
 
     if (isRecording) {
-        const waveSeed = recordingTime % 8;
+        const waveSeed = recordingTime % 9;
         return (
-            <View className="flex-row items-center gap-3 w-full">
-                <View className="flex-1 flex-row items-center gap-3 bg-red-500/10 border border-red-500/25 rounded-2xl px-4 py-3">
-                    <View className="flex-row items-center gap-3 flex-1">
-                        <View className="relative">
-                            <View className="w-4 h-4 bg-red-500 rounded-full" />
-                        </View>
-                        
-                        <View>
-                            <View className="flex-row items-baseline gap-2">
-                                <Text className="text-lg font-bold text-red-500 tabular-nums">
+            <View className="flex-row items-center gap-2 w-full">
+                <View className="flex-1 flex-row items-center gap-3 rounded-2xl px-3 py-2.5 border border-alpha/35 bg-alpha/10 dark:bg-alpha/15">
+                    <View className="flex-row items-center gap-3 flex-1 min-w-0">
+                        <View className="w-3 h-3 bg-red-500 rounded-full shadow-sm shadow-red-500/30" />
+
+                        <View className="min-w-0">
+                            <View className="flex-row items-baseline gap-2 flex-wrap">
+                                <Text className="text-lg font-extrabold text-black dark:text-white tabular-nums">
                                     {formatTime(recordingTime)}
                                 </Text>
-                                <Text className="text-xs font-medium text-red-500/70">
-                                    {canSend ? 'Ready to send' : 'Recording...'}
+                                <Text className="text-[11px] font-semibold text-black/50 dark:text-white/50 uppercase tracking-wide">
+                                    {canSend ? 'Release to send' : 'Hold to record'}
                                 </Text>
                             </View>
                             {error ? (
@@ -233,42 +231,42 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                                 </Text>
                             ) : null}
                         </View>
-                        
-                        <View className="flex-row items-end gap-[2px] flex-1 justify-center h-8">
+
+                        <View className="flex-row items-end gap-[2px] flex-1 justify-end h-9 overflow-hidden">
                             {waveBars.map((bar) => (
                                 <View
                                     key={bar}
-                                    className="w-[3px] bg-red-500/70 rounded-full"
+                                    className="w-[3px] rounded-full bg-alpha/85"
                                     style={{
-                                        height: 6 + ((bar + waveSeed) % 7) * 3,
-                                        opacity: canSend ? 1 : 0.6,
+                                        height: 6 + ((bar + waveSeed) % 8) * 3,
+                                        opacity: canSend ? 0.95 : 0.55,
                                     }}
                                 />
                             ))}
                         </View>
                     </View>
                 </View>
-                
+
                 <View className="flex-row items-center gap-2">
                     {canSend && (
                         <Pressable
                             onPress={stopRecordingAndSend}
-                            className="bg-alpha px-4 py-2.5 rounded-xl"
+                            className="bg-alpha px-3 py-2.5 rounded-2xl min-w-[4.5rem] items-center"
                             disabled={isUploading}
                         >
                             {isUploading ? (
                                 <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                             ) : (
-                                <Text className="text-black font-bold">Send</Text>
+                                <Text className="text-black font-extrabold text-sm">Send</Text>
                             )}
                         </Pressable>
                     )}
                     <Pressable
                         onPress={handleCancel}
-                        className="h-10 w-10 items-center justify-center border border-red-500/25 rounded-xl bg-white/40 dark:bg-black/20"
+                        className="h-10 w-10 items-center justify-center rounded-2xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-900"
                         disabled={isUploading}
                     >
-                        <Ionicons name="close" size={16} color="#ef4444" />
+                        <Ionicons name="close" size={18} color="#ef4444" />
                     </Pressable>
                 </View>
             </View>

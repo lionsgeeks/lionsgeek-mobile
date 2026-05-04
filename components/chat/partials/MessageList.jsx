@@ -9,6 +9,8 @@ import RecordingIndicator from './RecordingIndicator';
 export default function MessageList({
     messages,
     loading,
+    /** When true, skip the full message skeleton after thread skeleton (single loading phase). */
+    suppressInitialLoadingSkeleton,
     currentUser,
     conversation,
     isPlayingAudio,
@@ -67,8 +69,10 @@ export default function MessageList({
             onScroll={onScroll}
             scrollEventThrottle={16}
         >
-            {loading && messages.length === 0 ? (
+            {loading && messages.length === 0 && !suppressInitialLoadingSkeleton ? (
                 <MessageSkeleton />
+            ) : loading && messages.length === 0 && suppressInitialLoadingSkeleton ? (
+                <View className="flex-1 min-h-[200px] bg-[#ebe8e2] dark:bg-[#101010]" />
             ) : messages.length === 0 ? (
                 <View className="flex-1 items-center justify-center min-h-[220px] px-6">
                     <View className="w-full max-w-xs rounded-3xl border border-dashed border-black/15 dark:border-white/15 bg-white/60 dark:bg-zinc-900/60 px-6 py-10 items-center">

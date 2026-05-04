@@ -111,11 +111,11 @@ export default function MessageItem({
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Pressable
                             onPress={() => onPreviewAttachment({ type: 'image', path: message.attachment_path, name: message.attachment_name })}
-                            className="mt-1 rounded-lg overflow-hidden"
+                            className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08]"
                         >
                             <Image
                                 source={{ uri: imageUrl }}
-                                className="max-w-full max-h-64 rounded-lg"
+                                className="w-full max-h-72 min-h-[140px]"
                                 resizeMode="cover"
                             />
                             {message.attachment_size && (
@@ -129,10 +129,12 @@ export default function MessageItem({
                     {message.attachment_type === 'video' && message.attachment_path && (
                         <Pressable
                             onPress={() => onPreviewAttachment({ type: 'video', path: message.attachment_path, name: message.attachment_name })}
-                            className="mt-1 rounded-lg overflow-hidden"
+                            className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-zinc-900"
                         >
-                            <View className="max-w-full max-h-64 bg-gray-900 items-center justify-center rounded-lg">
-                                <Ionicons name="videocam" size={48} color="#fff" />
+                            <View className="w-full h-52 items-center justify-center">
+                                <View className="w-16 h-16 rounded-full bg-white/12 items-center justify-center border border-white/20">
+                                    <Ionicons name="play" size={36} color="#fff" style={{ marginLeft: 4 }} />
+                                </View>
                             </View>
                             {message.attachment_size && (
                                 <Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -163,7 +165,13 @@ export default function MessageItem({
                     )}
 
                     {message.attachment_type === 'audio' && message.attachment_path && (
-                        <View className={`mt-2 flex-row items-center gap-3 p-3 rounded-lg ${isCurrentUser ? 'bg-white/10' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                        <View
+                            className={`mt-2 rounded-2xl overflow-hidden border ${
+                                isCurrentUser
+                                    ? 'border-white/20 bg-black/10'
+                                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
+                            }`}
+                        >
                             <VoiceMessage
                                 audioUrl={imageUrl}
                                 duration={audioDuration[message.id] || message.audio_duration}

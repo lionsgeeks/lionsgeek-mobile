@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable, Image, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -16,6 +16,18 @@ export default function ChatHeader({ conversation, onBack }) {
     const lastOnline = conversation.other_user?.last_online
         ? new Date(conversation.other_user.last_online)
         : null;
+    const rawPhone = conversation.other_user?.phone ?? conversation.other_user?.mobile ?? conversation.other_user?.tel;
+    const phoneDigits = rawPhone ? String(rawPhone).replace(/[^\d+]/g, '') : '';
+
+    const handleCall = () => {
+        if (!phoneDigits || phoneDigits.length < 6) {
+            Alert.alert('Call', 'No phone number is available for this user.');
+            return;
+        }
+        const uri = phoneDigits.startsWith('+') ? `tel:${phoneDigits}` : `tel:${phoneDigits}`;
+        Linking.openURL(uri).catch(() => Alert.alert('Call', 'Unable to start a phone call from this device.'));
+    };
+
     let statusLine = null;
     let isOnline = false;
     if (lastOnline) {
@@ -77,6 +89,13 @@ export default function ChatHeader({ conversation, onBack }) {
                         </Text>
                     </Pressable>
                 </View>
+                <Pressable
+                    onPress={handleCall}
+                    accessibilityLabel="Voice call"
+                    className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
+                >
+                    <Ionicons name="call-outline" size={20} color={fg} />
+                </Pressable>
             </View>
         </View>
     );

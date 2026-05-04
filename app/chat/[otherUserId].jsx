@@ -92,6 +92,7 @@ export default function ChatThreadScreen() {
         conversation={conversation}
         onBack={() => router.back()}
         isExpanded={false}
+        suppressMessageListLoadingSkeleton
       />
     </AppLayout>
   );
