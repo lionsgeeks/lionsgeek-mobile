@@ -60,10 +60,10 @@ export default function MessageList({
         <ScrollView
             ref={messagesEndRef}
             className={`flex-1 bg-[#ebe8e2] dark:bg-[#101010] ${showToolbox && !previewAttachment ? 'w-2/3' : 'w-full'}`}
-            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingVertical: 14 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingVertical: 14, paddingBottom: 8 }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            automaticallyAdjustKeyboardInsets
             onScroll={onScroll}
             scrollEventThrottle={16}
         >

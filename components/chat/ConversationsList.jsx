@@ -1,22 +1,29 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, Pressable, Image, ScrollView, TextInput, Modal, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
-import ChatBox from './ChatBox';
 import Skeleton from '@/components/ui/Skeleton';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 
-// Component dial list dial conversations - ybdl conversations w y7al chatbox
-const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountChange, onConversationStateChange }, ref) {
+function openChatThread(otherUserId, onBeforeNavigate) {
+    const id = String(otherUserId ?? '').trim();
+    if (!id) return;
+    onBeforeNavigate?.();
+    router.push(`/chat/${id}`);
+}
+
+// Component dial list dial conversations — thread opens as its own stack screen (native back gesture).
+export default function ConversationsList({ onUnreadCountChange, onBeforeNavigateToThread }) {
     const { user, token } = useAppContext();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const currentUser = user;
     const [conversations, setConversations] = useState([]);
-    const [selectedConversation, setSelectedConversation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -47,41 +54,14 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
         }
     }, [token, onUnreadCountChange]);
 
-    useImperativeHandle(ref, () => ({
-        openConversationWithUser: async (userId) => {
-            try {
-                const response = await API.getWithAuth(`mobile/chat/conversation/${userId}`, token);
-                if (response && response.data) {
-                    setSelectedConversation(response.data.conversation);
-                }
-            } catch (error) {
-                console.error('Failed to open conversation:', error);
-            }
-        },
-        fetchConversations,
-    }), [fetchConversations, token]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchConversations();
+        }, [fetchConversations])
+    );
 
-    useEffect(() => {
-        fetchConversations();
-    }, [fetchConversations]);
-
-    useEffect(() => {
-        if (onConversationStateChange) {
-            onConversationStateChange(Boolean(selectedConversation));
-        }
-    }, [selectedConversation, onConversationStateChange]);
-
-    // Handle conversation click b fetch
-    const handleConversationClick = async (conversationId, otherUserId) => {
-        try {
-            const response = await API.getWithAuth(`mobile/chat/conversation/${otherUserId}`, token);
-            if (response && response.data) {
-                setSelectedConversation(response.data.conversation);
-                fetchConversations();
-            }
-        } catch (error) {
-            console.error('Failed to fetch conversation:', error);
-        }
+    const handleConversationClick = (conversationId, otherUserId) => {
+        openChatThread(otherUserId, onBeforeNavigateToThread);
     };
 
     // Search for users when typing
@@ -139,20 +119,10 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
     });
 
     // Handle user selection from search
-    const handleUserSelect = async (userId) => {
-        try {
-            setSearchQuery('');
-            setSearchResults([]);
-            
-            const response = await API.getWithAuth(`mobile/chat/conversation/${userId}`, token);
-            if (response && response.data) {
-                setSelectedConversation(response.data.conversation);
-                fetchConversations();
-            }
-        } catch (error) {
-            console.error('Failed to start conversation:', error);
-            alert('Failed to start conversation. Please try again.');
-        }
+    const handleUserSelect = (userId) => {
+        setSearchQuery('');
+        setSearchResults([]);
+        openChatThread(userId, onBeforeNavigateToThread);
     };
 
     const handleDeleteConversation = async (conversationId) => {
@@ -160,9 +130,6 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
             const response = await API.remove(`mobile/chat/conversation/${conversationId}`, token);
             if (response && response.status === 200) {
                 setConversations(prev => prev.filter(c => c.id !== conversationId));
-                if (selectedConversation?.id === conversationId) {
-                    setSelectedConversation(null);
-                }
                 fetchConversations();
             } else {
                 Alert.alert('Error', 'Failed to delete conversation');
@@ -203,7 +170,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
 
     return (
         <View className="flex-row flex-1 w-full bg-neutral-100 dark:bg-[#0c0c0c]">
-            <View className={`flex-col ${selectedConversation ? 'hidden' : 'flex-1'}`}>
+            <View className="flex-col flex-1">
                 <View className="px-4 pt-3 pb-3">
                     <Text className="text-[10px] font-semibold tracking-[0.2em] text-black/40 dark:text-white/40 mb-2">
                         FIND & FILTER
@@ -307,7 +274,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
                                     key={conversation.id}
                                     conversation={conversation}
                                     currentUserId={currentUser?.id}
-                                    isSelected={selectedConversation?.id === conversation.id}
+                                    isSelected={false}
                                     onClick={() => handleConversationClick(conversation.id, conversation.other_user.id)}
                                     onLongPress={() => setContextConversation(conversation)}
                                 />
@@ -316,20 +283,6 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
                     )}
                 </ScrollView>
             </View>
-
-            {/* Right Side - Chat Box - Full screen on mobile */}
-            {selectedConversation && (
-                <View className="flex-1 absolute inset-0 bg-light dark:bg-dark z-10">
-                    <ChatBox
-                        conversation={selectedConversation}
-                        onBack={() => {
-                            setSelectedConversation(null);
-                            fetchConversations();
-                        }}
-                        isExpanded={false}
-                    />
-                </View>
-            )}
 
             <Modal
                 visible={Boolean(contextConversation)}
@@ -360,7 +313,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
                             onPress={() => {
                                 if (!contextConversation) return;
                                 setContextConversation(null);
-                                handleConversationClick(contextConversation.id, contextConversation.other_user.id);
+                                openChatThread(contextConversation.other_user.id, onBeforeNavigateToThread);
                             }}
                             className="mx-4 mt-4 px-4 py-3.5 flex-row items-center rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]"
                         >
@@ -385,9 +338,7 @@ const ConversationsList = forwardRef(function ConversationsList({ onUnreadCountC
             </Modal>
         </View>
     );
-});
-
-export default ConversationsList;
+}
 
 function ConversationItem({ conversation, currentUserId, isSelected, onClick, onLongPress }) {
     const unread = conversation.unread_count > 0;

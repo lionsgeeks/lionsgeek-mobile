@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Alert, AppState, Linking, KeyboardAvoidingView, Platform } from 'react-native';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAppContext } from '@/context';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import API from '@/api';
 import ChatHeader from './partials/ChatHeader';
 import MessageList from './partials/MessageList';
@@ -15,7 +14,6 @@ import RecordingIndicator from './partials/RecordingIndicator';
 // Main ChatBox component - refactored b components so9or
 export default function ChatBox({ conversation, onBack, isExpanded, onExpand }) {
     const { user, token } = useAppContext();
-    const insets = useSafeAreaInsets();
     const currentUser = user;
     const [messages, setMessages] = useState(conversation.messages || []);
     const [newMessage, setNewMessage] = useState('');
@@ -451,43 +449,45 @@ export default function ChatBox({ conversation, onBack, isExpanded, onExpand }) 
 
     return (
         <View className="bg-light dark:bg-dark flex-col flex-1 overflow-hidden relative">
-            {/* Main Chat Area */}
-            <KeyboardAvoidingView
-                className={`flex-col flex-1 w-full ${previewAttachment ? 'opacity-0' : ''}`}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 4 : 0}
-                enabled
-                style={{ flex: 1 }}
-            >
-                <ChatHeader 
-                    conversation={conversation}
-                    onBack={onBack}
-                />
+            {/* Header stays fixed; only messages + composer avoid the keyboard (WhatsApp-style). */}
+            <ChatHeader conversation={conversation} onBack={onBack} />
 
-                {/* Messages List - Full width on mobile */}
-                <MessageList
-                    messages={messages}
-                    loading={loading}
-                    currentUser={currentUser}
-                    conversation={conversation}
-                    isPlayingAudio={isPlayingAudio}
-                    audioProgress={audioProgress}
-                    audioDuration={audioDuration}
-                    showMenuForMessage={showMenuForMessage}
-                    onPlayAudio={handlePlayAudio}
-                    onDeleteMessage={handleDeleteMessage}
-                    onMenuToggle={setShowMenuForMessage}
-                    onPreviewAttachment={handlePreviewAttachment}
-                    onDownloadAttachment={handleDownloadAttachment}
-                    formatMessageTime={formatMessageTime}
-                    formatSeenTime={formatSeenTime}
-                    messagesEndRef={messagesEndRef}
-                    showToolbox={false}
-                    previewAttachment={previewAttachment}
-                    typingUsers={typingUsers}
-                    recordingUsers={recordingUsers}
-                    onScroll={handleListScroll}
-                />
+            {/* iOS: padding lifts content. Android + adjustResize: `height` avoids stacking resize + bottom padding. */}
+            <KeyboardAvoidingView
+                style={{
+                    flex: 1,
+                    width: '100%',
+                    opacity: previewAttachment ? 0 : 1,
+                }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                enabled
+                keyboardVerticalOffset={0}
+            >
+                <View style={{ flex: 1, minHeight: 0 }}>
+                    <MessageList
+                        messages={messages}
+                        loading={loading}
+                        currentUser={currentUser}
+                        conversation={conversation}
+                        isPlayingAudio={isPlayingAudio}
+                        audioProgress={audioProgress}
+                        audioDuration={audioDuration}
+                        showMenuForMessage={showMenuForMessage}
+                        onPlayAudio={handlePlayAudio}
+                        onDeleteMessage={handleDeleteMessage}
+                        onMenuToggle={setShowMenuForMessage}
+                        onPreviewAttachment={handlePreviewAttachment}
+                        onDownloadAttachment={handleDownloadAttachment}
+                        formatMessageTime={formatMessageTime}
+                        formatSeenTime={formatSeenTime}
+                        messagesEndRef={messagesEndRef}
+                        showToolbox={false}
+                        previewAttachment={previewAttachment}
+                        typingUsers={typingUsers}
+                        recordingUsers={recordingUsers}
+                        onScroll={handleListScroll}
+                    />
+                </View>
 
                 <MessageInput
                     newMessage={newMessage}
