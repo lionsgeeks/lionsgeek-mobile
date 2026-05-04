@@ -1,26 +1,23 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import React, { useLayoutEffect, useState } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import ConversationsList from '@/components/chat/ConversationsList';
-import { router } from 'expo-router';
+import { useNavigation } from 'expo-router';
 
 export default function ChatScreen() {
   const { token } = useAppContext();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const navigation = useNavigation();
+  const [isConversationOpen, setIsConversationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const conversationsListRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('chats');
 
-  const handleUnreadCountChange = (count) => {
-    setUnreadCount(count);
-  };
-
-  const handleCloseChat = () => {
-    router.back();
-  };
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: !isConversationOpen,
+      title: 'chat',
+    });
+  }, [navigation, isConversationOpen]);
 
   if (!token) {
     return (
@@ -34,31 +31,53 @@ export default function ChatScreen() {
 
   return (
     <AppLayout showNavbar={false}>
-      <View className="flex-1 bg-light dark:bg-dark">
-        {/* Header */}
-        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-4 px-6">
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity onPress={() => router.back()} className="mr-3">
-              <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
-            </TouchableOpacity>
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-black dark:text-white">Messages</Text>
-              {unreadCount > 0 && (
-                <Text className="text-sm text-black/60 dark:text-white/60 mt-1">
-                  {unreadCount} unread {unreadCount === 1 ? 'message' : 'messages'}
-                </Text>
-              )}
+      <View className="flex-1 bg-neutral-100 dark:bg-[#0c0c0c]">
+        {!isConversationOpen && (
+          <View className="px-4 pt-3 pb-2 bg-light dark:bg-dark border-b border-black/[0.06] dark:border-white/[0.08]">
+            <View className="rounded-2xl border border-alpha/40 bg-alpha/12 dark:bg-alpha/8 px-3 py-2.5 flex-row items-center">
+              <View className="w-1.5 h-1.5 rounded-full bg-alpha mr-2" />
+              <Text className="text-xs text-black/70 dark:text-white/70 flex-1">
+                {unreadCount > 0
+                  ? `${unreadCount} unread ${unreadCount === 1 ? 'conversation' : 'conversations'}`
+                  : 'No unread conversations'}
+              </Text>
+            </View>
+
+            <View className="mt-3 flex-row bg-black/[0.04] dark:bg-white/[0.06] rounded-2xl p-1">
+              {['chats', 'groups', 'calls'].map((tab) => {
+                const selected = activeTab === tab;
+                return (
+                  <Pressable
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    className={`flex-1 py-2 rounded-xl items-center ${selected ? 'bg-alpha' : ''}`}
+                  >
+                    <Text className={`text-xs font-semibold uppercase ${selected ? 'text-black' : 'text-black/55 dark:text-white/55'}`}>
+                      {tab}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
-        </View>
+        )}
 
-        {/* Conversations List - Full screen */}
         <View className="flex-1">
-          <ConversationsList
-            ref={conversationsListRef}
-            onCloseChat={handleCloseChat}
-            onUnreadCountChange={handleUnreadCountChange}
-          />
+          {activeTab === 'chats' ? (
+            <ConversationsList
+              onConversationStateChange={setIsConversationOpen}
+              onUnreadCountChange={setUnreadCount}
+            />
+          ) : (
+            <View className="flex-1 items-center justify-center px-6">
+              <Text className="text-lg font-bold text-black dark:text-white mb-1">{activeTab === 'groups' ? 'Groups' : 'Calls'}</Text>
+              <Text className="text-sm text-black/55 dark:text-white/55 text-center">
+                {activeTab === 'groups'
+                  ? 'Groups section is ready for your API/data hookup.'
+                  : 'Calls section is ready for your API/data hookup.'}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </AppLayout>

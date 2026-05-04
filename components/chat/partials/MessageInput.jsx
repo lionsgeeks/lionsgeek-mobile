@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, TextInput, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import AudioRecorder from './AudioRecorder';
 import VoiceRecorder from '../VoiceRecorder';
@@ -42,6 +44,11 @@ export default function MessageInput({
     onPause,
     onResume,
 }) {
+    const colorScheme = useColorScheme();
+    const insets = useSafeAreaInsets();
+    const isDark = colorScheme === 'dark';
+    const ph = isDark ? '#737373' : '#737373';
+
     // Typing indicator management
     const typingTimeoutRef = useRef(null);
     const hasTypedRef = useRef(false);
@@ -252,41 +259,43 @@ export default function MessageInput({
     };
 
     return (
-        <View className="px-4 py-3 border-t border-light/20 dark:border-dark/20 bg-light dark:bg-dark">
-            {/* Attachment Preview */}
+        <View
+            className="px-3 pt-2 border-t border-black/[0.07] dark:border-white/[0.08] bg-[#ebe8e2] dark:bg-[#101010]"
+            style={{ paddingBottom: Math.max(insets.bottom, 6) }}
+        >
             {attachment && (
-                <View className="mb-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex-row items-center gap-2">
+                <View className="mb-2 px-3 py-2.5 bg-white dark:bg-zinc-900 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] flex-row items-center gap-2 shadow-sm shadow-black/5">
                     {attachment.type?.startsWith('image/') ? (
-                        <Text className="text-xs">📷 Image selected</Text>
+                        <Text className="text-xs font-medium text-black dark:text-white">Image attached</Text>
                     ) : (
-                        <Text className="text-xs">📎 {attachment.name}</Text>
+                        <Text className="text-xs font-medium text-black dark:text-white flex-1" numberOfLines={1}>
+                            {attachment.name}
+                        </Text>
                     )}
-                    <Pressable
-                        onPress={() => setAttachment(null)}
-                        className="ml-auto"
-                    >
-                        <Ionicons name="close" size={16} color="#666" />
+                    <Pressable onPress={() => setAttachment(null)} hitSlop={8} className="p-1">
+                        <Ionicons name="close-circle" size={18} color={ph} />
                     </Pressable>
                 </View>
             )}
 
-            {/* Audio Preview */}
             {audioURL && audioBlob && (
-                <View className="mb-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex-row items-center gap-2">
-                    <View className="w-2 h-2 bg-red-500 rounded-full" />
-                    <Text className="text-xs flex-1">Voice message ready</Text>
-                    {audioDuration && (
-                        <Text className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                <View className="mb-2 px-3 py-2.5 bg-white dark:bg-zinc-900 rounded-2xl border border-alpha/40 flex-row items-center gap-2 shadow-sm shadow-black/5">
+                    <View className="w-2 h-2 bg-alpha rounded-full" />
+                    <Ionicons name="mic" size={14} color="#ffc801" />
+                    <Text className="text-xs flex-1 font-semibold text-black dark:text-white">Voice note ready to send</Text>
+                    {audioDuration ? (
+                        <Text className="text-xs text-black/45 dark:text-white/45 tabular-nums">
                             {formatAudioDuration(audioDuration)}
                         </Text>
-                    )}
+                    ) : null}
                     <Pressable
                         onPress={() => {
                             setAudioBlob(null);
                             setAudioURL(null);
                         }}
+                        hitSlop={8}
                     >
-                        <Ionicons name="close" size={16} color="#666" />
+                        <Ionicons name="close-circle" size={18} color={ph} />
                     </Pressable>
                 </View>
             )}
@@ -313,27 +322,27 @@ export default function MessageInput({
                 </View>
             )}
 
-            <View className="flex-row gap-2 items-end">
+            <View className="flex-row gap-2 items-end bg-white dark:bg-zinc-900 rounded-[24px] border border-black/[0.08] dark:border-white/[0.1] px-1.5 py-1.5 shadow-sm shadow-black/10">
                 <Pressable
                     onPress={showAttachmentMenu}
-                    className="h-10 w-10 items-center justify-center"
+                    className="w-10 h-10 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] items-center justify-center active:opacity-70"
                 >
-                    <Ionicons name="attach" size={20} color="#ffc801" />
+                    <Ionicons name="add" size={22} color="#ffc801" />
                 </Pressable>
-                
+
                 <View className="flex-1">
                     <TextInput
                         value={newMessage}
                         onChangeText={handleInputChange}
-                        placeholder="Type a message..."
-                        placeholderTextColor="#999"
-                        className="min-h-10 text-sm px-3 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 text-black dark:text-white"
+                        placeholder="Write a line…"
+                        placeholderTextColor={ph}
+                        className="min-h-10 text-[15px] px-2 py-2 text-black dark:text-white"
                         editable={!sending && !isRecording}
                         multiline
                         style={{ maxHeight: 100 }}
                     />
                 </View>
-                
+
                 {!isRecording ? (
                     <>
                         <VoiceRecorder
@@ -347,21 +356,23 @@ export default function MessageInput({
                             }}
                             disabled={sending}
                             onSendAudioDirect={async (uri, duration, mimeType) => {
-                                // This will be handled by the parent component
-                                // For now, we'll set it and let handleSendMessage use it
                                 setAudioBlob({ uri });
                                 setAudioURL(uri);
                             }}
                         />
-                        <Pressable 
+                        <Pressable
                             onPress={handleSendMessage}
                             disabled={sending || (!newMessage.trim() && !attachment && !audioBlob)}
-                            className={`h-10 w-10 items-center justify-center rounded-full ${sending || (!newMessage.trim() && !attachment && !audioBlob) ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-alpha'}`}
+                            className={`w-11 h-11 rounded-2xl items-center justify-center border ${
+                                sending || (!newMessage.trim() && !attachment && !audioBlob)
+                                    ? 'bg-neutral-200 dark:bg-zinc-800 opacity-55 border-transparent'
+                                    : 'bg-alpha active:opacity-90 border-black/10'
+                            }`}
                         >
                             {sending ? (
-                                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
+                                <Skeleton width={16} height={16} borderRadius={8} isDark={isDark} />
                             ) : (
-                                <Ionicons name="send" size={18} color="#000" />
+                                <Ionicons name="arrow-up" size={22} color="#000" />
                             )}
                         </Pressable>
                     </>

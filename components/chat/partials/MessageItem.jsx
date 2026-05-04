@@ -46,41 +46,62 @@ export default function MessageItem({
         ? message.attachment_path
         : `${API.APP_URL}/storage/${message.attachment_path}`;
 
+    const bubbleRadius = isCurrentUser
+        ? {
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              borderBottomLeftRadius: 18,
+              borderBottomRightRadius: 4,
+          }
+        : {
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              borderBottomLeftRadius: 4,
+              borderBottomRightRadius: 18,
+          };
+
     return (
         <>
             {showDateSeparator && (
-                <View className="items-center my-4">
-                    <View className="bg-yellow-500/10 px-3 py-1 rounded-full">
-                        <Text className="text-xs text-yellow-500">
-                            {isToday(new Date(message.created_at))
-                                ? 'Today'
-                                : isYesterday(new Date(message.created_at))
-                                    ? 'Yesterday'
-                                    : format(new Date(message.created_at), 'MMMM d, yyyy')}
-                        </Text>
-                    </View>
+                <View className="flex-row items-center my-5 px-2">
+                    <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
+                    <Text className="mx-3 text-[10px] font-bold tracking-[0.2em] text-black/40 dark:text-white/40 uppercase">
+                        {isToday(new Date(message.created_at))
+                            ? 'Today'
+                            : isYesterday(new Date(message.created_at))
+                              ? 'Yesterday'
+                              : format(new Date(message.created_at), 'MMM d, yyyy')}
+                    </Text>
+                    <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
                 </View>
             )}
-            <View className={`flex-row mb-4 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+            <View className={`flex-row mb-3 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 {!isCurrentUser && (
                     <Pressable
                         onPress={() => router.push(`/students/${otherUser.id}`)}
-                        className="mr-2"
+                        className="mr-2 self-end mb-1"
                     >
                         {otherUser?.image ? (
                             <Image
                                 source={{ uri: `${API.APP_URL}/storage/img/profile/${otherUser.image}` }}
-                                className="w-8 h-8 rounded-full"
+                                className="w-8 h-8 rounded-xl"
                                 resizeMode="cover"
                             />
                         ) : (
-                            <View className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                                <Ionicons name="person" size={16} color="#666" />
+                            <View className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 items-center justify-center border border-black/5 dark:border-white/10">
+                                <Ionicons name="person" size={16} color="#888" />
                             </View>
                         )}
                     </Pressable>
                 )}
-                <View className={`max-w-[85%] rounded-2xl px-4 py-3 ${isCurrentUser ? 'bg-alpha rounded-br-md' : 'bg-gray-200 dark:bg-gray-800 rounded-bl-md'}`}>
+                <View
+                    style={bubbleRadius}
+                    className={`max-w-[85%] px-4 py-3 border ${
+                        isCurrentUser
+                            ? 'bg-alpha border-black/10 shadow-sm shadow-black/10'
+                            : 'bg-white dark:bg-zinc-900 border-black/[0.07] dark:border-white/[0.08] shadow-sm shadow-black/5'
+                    }`}
+                >
                     {message.body && (
                         <Text className={`text-sm leading-relaxed ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
                             {message.body}
@@ -195,17 +216,17 @@ export default function MessageItem({
                 {isCurrentUser && (
                     <Pressable
                         onPress={() => router.push(`/students/${currentUser.id}`)}
-                        className="ml-2"
+                        className="ml-2 self-end mb-1"
                     >
                         {currentUser?.image ? (
                             <Image
                                 source={{ uri: `${API.APP_URL}/storage/img/profile/${currentUser.image}` }}
-                                className="w-8 h-8 rounded-full"
+                                className="w-8 h-8 rounded-xl"
                                 resizeMode="cover"
                             />
                         ) : (
-                            <View className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                                <Ionicons name="person" size={16} color="#666" />
+                            <View className="w-8 h-8 rounded-xl bg-alpha/30 items-center justify-center border border-black/10">
+                                <Ionicons name="person" size={16} color="#444" />
                             </View>
                         )}
                     </Pressable>

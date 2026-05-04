@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -12,6 +12,7 @@ export default function VoiceMessage({
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const soundRef = useRef(null);
+    const bars = useMemo(() => Array.from({ length: 22 }, (_, i) => i), []);
 
     // Format time as 0:00:06 (HH:MM:SS or MM:SS)
     const formatTime = (seconds) => {
@@ -87,12 +88,15 @@ export default function VoiceMessage({
         };
     }, []);
 
+    const safeDuration = Math.max(duration || 0, 1);
+    const progress = Math.min((currentTime || 0) / safeDuration, 1);
+    const activeBars = Math.max(1, Math.round(progress * bars.length));
+
     return (
         <View className={`flex-row items-center gap-3 ${isCurrentUser ? 'text-white' : 'text-black dark:text-white'}`}>
-            {/* Simple circular play button */}
             <Pressable
                 onPress={togglePlayback}
-                className={`h-9 w-9 rounded-full items-center justify-center ${isCurrentUser ? 'bg-white' : 'bg-white border border-gray-200 dark:border-gray-700'}`}
+                className={`h-9 w-9 rounded-full items-center justify-center ${isCurrentUser ? 'bg-white/95' : 'bg-white border border-gray-200 dark:border-gray-700'}`}
             >
                 {isPlaying ? (
                     <Ionicons name="pause" size={16} color={isCurrentUser ? '#000' : '#000'} />
@@ -101,42 +105,33 @@ export default function VoiceMessage({
                 )}
             </Pressable>
 
-            {/* Waveform bars - always visible, animated when playing */}
-            <View className="flex-row items-end gap-1 h-6 px-2">
-                {[...Array(5)].map((_, i) => {
-                    const baseHeights = [12, 18, 14, 20, 16];
-                    const baseHeight = baseHeights[i];
-                    
+            <View className="flex-row items-end gap-[2px] h-7 px-1">
+                {bars.map((bar) => {
+                    const baseHeight = 6 + (bar % 6) * 2;
+                    const isActive = bar < activeBars;
                     return (
                         <View
-                            key={i}
-                            className={`w-1 rounded-full ${isCurrentUser ? 'bg-white' : 'bg-black dark:bg-white'}`}
+                            key={bar}
+                            className={`w-[3px] rounded-full ${isCurrentUser ? 'bg-white' : 'bg-black dark:bg-white'}`}
                             style={{
-                                height: isPlaying ? baseHeight + Math.sin(Date.now() / 100 + i) * 5 : baseHeight,
-                                opacity: isPlaying ? 1 : 0.6,
-                                minHeight: 8
+                                height: isPlaying && isActive ? baseHeight + 4 : baseHeight,
+                                opacity: isActive ? 0.95 : 0.35,
                             }}
                         />
                     );
                 })}
             </View>
 
-            {/* Duration display */}
             <View className="flex-1 min-w-0">
-                {isPlaying ? (
-                    <>
-                        <Text className={`text-xs font-medium tabular-nums ${isCurrentUser ? 'text-white/90' : 'text-black/90 dark:text-white/90'}`}>
-                            {formatTime(currentTime || 0)}
-                        </Text>
-                        <Text className={`text-xs tabular-nums opacity-70 ${isCurrentUser ? 'text-white/70' : 'text-black/70 dark:text-white/70'}`}>
-                            {formatTime(duration || 0)}
-                        </Text>
-                    </>
-                ) : (
-                    <Text className={`text-sm font-medium tabular-nums ${isCurrentUser ? 'text-white' : 'text-black dark:text-white'}`}>
-                        {formatTime(duration || 0)}
-                    </Text>
-                )}
+                <Text className={`text-xs font-semibold tabular-nums ${isCurrentUser ? 'text-white/95' : 'text-black/90 dark:text-white/90'}`}>
+                    {formatTime(currentTime || 0)} / {formatTime(duration || 0)}
+                </Text>
+                <View className={`h-1.5 rounded-full mt-1.5 overflow-hidden ${isCurrentUser ? 'bg-white/25' : 'bg-black/15 dark:bg-white/20'}`}>
+                    <View
+                        className={`${isCurrentUser ? 'bg-white' : 'bg-alpha'} h-full`}
+                        style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                </View>
             </View>
         </View>
     );

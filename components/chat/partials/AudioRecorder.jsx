@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function AudioRecorder({ onSend, onCancel, isRecording, recordingTime, isPaused, onPause, onResume }) {
     const animationRef = useRef(null);
     const barsRef = useRef([]);
+    const bars = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
     // Animation dial waves bach tban b7al real audio
     useEffect(() => {
@@ -40,7 +41,7 @@ export default function AudioRecorder({ onSend, onCancel, isRecording, recording
     };
 
     return (
-        <View className="flex-row items-center gap-2 p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+        <View className="flex-row items-center gap-2 p-2.5 bg-alpha/15 rounded-2xl border border-alpha/30">
             <Pressable
                 onPress={onCancel}
                 className="h-8 w-8 items-center justify-center"
@@ -70,12 +71,12 @@ export default function AudioRecorder({ onSend, onCancel, isRecording, recording
                 <Text className="text-sm font-medium text-black dark:text-white tabular-nums min-w-[3rem]">
                     {formatTime(recordingTime)}
                 </Text>
-                <View className="flex-1 h-8 flex-row items-center justify-center gap-0.5">
-                    {Array.from({ length: 20 }).map((_, i) => (
+                <View className="flex-1 h-8 flex-row items-end justify-center gap-[2px]">
+                    {bars.map((bar) => (
                         <View
-                            key={i}
-                            className={`w-0.5 bg-yellow-500 rounded-full ${isRecording && !isPaused ? 'opacity-100' : 'opacity-30'}`}
-                            style={{ height: 10 }}
+                            key={bar}
+                            className={`w-[3px] bg-yellow-500 rounded-full ${isRecording && !isPaused ? 'opacity-100' : 'opacity-35'}`}
+                            style={{ height: 6 + ((bar + recordingTime) % 8) * 2 }}
                         />
                     ))}
                 </View>
