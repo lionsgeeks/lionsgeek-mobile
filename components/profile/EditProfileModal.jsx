@@ -591,6 +591,7 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
   const [email, setEmail]   = useState('');
   const [phone, setPhone]   = useState('');
   const [status, setStatus] = useState('');
+  const [speciality, setSpeciality] = useState('');
 
   const [avatarUri, setAvatarUri]   = useState(null);
   const [avatarFile, setAvatarFile] = useState(null);
@@ -611,6 +612,7 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
     setEmail(profile.email ?? '');
     setPhone(profile.phone ?? '');
     setStatus(profile.status ?? '');
+    setSpeciality(profile.speciality ?? '');
     setAvatarUri(null);
     setAvatarFile(null);
     setResumeName(profile.resume ?? null);
@@ -697,6 +699,7 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
       if (email.trim())  form.append('email', email.trim());
       form.append('phone', phone.trim());
       form.append('status', status.trim());
+      form.append('speciality', speciality.trim());
       if (avatarFile)    form.append('image', avatarFile);
       if (resumeFile)    form.append('resume', resumeFile);
 
@@ -859,6 +862,15 @@ export default function EditProfileModal({ visible, profile, token, isDark, onCl
               onChangeText={setPhone}
               placeholder="+212 600 000 000"
               keyboardType="phone-pad"
+              isDark={isDark}
+            />
+            <LabeledInput
+              label="Speciality"
+              icon="code-slash-outline"
+              value={speciality}
+              onChangeText={setSpeciality}
+              placeholder="e.g. Full stack developer, Mobile developer"
+              maxLength={255}
               isDark={isDark}
             />
             <StatusSelector value={status} onChange={setStatus} isDark={isDark} />
