@@ -7,6 +7,23 @@ import API from '@/api';
 import VoiceMessage from './VoiceMessage';
 import Skeleton from '@/components/ui/Skeleton';
 
+function tryParsePostShare(body) {
+    if (!body) return null;
+    if (typeof body === 'object') {
+        return body?.type === 'post_share' && body?.post_id ? body : null;
+    }
+    if (typeof body !== 'string') return null;
+    const trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type !== 'post_share' || !parsed?.post_id) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
 export default function FloatingChatWindow({ conversation, onClose, onMinimize, onExpand, isMinimized, isExpanded }) {
     const { user, token } = useAppContext();
     const currentUser = user;
@@ -107,6 +124,7 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
 
     const renderMessage = (message) => {
         const isCurrentUser = isCurrentUserMessage(message.sender_id);
+        const postShare = tryParsePostShare(message.body);
         const imageUrl = message.attachment_path?.startsWith('/storage/') || message.attachment_path?.startsWith('http')
             ? message.attachment_path
             : `${API.APP_URL}/storage/${message.attachment_path}`;
@@ -117,9 +135,13 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                     ? 'bg-yellow-500' 
                     : 'bg-gray-200 dark:bg-gray-800'
                 }`}>
-                    {message.body && (
-                        <Text className="text-black dark:text-white">{message.body}</Text>
-                    )}
+                    {postShare ? (
+                        <Text className="text-black dark:text-white font-semibold">📌 Sent a post</Text>
+                    ) : message.body ? (
+                        <Text className="text-black dark:text-white">
+                            {typeof message.body === 'string' ? message.body : 'Sent a message'}
+                        </Text>
+                    ) : null}
                     
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Image 
@@ -192,7 +214,7 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                                     ? '📷 Image'
                                     : lastMessage.attachment_type === 'file'
                                     ? '📎 File'
-                                    : lastMessage.body}
+                                    : (tryParsePostShare(lastMessage.body) ? '📌 Post' : (typeof lastMessage.body === 'string' ? lastMessage.body : 'Message'))}
                             </Text>
                         )}
                     </View>

@@ -7,6 +7,23 @@ import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 
+function tryParsePostShare(body) {
+    if (!body) return null;
+    if (typeof body === 'object') {
+        return body?.type === 'post_share' && body?.post_id ? body : null;
+    }
+    if (typeof body !== 'string') return null;
+    const trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type !== 'post_share' || !parsed?.post_id) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
 export default function ChatWindow({ conversation, onBack }) {
     const { user, token } = useAppContext();
     const currentUser = user;
@@ -164,9 +181,15 @@ export default function ChatWindow({ conversation, onBack }) {
                                             ? 'bg-yellow-500' 
                                             : 'bg-gray-200 dark:bg-gray-800'
                                         }`}>
-                                            <Text className={`text-sm ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
-                                                {message.body}
-                                            </Text>
+                                            {tryParsePostShare(message.body) ? (
+                                                <Text className={`text-sm font-semibold ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
+                                                    📌 Sent a post
+                                                </Text>
+                                            ) : message.body ? (
+                                                <Text className={`text-sm ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
+                                                    {typeof message.body === 'string' ? message.body : 'Sent a message'}
+                                                </Text>
+                                            ) : null}
                                             <Text className={`text-xs mt-1 ${isCurrentUser ? 'text-black/70' : 'text-gray-500 dark:text-gray-400'}`}>
                                                 {format(new Date(message.created_at), 'h:mm a')}
                                             </Text>
