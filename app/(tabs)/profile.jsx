@@ -12,6 +12,7 @@ import {
   Modal,
   StatusBar,
   Linking,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
@@ -19,6 +20,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import AppLayout from '@/components/layout/AppLayout';
 import CreatePost from '@/components/feed/CreatePost';
 import FeedItem from '@/components/feed/FeedItem';
@@ -419,6 +421,7 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
@@ -602,6 +605,51 @@ export default function ProfileScreen() {
     null;
   const speciality = profile?.speciality ?? profile?.specialty ?? null;
 
+  const pickAndUploadCover = useCallback(async () => {
+    if (!token || !isOwnProfile || coverUploading) return;
+
+    try {
+      setCoverUploading(true);
+
+      const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photo library.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const coverFile = {
+        uri: asset.uri,
+        name: 'cover.jpg',
+        type: asset.mimeType ?? 'image/jpeg',
+      };
+
+      const form = new FormData();
+      form.append('cover', coverFile);
+
+      const res = await API.postWithAuth('mobile/profile/cover', form, token);
+      const nextCover = res?.data?.data?.cover ?? res?.data?.cover ?? null;
+
+      if (nextCover) {
+        setProfile((prev) => (prev ? { ...prev, cover: nextCover } : prev));
+      }
+    } catch (err) {
+      console.error('[PROFILE] cover upload error:', err);
+      Alert.alert('Error', 'Could not update cover. Please try again.');
+    } finally {
+      setCoverUploading(false);
+    }
+  }, [token, isOwnProfile, coverUploading]);
+
   if (loading) {
     return (
       <AppLayout showNavbar={false}>
@@ -677,6 +725,21 @@ export default function ProfileScreen() {
               <Text className="text-alpha/30 text-6xl font-black tracking-widest">LG</Text>
             </View>
           )}
+
+          {/* Pin edit button (own profile only) */}
+          {isOwnProfile && (
+            <Pressable
+              onPress={pickAndUploadCover}
+              disabled={coverUploading}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Edit cover photo"
+              className="absolute top-3 right-3 w-10 h-10 rounded-full items-center justify-center border border-white/20 bg-black/40"
+              style={{ opacity: coverUploading ? 0.6 : 1 }}
+            >
+              <Ionicons name="create-outline" size={20} color="#fff" />
+            </Pressable>
+          )}
         </View>
 
         {/* ─── Profile Row: Avatar + Stats ─── */}
@@ -743,7 +806,7 @@ export default function ProfileScreen() {
           )}
 
           {/* Role badges */}
-          {profile?.roles && profile.roles.length > 0 && (
+          {isOwnProfile && profile?.roles && profile.roles.length > 0 && (
             <View className="flex-row flex-wrap gap-1 mt-1.5">
               {profile.roles.map((role, idx) => (
                 <View key={idx} className="px-2.5 py-0.5 rounded-full bg-alpha">
