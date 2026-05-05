@@ -41,6 +41,12 @@ export function resolveCoverUrl(coverValue) {
     return `${API.APP_URL}${normalizeStoragePath(value)}`;
   }
 
+  // If backend stores only the filename, assume the default cover folder.
+  // (Backend convention: /storage/img/cover/<filename>)
+  if (!value.includes('/')) {
+    return `${API.APP_URL}/storage/img/cover/${value}`;
+  }
+
   // Otherwise treat as "public storage relative path" (Laravel: /storage/<path>)
   const cleanRelative = value.replace(/^\/+/, '');
   return `${API.APP_URL}/storage/${cleanRelative}`;
