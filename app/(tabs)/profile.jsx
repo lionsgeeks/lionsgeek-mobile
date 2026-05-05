@@ -13,6 +13,7 @@ import {
   StatusBar,
   Linking,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
@@ -414,7 +415,7 @@ function ProfileSkeleton({ isDark, topInset = 0 }) {
 }
 
 export default function ProfileScreen() {
-  const { user: currentUser, token } = useAppContext();
+  const { user: currentUser, token, saveAuth } = useAppContext();
   const { userId, id } = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -422,6 +423,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
@@ -433,6 +435,8 @@ export default function ProfileScreen() {
   const [followLoading, setFollowLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [socialLinks, setSocialLinks] = useState([]);
+  const [showAvatarOptions, setShowAvatarOptions] = useState(false);
+  const [showAvatarViewer, setShowAvatarViewer] = useState(false);
   const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
@@ -650,6 +654,55 @@ export default function ProfileScreen() {
     }
   }, [token, isOwnProfile, coverUploading]);
 
+  const pickAndUploadAvatar = useCallback(async () => {
+    if (!token || !isOwnProfile || avatarUploading) return;
+
+    try {
+      setAvatarUploading(true);
+
+      const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photo library.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const avatarFile = {
+        uri: asset.uri,
+        name: 'avatar.jpg',
+        type: asset.mimeType ?? 'image/jpeg',
+      };
+
+      const form = new FormData();
+      form.append('image', avatarFile);
+
+      const res = await API.postWithAuth('mobile/profile/update', form, token);
+      const updated = res?.data?.data ?? res?.data ?? null;
+
+      if (updated) {
+        setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
+        // Keep global auth user in sync (tab avatar, etc.)
+        if (currentUser) {
+          await saveAuth(token, { ...currentUser, ...updated });
+        }
+      }
+    } catch (err) {
+      console.error('[PROFILE] avatar upload error:', err);
+      Alert.alert('Error', 'Could not update profile picture. Please try again.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, [token, isOwnProfile, avatarUploading, currentUser, saveAuth]);
+
   if (loading) {
     return (
       <AppLayout showNavbar={false}>
@@ -746,9 +799,17 @@ export default function ProfileScreen() {
         <View className="flex-row items-start px-4 -mt-11 mb-3">
           {/* Avatar */}
           <View className="relative">
-            <View
+            <Pressable
+              onPress={() => {
+                // Own profile: show options (view / change). Other profile: just view.
+                if (isOwnProfile) setShowAvatarOptions(true);
+                else setShowAvatarViewer(true);
+              }}
+              disabled={avatarUploading}
               className="rounded-full border-4 border-light dark:border-dark overflow-hidden"
-              style={{ width: 90, height: 90 }}
+              style={{ width: 90, height: 90, opacity: avatarUploading ? 0.75 : 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={isOwnProfile ? 'Profile picture options' : 'View profile picture'}
             >
               {profileImageUrl ? (
                 <Image
@@ -761,7 +822,14 @@ export default function ProfileScreen() {
                   <Ionicons name="person" size={36} color={isDark ? '#fff' : '#000'} />
                 </View>
               )}
-            </View>
+
+              {/* Uploading overlay */}
+              {avatarUploading && (
+                <View className="absolute inset-0 items-center justify-center bg-black/35">
+                  <ActivityIndicator size="small" color="#ffc801" />
+                </View>
+              )}
+            </Pressable>
             <OnlineBadge lastOnline={profile?.last_online} />
           </View>
 
@@ -841,7 +909,7 @@ export default function ProfileScreen() {
           )}
 
           {/* Role badges */}
-          {isOwnProfile && profile?.roles && profile.roles.length > 0 && (
+          {/* {isOwnProfile && profile?.roles && profile.roles.length > 0 && (
             <View className="flex-row flex-wrap gap-1 mt-1.5">
               {profile.roles.map((role, idx) => (
                 <View key={idx} className="px-2.5 py-0.5 rounded-full bg-alpha">
@@ -849,7 +917,7 @@ export default function ProfileScreen() {
                 </View>
               ))}
             </View>
-          )}
+          )} */}
 
           {/* Status / promo / email */}
           {profile?.status ? (
@@ -862,9 +930,9 @@ export default function ProfileScreen() {
               Promo {profile.promo}
             </Text>
           ) : null}
-          {isOwnProfile && profile?.email ? (
+          {/* {isOwnProfile && profile?.email ? (
             <Text className="text-sm text-alpha mt-0.5">{profile.email}</Text>
-          ) : null}
+          ) : null} */}
           <View className='flex-row items-center gap-3'>
             {lastExperienceLocation ? (
               <View className="flex-row items-center gap-1 mt-1">
@@ -913,12 +981,6 @@ export default function ProfileScreen() {
                 className="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/15 items-center justify-center active:opacity-70"
               >
                 <Ionicons name="add-outline" size={20} color={isDark ? '#fff' : '#000'} />
-              </Pressable>
-              <Pressable
-                onPress={() => router.push('/more')}
-                className="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/15 items-center justify-center active:opacity-70"
-              >
-                <Ionicons name="settings-outline" size={19} color={isDark ? '#fff' : '#000'} />
               </Pressable>
             </>
           ) : (
@@ -1111,6 +1173,123 @@ export default function ProfileScreen() {
         isDark={isDark}
         onClose={() => setFollowModal(null)}
       />
+
+      {/* ─── Avatar Options Modal (own profile) ─── */}
+      <Modal
+        visible={showAvatarOptions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAvatarOptions(false)}
+      >
+        <Pressable
+          onPress={() => setShowAvatarOptions(false)}
+          className="flex-1 bg-black/55 justify-end"
+        >
+          <Pressable
+            onPress={() => { }}
+            className="bg-light dark:bg-dark rounded-t-3xl px-4 pt-4 pb-6 border-t border-black/10 dark:border-white/10"
+            style={{ paddingBottom: insets.bottom + 18 }}
+          >
+            <View className="items-center mb-3">
+              <View className="w-10 h-1.5 rounded-full bg-black/20 dark:bg-white/20" />
+            </View>
+
+            <Text className="text-base font-bold text-black dark:text-white mb-3">
+              Profile picture
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                setShowAvatarOptions(false);
+                setShowAvatarViewer(true);
+              }}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04]"
+            >
+              <Ionicons name="eye-outline" size={18} color={isDark ? '#fff' : '#000'} />
+              <Text className="text-sm font-semibold text-black dark:text-white">
+                View profile picture
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                setShowAvatarOptions(false);
+                await pickAndUploadAvatar();
+              }}
+              disabled={avatarUploading}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+              style={{ opacity: avatarUploading ? 0.6 : 1 }}
+            >
+              <Ionicons name="image-outline" size={18} color="#ffc801" />
+              <Text className="text-sm font-semibold text-black dark:text-white">
+                Change profile picture
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowAvatarOptions(false)}
+              className="items-center py-3 mt-2"
+            >
+              <Text className="text-sm font-semibold text-black/60 dark:text-white/60">
+                Cancel
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ─── Avatar Viewer Modal ─── */}
+      <Modal
+        visible={showAvatarViewer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAvatarViewer(false)}
+      >
+        <View className="flex-1 bg-black">
+          <View
+            className="absolute top-0 left-0 right-0 flex-row items-center justify-between px-4"
+            style={{ paddingTop: insets.top + 10, zIndex: 5 }}
+          >
+            <TouchableOpacity
+              onPress={() => setShowAvatarViewer(false)}
+              hitSlop={12}
+              activeOpacity={0.75}
+              className="w-10 h-10 rounded-full items-center justify-center bg-white/10"
+            >
+              <Ionicons name="close" size={22} color="#fff" />
+            </TouchableOpacity>
+
+            {isOwnProfile && (
+              <TouchableOpacity
+                onPress={async () => {
+                  await pickAndUploadAvatar();
+                }}
+                disabled={avatarUploading}
+                hitSlop={12}
+                activeOpacity={0.75}
+                className="w-10 h-10 rounded-full items-center justify-center bg-white/10"
+                style={{ opacity: avatarUploading ? 0.6 : 1 }}
+              >
+                <Ionicons name="image-outline" size={20} color="#ffc801" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Pressable className="flex-1 items-center justify-center" onPress={() => setShowAvatarViewer(false)}>
+            {profileImageUrl ? (
+              <Image
+                source={{ uri: profileImageUrl }}
+                style={{ width: '92%', aspectRatio: 1, borderRadius: 18 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View className="w-72 h-72 rounded-2xl bg-white/10 items-center justify-center">
+                <Ionicons name="person" size={64} color="rgba(255,255,255,0.6)" />
+              </View>
+            )}
+          </Pressable>
+        </View>
+      </Modal>
 
       {/* ─── Posts Feed Modal (all posts, scrolled to tapped index) ─── */}
       <Modal
