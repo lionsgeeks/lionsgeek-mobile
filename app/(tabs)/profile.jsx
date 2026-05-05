@@ -796,7 +796,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* ─── Profile Row: Avatar + Stats ─── */}
-        <View className="flex-row items-start px-4 -mt-11 mb-3">
+        <View className="flex-row items-start pl-4 -mt-11 mb-3">
           {/* Avatar */}
           <View className="relative">
             <Pressable
@@ -842,7 +842,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Stats */}
-          <View className="flex-1 flex-row justify-around mt-14 ml-2">
+          <View className="flex-1 flex-row justify-around mt-14 ml-5">
             <StatColumn label="Posts" value={profile?.posts_count ?? posts.length} />
             <StatColumn
               label="Followers"
@@ -869,7 +869,7 @@ export default function ProfileScreen() {
 
             {/* Social links (icons, clickable) — aligned with the name */}
             {socialLinks.length > 0 && (
-              <View className="flex-row items-center gap-2 mr-2 ">
+              <View className="flex-row items-center gap-2">
                 {socialLinks.map((link) => (
                   <TouchableOpacity
                     key={String(link.id)}
