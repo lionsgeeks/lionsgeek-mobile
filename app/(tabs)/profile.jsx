@@ -11,6 +11,7 @@ import {
   Dimensions,
   Modal,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
@@ -28,13 +29,73 @@ import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
   resolveCoverUrl,
-  userHasAdminRole,
 } from '@/components/helpers/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 1.5;
 const GRID_COLUMNS = 3;
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+
+function getLastExperience(profile) {
+  const candidates =
+    profile?.experiences ??
+    profile?.experience ??
+    profile?.user_experiences ??
+    profile?.userExperiences ??
+    [];
+
+  const list = Array.isArray(candidates) ? candidates.filter(Boolean) : [];
+  if (list.length === 0) return null;
+
+  const score = (exp) => {
+    const date =
+      exp?.end_date ??
+      exp?.endDate ??
+      exp?.to ??
+      exp?.until ??
+      exp?.created_at ??
+      exp?.createdAt ??
+      exp?.updated_at ??
+      exp?.updatedAt ??
+      null;
+
+    const ts = date ? new Date(date).getTime() : NaN;
+    return Number.isFinite(ts) ? ts : -Infinity;
+  };
+
+  const sorted = [...list].sort((a, b) => score(b) - score(a));
+  const best = sorted[0];
+  return best ?? list[list.length - 1] ?? null;
+}
+
+function normalizeSocialLinks(profile, fallbackList = []) {
+  const fromProfile =
+    profile?.social_links ??
+    profile?.socialLinks ??
+    profile?.social_links_list ??
+    profile?.links ??
+    null;
+
+  const list = Array.isArray(fromProfile) ? fromProfile : Array.isArray(fallbackList) ? fallbackList : [];
+  return list
+    .filter(Boolean)
+    .map((l) => ({
+      id: l?.id ?? `${l?.title ?? ''}:${l?.url ?? ''}`,
+      title: String(l?.title ?? l?.platform ?? '').toLowerCase(),
+      url: String(l?.url ?? l?.link ?? '').trim(),
+    }))
+    .filter((l) => l.url.length > 0);
+}
+
+function iconForSocialTitle(title) {
+  const t = String(title ?? '').toLowerCase();
+  if (t.includes('github')) return 'logo-github';
+  if (t.includes('linkedin')) return 'logo-linkedin';
+  if (t.includes('instagram')) return 'logo-instagram';
+  if (t.includes('behance')) return 'color-palette-outline';
+  if (t.includes('portfolio') || t.includes('website') || t.includes('site')) return 'globe-outline';
+  return 'link-outline';
+}
 
 function OnlineBadge({ lastOnline }) {
   if (!lastOnline) return null;
@@ -119,17 +180,15 @@ function FollowUserRow({ user, isDark, currentUserId, token, onPress }) {
         <Pressable
           onPress={handleFollow}
           disabled={followLoading}
-          className={`px-4 py-1.5 rounded-lg ${
-            isFollowing
-              ? 'border border-black/20 dark:border-white/20 bg-transparent'
-              : 'bg-alpha'
-          }`}
+          className={`px-4 py-1.5 rounded-lg ${isFollowing
+            ? 'border border-black/20 dark:border-white/20 bg-transparent'
+            : 'bg-alpha'
+            }`}
           style={{ opacity: followLoading ? 0.5 : 1 }}
         >
           <Text
-            className={`text-xs font-bold ${
-              isFollowing ? 'text-black dark:text-white' : 'text-beta'
-            }`}
+            className={`text-xs font-bold ${isFollowing ? 'text-black dark:text-white' : 'text-beta'
+              }`}
           >
             {isFollowing ? 'Following' : 'Follow'}
           </Text>
@@ -370,6 +429,7 @@ export default function ProfileScreen() {
   const [followersCount, setFollowersCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [socialLinks, setSocialLinks] = useState([]);
   const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
@@ -381,6 +441,7 @@ export default function ProfileScreen() {
     setLoading(true);
     setProfile(null);
     setPosts([]);
+    setSocialLinks([]);
   }, [resolvedUserId]);
 
   const loadProfile = useCallback(async () => {
@@ -421,21 +482,21 @@ export default function ProfileScreen() {
         })
         .map((post) => {
           const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
-          const userImage  = post.user?.image  || post.author?.image  || post.user_image  || post.author_image;
-          const avatarUrl  = resolveAvatarUrl(userAvatar || userImage);
-          const mediaUrl   = resolvePostMediaUrl(post);
+          const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
+          const avatarUrl = resolveAvatarUrl(userAvatar || userImage);
+          const mediaUrl = resolvePostMediaUrl(post);
           return {
             ...post,
             user: {
               ...(post.user || post.author || {}),
-              id:     post.user?.id || post.author?.id || post.user_id || post.userId || profileId,
-              name:   post.user?.name || post.author?.name || post.user_name || post.author_name || profileName || 'Unknown',
+              id: post.user?.id || post.author?.id || post.user_id || post.userId || profileId,
+              name: post.user?.name || post.author?.name || post.user_name || post.author_name || profileName || 'Unknown',
               avatar: avatarUrl,
-              image:  userImage,
+              image: userImage,
             },
             userAvatar: avatarUrl,
-            postImage:  mediaUrl,
-            image:      mediaUrl,
+            postImage: mediaUrl,
+            image: mediaUrl,
           };
         });
 
@@ -451,7 +512,29 @@ export default function ProfileScreen() {
   // Initial load
   useEffect(() => {
     if (token || (isOwnProfile && currentUser)) loadProfile();
-  }, [loadProfile]);
+  }, [loadProfile, token, isOwnProfile, currentUser]);
+
+  const loadSocialLinks = useCallback(async () => {
+    // For now the app only has a secured "my social links" endpoint.
+    // When viewing other users, we rely on any links embedded in the profile payload.
+    if (!token || !isOwnProfile) {
+      setSocialLinks(normalizeSocialLinks(profile, []));
+      return;
+    }
+
+    try {
+      const res = await API.getWithAuth('mobile/profile/social-links', token);
+      const list = res?.data?.data ?? [];
+      setSocialLinks(normalizeSocialLinks(profile, list));
+    } catch (err) {
+      console.error('[PROFILE] social links fetch error:', err);
+      setSocialLinks(normalizeSocialLinks(profile, []));
+    }
+  }, [token, isOwnProfile, profile]);
+
+  useEffect(() => {
+    loadSocialLinks();
+  }, [loadSocialLinks, profile]);
 
   useEffect(() => {
     loadPosts(profile?.id, profile?.name);
@@ -469,7 +552,7 @@ export default function ProfileScreen() {
     if (!profile) return;
     setIsFollowing(!!profile.is_following);
     setFollowersCount(profile.followers_count ?? 0);
-  }, [profile?.id, profile?.is_following, profile?.followers_count]);
+  }, [profile]);
 
   const handleFollowToggle = async () => {
     if (followLoading || !token || !profile?.id) return;
@@ -497,6 +580,27 @@ export default function ProfileScreen() {
     : null;
 
   const coverImageUrl = profile?.cover ? resolveCoverUrl(profile.cover) : null;
+  const lastExperience = getLastExperience(profile);
+  const lastExperienceLocation =
+    // Experience object candidates (if experiences are included in payload)
+    lastExperience?.location ??
+    lastExperience?.city ??
+    lastExperience?.place ??
+    lastExperience?.address ??
+    lastExperience?.region ??
+    lastExperience?.country ??
+    lastExperience?.company_location ??
+    lastExperience?.companyLocation ??
+    // Common flattened API fields (if backend doesn't embed experiences array)
+    profile?.last_experience_location ??
+    profile?.lastExperienceLocation ??
+    profile?.experience_location ??
+    profile?.experienceLocation ??
+    profile?.city ??
+    profile?.location ??
+    profile?.address ??
+    null;
+  const speciality = profile?.speciality ?? profile?.specialty ?? null;
 
   if (loading) {
     return (
@@ -616,9 +720,27 @@ export default function ProfileScreen() {
 
         {/* ─── Bio Section ─── */}
         <View className="px-4 mb-4">
-          <Text className="text-base font-bold text-black dark:text-white leading-tight">
+          <Text className="text-xl font-bold text-black dark:text-white leading-tight">
             {profile?.name || 'User'}
           </Text>
+
+          {/* Last experience location + speciality (under the name) */}
+          {(lastExperienceLocation || speciality) && (
+            <View className="flex-col flex-wrap items-center mt-1 gap-x-3 gap-y-1">
+              {speciality ? (
+                <View className="flex-row items-center gap-1">
+                  <Ionicons
+                    name="briefcase-outline"
+                    size={13}
+                    color={isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)'}
+                  />
+                  <Text className="text-base text-black/60 dark:text-white/60">
+                    {String(speciality)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           {/* Role badges */}
           {profile?.roles && profile.roles.length > 0 && (
@@ -642,25 +764,69 @@ export default function ProfileScreen() {
               Promo {profile.promo}
             </Text>
           ) : null}
-          {(isOwnProfile || userHasAdminRole(currentUser)) && profile?.email ? (
+          {isOwnProfile && profile?.email ? (
             <Text className="text-sm text-alpha mt-0.5">{profile.email}</Text>
           ) : null}
-          {profile?.created_at ? (
-            <View className="flex-row items-center mt-1.5 gap-1">
-              <Ionicons
-                name="calendar-outline"
-                size={13}
-                color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
-              />
-              <Text className="text-xs text-black/40 dark:text-white/40">
-                Joined{' '}
-                {new Date(profile.created_at).toLocaleDateString('en-US', {
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </Text>
+          <View className='flex-row items-center gap-3'>
+            {lastExperienceLocation ? (
+              <View className="flex-row items-center gap-1 mt-1">
+                <Ionicons
+                  name="location-outline"
+                  size={13}
+                  color={isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)'}
+                />
+                <Text className="text-xs text-black/40 dark:text-white/40">
+                  {String(lastExperienceLocation)}
+                </Text>
+              </View>
+            ) : null}
+            {profile?.created_at ? (
+              <View className="flex-row items-center mt-1.5 gap-1">
+                <Ionicons
+                  name="calendar-outline"
+                  size={13}
+                  color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+                />
+                <Text className="text-xs text-black/40 dark:text-white/40">
+                  Joined{' '}
+                  {new Date(profile.created_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Social links (icons, clickable) */}
+          {socialLinks.length > 0 && (
+            <View className="flex-row items-center gap-3 mt-3">
+              {socialLinks.map((link) => (
+                <TouchableOpacity
+                  key={String(link.id)}
+                  activeOpacity={0.75}
+                  onPress={async () => {
+                    const url = link.url;
+                    try {
+                      const canOpen = await Linking.canOpenURL(url);
+                      if (canOpen) await Linking.openURL(url);
+                    } catch (err) {
+                      console.error('[PROFILE] open social link error:', err);
+                    }
+                  }}
+                  className="w-9 h-9 rounded-full items-center justify-center border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04]"
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${link.title || 'social'} link`}
+                >
+                  <Ionicons
+                    name={iconForSocialTitle(link.title)}
+                    size={18}
+                    color={isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)'}
+                  />
+                </TouchableOpacity>
+              ))}
             </View>
-          ) : null}
+          )}
         </View>
 
         {/* ─── Action Buttons ─── */}
@@ -693,11 +859,10 @@ export default function ProfileScreen() {
                 onPress={handleFollowToggle}
                 disabled={followLoading}
                 style={{ opacity: followLoading ? 0.6 : 1 }}
-                className={`flex-1 rounded-xl py-2.5 items-center flex-row justify-center active:opacity-70 ${
-                  isFollowing
-                    ? 'border border-black/20 dark:border-white/20 bg-transparent'
-                    : 'bg-alpha'
-                }`}
+                className={`flex-1 rounded-xl py-2.5 items-center flex-row justify-center active:opacity-70 ${isFollowing
+                  ? 'border border-black/20 dark:border-white/20 bg-transparent'
+                  : 'bg-alpha'
+                  }`}
               >
                 <Ionicons
                   name={isFollowing ? 'person-remove-outline' : 'person-add-outline'}
@@ -705,22 +870,21 @@ export default function ProfileScreen() {
                   color={isFollowing ? (isDark ? '#fff' : '#000') : '#212529'}
                 />
                 <Text
-                  className={`ml-1.5 text-sm font-bold ${
-                    isFollowing ? 'text-black dark:text-white' : 'text-beta'
-                  }`}
+                  className={`ml-1.5 text-sm font-bold ${isFollowing ? 'text-black dark:text-white' : 'text-beta'
+                    }`}
                 >
                   {isFollowing ? 'Following' : 'Follow'}
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => {}}
+                onPress={() => { }}
                 className="flex-1 rounded-xl py-2.5 border border-black/15 dark:border-white/15 items-center flex-row justify-center active:opacity-70"
               >
                 <Ionicons name="mail-outline" size={17} color={isDark ? '#fff' : '#000'} />
                 <Text className="ml-1.5 text-sm font-semibold text-black dark:text-white">Message</Text>
               </Pressable>
               <Pressable
-                onPress={() => {}}
+                onPress={() => { }}
                 className="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/15 items-center justify-center active:opacity-70"
               >
                 <Ionicons name="chevron-down" size={18} color={isDark ? '#fff' : '#000'} />
