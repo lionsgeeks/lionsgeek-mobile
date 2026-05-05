@@ -869,7 +869,7 @@ export default function ProfileScreen() {
 
             {/* Social links (icons, clickable) — aligned with the name */}
             {socialLinks.length > 0 && (
-              <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-2 mr-2 ">
                 {socialLinks.map((link) => (
                   <TouchableOpacity
                     key={String(link.id)}
