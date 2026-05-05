@@ -35,9 +35,6 @@ import {
 } from '@/components/helpers/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GRID_GAP = 1.5;
-const GRID_COLUMNS = 3;
-const GRID_ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
 function getLastExperience(profile) {
   const candidates =
@@ -300,73 +297,302 @@ function FollowListModal({ visible, type, profileId, token, currentUserId, inset
   );
 }
 
-function GridCell({ post, onPress, isDark }) {
-  const hasImage = !!post.postImage;
 
-  return (
-    <TouchableOpacity
-      style={{ width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE }}
-      onPress={() => onPress(post)}
-      activeOpacity={0.85}
-    >
-      {hasImage ? (
-        <Image
-          source={{ uri: post.postImage }}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
-      ) : (
-        <View
-          style={{ width: '100%', height: '100%' }}
-          className="bg-alpha/10 dark:bg-alpha/5 items-center justify-center p-2"
-        >
-          <Ionicons
-            name="document-text-outline"
-            size={22}
-            color={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}
-          />
-          {post.body ? (
-            <Text
-              numberOfLines={3}
-              className="text-xs text-black/50 dark:text-white/50 text-center mt-1 leading-4"
-            >
-              {post.body}
-            </Text>
-          ) : null}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+// ─── LinkedIn section helpers ────────────────────────────────────────────────
+
+function formatPeriod(startDate, endDate, isCurrent) {
+  const fmt = (d) => {
+    if (!d) return null;
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+  const start = fmt(startDate);
+  const end = isCurrent ? 'Present' : fmt(endDate);
+  if (!start && !end) return null;
+  if (!start) return end;
+  if (!end) return start;
+  return `${start} – ${end}`;
 }
 
-function PostsGrid({ posts, isDark, onCellPress }) {
-  if (posts.length === 0) return null;
+function calcDuration(startDate, endDate, isCurrent) {
+  const start = startDate ? new Date(startDate) : null;
+  const end = isCurrent || !endDate ? new Date() : new Date(endDate);
+  if (!start) return null;
+  const totalMonths =
+    (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (totalMonths < 1) return 'Less than a month';
+  const years = Math.floor(totalMonths / 12);
+  const mos = totalMonths % 12;
+  return [
+    years > 0 ? `${years} yr${years > 1 ? 's' : ''}` : '',
+    mos > 0 ? `${mos} mo` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
-  const rows = [];
-  for (let i = 0; i < posts.length; i += GRID_COLUMNS) {
-    rows.push(posts.slice(i, i + GRID_COLUMNS));
-  }
+// ─── About card ──────────────────────────────────────────────────────────────
+
+function AboutCard({ profile, isDark }) {
+  const bio = profile?.bio ?? profile?.about ?? profile?.description ?? null;
+  if (!bio) return null;
 
   return (
-    <View>
-      {rows.map((row, rowIdx) => (
-        <View
-          key={rowIdx}
-          style={{ flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP }}
-        >
-          {row.map((post) => (
-            <GridCell key={post.id} post={post} isDark={isDark} onPress={onCellPress} />
-          ))}
-          {/* Fill empty slots in last row */}
-          {row.length < GRID_COLUMNS &&
-            Array.from({ length: GRID_COLUMNS - row.length }).map((_, idx) => (
-              <View key={`empty-${idx}`} style={{ width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE }} />
-            ))}
-        </View>
-      ))}
+    <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 p-4">
+      <Text className="text-base font-bold text-black dark:text-white mb-2">About</Text>
+      <Text className="text-sm text-black/70 dark:text-white/70 leading-[22px]">{bio}</Text>
     </View>
   );
 }
+
+// ─── Posts preview card ───────────────────────────────────────────────────────
+
+function PostsPreviewCard({ posts, postsLoading, isDark, onViewAll, onPostPress }) {
+  const firstPost = posts[0] ?? null;
+
+  return (
+    <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 overflow-hidden">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-4 pt-4 pb-3">
+        <Text className="text-base font-bold text-black dark:text-white">Posts</Text>
+        {posts.length > 1 && (
+          <TouchableOpacity onPress={onViewAll} hitSlop={10} activeOpacity={0.7}>
+            <Text className="text-sm text-alpha font-semibold">See all posts</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {postsLoading ? (
+        <View className="px-4 pb-4 gap-2">
+          <Skeleton width="100%" height={14} borderRadius={7} isDark={isDark} />
+          <Skeleton width="65%" height={14} borderRadius={7} isDark={isDark} />
+          <Skeleton width={SCREEN_WIDTH - 64} height={160} borderRadius={12} isDark={isDark} />
+        </View>
+      ) : firstPost ? (
+        <TouchableOpacity onPress={() => onPostPress(firstPost)} activeOpacity={0.85}>
+          {firstPost.body ? (
+            <Text
+              className="text-sm text-black/80 dark:text-white/80 leading-[22px] px-4 mb-3"
+              numberOfLines={3}
+            >
+              {firstPost.body}
+            </Text>
+          ) : null}
+
+          {firstPost.postImage ? (
+            <Image
+              source={{ uri: firstPost.postImage }}
+              style={{ width: '100%', height: 200 }}
+              resizeMode="cover"
+            />
+          ) : null}
+
+          {/* Post meta row */}
+          <View className="flex-row items-center gap-4 px-4 py-3 border-t border-black/5 dark:border-white/5">
+            <View className="flex-row items-center gap-1">
+              <Ionicons
+                name="heart-outline"
+                size={14}
+                color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+              />
+              <Text className="text-xs text-black/40 dark:text-white/40">
+                {firstPost.likes_count ?? 0}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1">
+              <Ionicons
+                name="chatbubble-outline"
+                size={13}
+                color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+              />
+              <Text className="text-xs text-black/40 dark:text-white/40">
+                {firstPost.comments_count ?? 0}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <View className="px-4 pb-6 items-center pt-2">
+          <Ionicons
+            name="newspaper-outline"
+            size={36}
+            color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+          />
+          <Text className="text-xs text-black/30 dark:text-white/30 mt-2">No posts yet</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Experience card ──────────────────────────────────────────────────────────
+
+function ExperienceCard({ profile, isDark }) {
+  const rawList =
+    profile?.experiences ??
+    profile?.experience ??
+    profile?.user_experiences ??
+    profile?.userExperiences ??
+    [];
+  const list = Array.isArray(rawList) ? rawList.filter(Boolean) : [];
+
+  return (
+    <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 p-4">
+      <Text className="text-base font-bold text-black dark:text-white mb-4">Experience</Text>
+
+      {list.length === 0 ? (
+        <View className="items-center py-4">
+          <Ionicons
+            name="briefcase-outline"
+            size={36}
+            color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+          />
+          <Text className="text-xs text-black/30 dark:text-white/30 mt-2">
+            No experience added yet
+          </Text>
+        </View>
+      ) : (
+        list.map((exp, idx) => {
+          const title = exp?.title ?? exp?.position ?? exp?.role ?? 'Role';
+          const company = exp?.company ?? exp?.company_name ?? exp?.organization ?? null;
+          const isCurrent = exp?.is_current ?? exp?.current ?? (!exp?.end_date && !exp?.to);
+          const startDate = exp?.start_date ?? exp?.from ?? exp?.started_at ?? null;
+          const endDate = exp?.end_date ?? exp?.to ?? exp?.ended_at ?? null;
+          const location = exp?.location ?? exp?.city ?? exp?.place ?? null;
+          const description = exp?.description ?? exp?.summary ?? null;
+          const period = formatPeriod(startDate, endDate, isCurrent);
+          const duration = calcDuration(startDate, endDate, isCurrent);
+          const isLast = idx === list.length - 1;
+
+          return (
+            <View
+              key={exp?.id ?? idx}
+              className={`flex-row ${!isLast ? 'pb-5 mb-4 border-b border-black/5 dark:border-white/5' : ''}`}
+            >
+              {/* Company icon badge */}
+              <View className="w-12 h-12 rounded-xl bg-alpha/10 items-center justify-center mr-3 mt-0.5 shrink-0">
+                <Ionicons name="briefcase-outline" size={20} color="#ffc801" />
+              </View>
+
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-black dark:text-white leading-snug">
+                  {title}
+                </Text>
+                {company ? (
+                  <Text className="text-sm text-black/60 dark:text-white/60 mt-0.5">{company}</Text>
+                ) : null}
+                {period ? (
+                  <Text className="text-xs text-black/40 dark:text-white/40 mt-0.5">
+                    {period}
+                    {duration ? ` · ${duration}` : ''}
+                  </Text>
+                ) : null}
+                {location ? (
+                  <View className="flex-row items-center gap-1 mt-0.5">
+                    <Ionicons
+                      name="location-outline"
+                      size={11}
+                      color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+                    />
+                    <Text className="text-xs text-black/35 dark:text-white/35">{location}</Text>
+                  </View>
+                ) : null}
+                {description ? (
+                  <Text
+                    className="text-sm text-black/55 dark:text-white/55 mt-1.5 leading-[20px]"
+                    numberOfLines={3}
+                  >
+                    {description}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+// ─── Education card ───────────────────────────────────────────────────────────
+
+function EducationCard({ profile, isDark }) {
+  const rawList =
+    profile?.education ??
+    profile?.educations ??
+    profile?.user_education ??
+    profile?.userEducation ??
+    [];
+  const list = Array.isArray(rawList) ? rawList.filter(Boolean) : [];
+
+  return (
+    <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 p-4">
+      <Text className="text-base font-bold text-black dark:text-white mb-4">Education</Text>
+
+      {list.length === 0 ? (
+        <View className="items-center py-4">
+          <Ionicons
+            name="school-outline"
+            size={36}
+            color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+          />
+          <Text className="text-xs text-black/30 dark:text-white/30 mt-2">
+            No education added yet
+          </Text>
+        </View>
+      ) : (
+        list.map((edu, idx) => {
+          const institution =
+            edu?.institution ?? edu?.school ?? edu?.university ?? edu?.college ?? 'School';
+          const degree = edu?.degree ?? edu?.diploma ?? edu?.level ?? null;
+          const field =
+            edu?.field ?? edu?.field_of_study ?? edu?.specialization ?? edu?.major ?? null;
+          const startDate = edu?.start_date ?? edu?.from ?? edu?.started_at ?? null;
+          const endDate = edu?.end_date ?? edu?.to ?? edu?.ended_at ?? null;
+          const isCurrent = edu?.is_current ?? edu?.current ?? !endDate;
+          const description = edu?.description ?? edu?.activities ?? null;
+          const period = formatPeriod(startDate, endDate, isCurrent);
+          const isLast = idx === list.length - 1;
+
+          return (
+            <View
+              key={edu?.id ?? idx}
+              className={`flex-row ${!isLast ? 'pb-5 mb-4 border-b border-black/5 dark:border-white/5' : ''}`}
+            >
+              {/* School icon badge */}
+              <View className="w-12 h-12 rounded-xl bg-alpha/10 items-center justify-center mr-3 mt-0.5 shrink-0">
+                <Ionicons name="school-outline" size={20} color="#ffc801" />
+              </View>
+
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-black dark:text-white leading-snug">
+                  {institution}
+                </Text>
+                {(degree || field) ? (
+                  <Text className="text-sm text-black/60 dark:text-white/60 mt-0.5">
+                    {[degree, field].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
+                {period ? (
+                  <Text className="text-xs text-black/40 dark:text-white/40 mt-0.5">{period}</Text>
+                ) : null}
+                {description ? (
+                  <Text
+                    className="text-sm text-black/55 dark:text-white/55 mt-1.5 leading-[20px]"
+                    numberOfLines={3}
+                  >
+                    {description}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+// ─── Profile skeleton ─────────────────────────────────────────────────────────
 
 function ProfileSkeleton({ isDark, topInset = 0 }) {
   return (
@@ -403,13 +629,14 @@ function ProfileSkeleton({ isDark, topInset = 0 }) {
         <Skeleton width={40} height={40} borderRadius={10} isDark={isDark} />
       </View>
 
-      {/* Grid placeholder */}
-      <View className="border-t border-black/10 dark:border-white/10 mb-2" />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} width={GRID_ITEM_SIZE} height={GRID_ITEM_SIZE} borderRadius={0} isDark={isDark} />
-        ))}
-      </View>
+      {/* Section card placeholders */}
+      {Array.from({ length: 3 }).map((_, i) => (
+        <View key={i} className="mx-4 mb-3 rounded-2xl border border-black/10 dark:border-white/10 p-4 gap-2">
+          <Skeleton width={100} height={14} borderRadius={7} isDark={isDark} />
+          <Skeleton width="90%" height={12} borderRadius={7} isDark={isDark} />
+          <Skeleton width="70%" height={12} borderRadius={7} isDark={isDark} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -1088,51 +1315,27 @@ export default function ProfileScreen() {
           </View>
         </Rolegard>
 
-        {/* ─── Posts Tab Bar ─── */}
-        <View className="flex-row border-t border-black/10 dark:border-white/10 mb-0.5">
-          <View className="flex-1 items-center py-2.5 border-b-2 border-alpha">
-            <Ionicons name="grid-outline" size={22} color="#ffc801" />
-          </View>
-        </View>
+        {/* ─── LinkedIn-style Content Sections ─── */}
 
-        {/* ─── Posts Grid ─── */}
-        {postsLoading ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
-            {Array.from({ length: 9 }).map((_, i) => (
-              <Skeleton
-                key={i}
-                width={GRID_ITEM_SIZE}
-                height={GRID_ITEM_SIZE}
-                borderRadius={0}
-                isDark={isDark}
-              />
-            ))}
-          </View>
-        ) : posts.length === 0 ? (
-          <View className="py-20 items-center">
-            <Ionicons
-              name="camera-outline"
-              size={52}
-              color={isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}
-            />
-            <Text className="text-black/40 dark:text-white/40 mt-4 text-sm font-medium">
-              No posts yet
-            </Text>
-            {isOwnProfile && (
-              <Text className="text-black/30 dark:text-white/30 text-xs mt-1">
-                Share your first moment with the community
-              </Text>
-            )}
-          </View>
-        ) : (
-          <PostsGrid
-            posts={posts}
-            isDark={isDark}
-            onCellPress={(post) =>
-              setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
-            }
-          />
-        )}
+        {/* About */}
+        <AboutCard profile={profile} isDark={isDark} />
+
+        {/* Posts — one preview + "See all posts" */}
+        <PostsPreviewCard
+          posts={posts}
+          postsLoading={postsLoading}
+          isDark={isDark}
+          onViewAll={() => setSelectedPostIndex(0)}
+          onPostPress={(post) =>
+            setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
+          }
+        />
+
+        {/* Experience */}
+        <ExperienceCard profile={profile} isDark={isDark} />
+
+        {/* Education */}
+        <EducationCard profile={profile} isDark={isDark} />
 
         {/* Bottom spacer */}
         <View style={{ height: 32 }} />
