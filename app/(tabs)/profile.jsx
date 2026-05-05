@@ -783,9 +783,44 @@ export default function ProfileScreen() {
 
         {/* ─── Bio Section ─── */}
         <View className="px-4 mb-4">
-          <Text className="text-xl font-bold text-black dark:text-white leading-tight">
-            {profile?.name || 'User'}
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <Text
+              className="text-xl font-bold text-black dark:text-white leading-tight flex-1 pr-3"
+              numberOfLines={1}
+            >
+              {profile?.name || 'User'}
+            </Text>
+
+            {/* Social links (icons, clickable) — aligned with the name */}
+            {socialLinks.length > 0 && (
+              <View className="flex-row items-center gap-2">
+                {socialLinks.map((link) => (
+                  <TouchableOpacity
+                    key={String(link.id)}
+                    activeOpacity={0.75}
+                    onPress={async () => {
+                      const url = link.url;
+                      try {
+                        const canOpen = await Linking.canOpenURL(url);
+                        if (canOpen) await Linking.openURL(url);
+                      } catch (err) {
+                        console.error('[PROFILE] open social link error:', err);
+                      }
+                    }}
+                    className="w-8 h-8 rounded-full items-center justify-center border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04]"
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open ${link.title || 'social'} link`}
+                  >
+                    <Ionicons
+                      name={iconForSocialTitle(link.title)}
+                      size={16}
+                      color={isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)'}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
 
           {/* Last experience location + speciality (under the name) */}
           {(lastExperienceLocation || speciality) && (
@@ -860,36 +895,6 @@ export default function ProfileScreen() {
               </View>
             ) : null}
           </View>
-
-          {/* Social links (icons, clickable) */}
-          {socialLinks.length > 0 && (
-            <View className="flex-row items-center gap-3 mt-3">
-              {socialLinks.map((link) => (
-                <TouchableOpacity
-                  key={String(link.id)}
-                  activeOpacity={0.75}
-                  onPress={async () => {
-                    const url = link.url;
-                    try {
-                      const canOpen = await Linking.canOpenURL(url);
-                      if (canOpen) await Linking.openURL(url);
-                    } catch (err) {
-                      console.error('[PROFILE] open social link error:', err);
-                    }
-                  }}
-                  className="w-9 h-9 rounded-full items-center justify-center border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04]"
-                  accessibilityRole="link"
-                  accessibilityLabel={`Open ${link.title || 'social'} link`}
-                >
-                  <Ionicons
-                    name={iconForSocialTitle(link.title)}
-                    size={18}
-                    color={isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)'}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* ─── Action Buttons ─── */}
