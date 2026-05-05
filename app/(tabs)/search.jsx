@@ -300,10 +300,10 @@ export default function SearchScreen() {
                           <View className="flex-row items-center mt-1">
                             {item.promo && (
                               <Text className="text-xs text-black/50 dark:text-white/50 mr-2">
-                                {item.promo}
+                                Promo {item.promo}
                               </Text>
                             )}
-                            {item.roles && item.roles.length > 0 && (
+                            {/* {item.roles && item.roles.length > 0 && (
                               <View className="flex-row">
                                 {item.roles.slice(0, 2).map((role, idx) => (
                                   <View key={idx} className="px-2 py-0.5 rounded-full bg-alpha/20 mr-1">
@@ -313,7 +313,7 @@ export default function SearchScreen() {
                                   </View>
                                 ))}
                               </View>
-                            )}
+                            )} */}
                           </View>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
