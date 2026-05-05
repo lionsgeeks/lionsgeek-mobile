@@ -1,388 +1,345 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Switch,
+  Alert,
+  Platform,
+} from 'react-native';
 import { useAppContext } from '@/context';
 import { router } from 'expo-router';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
+import { resolveAvatarUrl, getUserRolesNormalized } from '@/components/helpers/helpers';
+
+// ─── Reusable primitives ──────────────────────────────────────────────────────
+
+/**
+ * A single tappable row inside a settings card.
+ */
+function SettingRow({ icon, iconBg, label, sublabel, onPress, right, danger = false }) {
+  const iconColor = danger ? '#ef4444' : '#ffc801';
+  const bgClass = danger ? 'bg-red-500/15' : iconBg ?? 'bg-alpha/15';
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.65 : 1}
+      className="flex-row items-center px-4 py-3.5"
+    >
+      <View className={`w-9 h-9 rounded-xl items-center justify-center mr-3.5 ${bgClass}`}>
+        <Ionicons name={icon} size={19} color={iconColor} />
+      </View>
+      <View className="flex-1">
+        <Text
+          className={`text-[15px] font-medium ${
+            danger ? 'text-red-500' : 'text-black dark:text-white'
+          }`}
+        >
+          {label}
+        </Text>
+        {sublabel ? (
+          <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">{sublabel}</Text>
+        ) : null}
+      </View>
+      {right ?? null}
+    </TouchableOpacity>
+  );
+}
+
+/** Subtle inset divider that starts after the icon column. */
+function RowDivider() {
+  return <View className="h-px bg-black/6 dark:bg-white/6 ml-[60px]" />;
+}
+
+/** Section label above a settings card. */
+function SectionLabel({ title }) {
+  return (
+    <Text className="text-[11px] font-bold tracking-widest uppercase text-black/40 dark:text-white/40 px-6 mb-2 mt-7">
+      {title}
+    </Text>
+  );
+}
+
+/** Grouped card wrapper for rows. */
+function SettingsCard({ children }) {
+  return (
+    <View className="mx-6 bg-white dark:bg-beta rounded-2xl overflow-hidden border border-black/5 dark:border-white/5">
+      {children}
+    </View>
+  );
+}
+
+const CHEVRON_LIGHT = 'rgba(0,0,0,0.22)';
+const CHEVRON_DARK = 'rgba(255,255,255,0.25)';
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function More() {
-  const { user, token, signOut } = useAppContext();
-  const colorScheme = useColorScheme();
+  const { user, token, signOut, colorScheme, setTheme } = useAppContext();
   const isDark = colorScheme === 'dark';
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // ── Fetch fresh profile data ───────────────────────────────────────────────
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!token) return;
+    if (!token) {
+      setProfile(user);
+      setLoading(false);
+      return;
+    }
 
+    const fetchProfile = async () => {
       try {
         const response = await API.getWithAuth('mobile/profile', token);
-        if (response?.data) {
-          setProfile(response.data);
-        } else {
-          setProfile(user);
-        }
+        setProfile(response?.data ?? user);
       } catch (error) {
-        console.error('[PROFILE] Error:', error);
+        console.error('[MORE] Profile fetch error:', error);
         setProfile(user);
       } finally {
         setLoading(false);
       }
     };
 
-    if (token) {
-      fetchProfile();
-    } else {
-      setProfile(user);
-      setLoading(false);
-    }
+    fetchProfile();
   }, [token, user]);
 
-  const logout = async () => {
-    await signOut();
-    router.replace('/auth/login');
+  // ── Theme toggle ──────────────────────────────────────────────────────────
+  const handleThemeToggle = (value) => {
+    setTheme(value ? 'dark' : 'light');
   };
 
-  // Check if user is admin
-  const userRoles = user?.roles || [];
-  const isAdmin = userRoles.some((r) => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
-
-  const menuItems = [
-    {
-      label: 'Scan QR Code',
-      icon: 'qr-code-outline',
-      onPress: () => router.push('/(tabs)/training/qr-scanner'),
-    },
-    ...(isAdmin
-      ? [
-          {
-            label: 'View All Members',
-            icon: 'people-outline',
-            onPress: () => router.push('/(tabs)/members'),
+  // ── Logout with confirmation ──────────────────────────────────────────────
+  const handleLogout = () => {
+    Alert.alert(
+      'Log out',
+      'Are you sure you want to log out of your account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/auth/login');
           },
-        ]
-      : []),
-  ];
-
-  const getImageUrl = () => {
-    if (profile?.avatar) return profile.avatar;
-    if (profile?.image) {
-      if (profile.image.startsWith('http')) {
-        return profile.image;
-      }
-      return `${API.APP_URL}/storage/img/profile/${profile.image}`;
-    }
-    return null;
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
-  const getInitials = (name) => {
-    if (!name) return '?';
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  };
-
+  // ── Derived display values ────────────────────────────────────────────────
   const displayProfile = profile || user;
-  const imageUrl = getImageUrl();
-  const initials = getInitials(displayProfile?.name || displayProfile?.username);
+  const imageUrl = resolveAvatarUrl(displayProfile?.avatar || displayProfile?.image);
+  const initials = (displayProfile?.name || displayProfile?.username || '?')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  const roles = getUserRolesNormalized(displayProfile);
 
+  const chevron = (
+    <Ionicons name="chevron-forward" size={16} color={isDark ? CHEVRON_DARK : CHEVRON_LIGHT} />
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <AppLayout showNavbar={false}>
-      <View className="flex-1 bg-light dark:bg-dark">
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingBottom: 32 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header Section */}
-          <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-6 px-6">
-            <Text className="text-2xl font-bold text-black dark:text-white mb-6">More</Text>
+      <ScrollView
+        className="flex-1 bg-light dark:bg-dark"
+        contentContainerStyle={{ paddingBottom: 52 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Page title ─────────────────────────────────────────────────── */}
+        <View className="pt-14 px-6 pb-3">
+          <Text className="text-3xl font-bold tracking-tight text-black dark:text-white">
+            Settings
+          </Text>
+        </View>
 
-            {/* Profile Card - Enhanced */}
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
-              <View className="bg-light dark:bg-dark rounded-2xl p-5 border border-light/20 dark:border-dark/20 shadow-sm">
-                {loading ? (
-                  <View className="py-6">
-                    <View className="flex-row items-center mb-4">
-                      <Skeleton width={80} height={80} borderRadius={40} isDark={isDark} />
-                      <View style={{ marginLeft: 16, flex: 1 }}>
-                        <Skeleton width={180} height={16} borderRadius={10} isDark={isDark} />
-                        <View style={{ height: 10 }} />
-                        <Skeleton width={220} height={12} borderRadius={10} isDark={isDark} />
-                        <View style={{ height: 12 }} />
-                        <Skeleton width={140} height={18} borderRadius={999} isDark={isDark} />
-                      </View>
-                    </View>
-                    <Skeleton width="100%" height={90} borderRadius={14} isDark={isDark} />
-                  </View>
-                ) : (
-                  <View>
-                    {/* Profile Header */}
-                    <View className="flex-row items-center mb-4">
-                      {/* Avatar */}
-                      {imageUrl ? (
-                        <Image
-                          source={{ uri: imageUrl }}
-                          className="w-20 h-20 rounded-full mr-4 border-2 border-alpha/30"
-                          defaultSource={require('@/assets/images/icon.png')}
-                        />
-                      ) : (
-                        <View className="w-20 h-20 rounded-full mr-4 bg-alpha/20 dark:bg-alpha/40 items-center justify-center border-2 border-alpha/30">
-                          <Text className="text-2xl font-bold text-alpha">{initials}</Text>
-                        </View>
-                      )}
+        {/* ── Profile hero card ──────────────────────────────────────────── */}
+        <View className="px-6 mt-2">
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.72}
+            className="bg-white dark:bg-beta rounded-2xl overflow-hidden border border-black/5 dark:border-white/5"
+          >
+            {/* Brand accent strip */}
+            <View className="h-1.5 bg-alpha" />
 
-                      {/* User Info */}
-                      <View className="flex-1">
-                        <Text className="text-xl font-bold text-black dark:text-white mb-1">
-                          {displayProfile?.name || displayProfile?.username || 'User'}
-                        </Text>
-                        {displayProfile?.email && (
-                          <Text className="text-sm text-black/60 dark:text-white/60 mb-2">
-                            {displayProfile.email}
-                          </Text>
-                        )}
-                        {displayProfile?.roles && displayProfile.roles.length > 0 && (
-                          <View className="flex-row items-center flex-wrap mt-1">
-                            {displayProfile.roles.map((role, idx) => (
-                              <View key={idx} className="px-2 py-0.5 rounded-full bg-alpha/20 mr-1 mb-1">
-                                <Text className="text-xs font-medium text-alpha capitalize">{role}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-
-                      {/* View Profile Indicator */}
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                      />
-                    </View>
-
-                    {/* Profile Details */}
-                    <View className="pt-4 border-t border-light/20 dark:border-dark/20">
-                      {/* Status */}
-                      {displayProfile?.status && (
-                        <View className="flex-row items-center mb-3">
-                          <Ionicons
-                            name="briefcase-outline"
-                            size={18}
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                          />
-                          <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
-                            {displayProfile.status}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Promo */}
-                      {displayProfile?.promo && (
-                        <View className="flex-row items-center mb-3">
-                          <Ionicons
-                            name="school-outline"
-                            size={18}
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                          />
-                          <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
-                            Promo: {displayProfile.promo}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Joined Date */}
-                      {displayProfile?.created_at && (
-                        <View className="flex-row items-center mb-3">
-                          <Ionicons
-                            name="calendar-outline"
-                            size={18}
-                            color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                          />
-                          <Text className="text-sm text-black/80 dark:text-white/80 ml-3 flex-1">
-                            Joined{' '}
-                            {new Date(displayProfile.created_at).toLocaleDateString('en-US', {
-                              month: 'long',
-                              year: 'numeric',
-                            })}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Last Online */}
-                      {displayProfile?.last_online &&
-                        (() => {
-                          const lastOnlineDate = new Date(displayProfile.last_online);
-                          const now = new Date();
-                          const diffMinutes = Math.floor((now - lastOnlineDate) / (1000 * 60));
-                          const diffHours = Math.floor(diffMinutes / 60);
-                          const diffDays = Math.floor(diffHours / 24);
-                          const isOnline = diffMinutes <= 5;
-
-                          return (
-                            <View className="flex-row items-center">
-                              <Ionicons
-                                name="time-outline"
-                                size={18}
-                                color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                              />
-                              <View className="flex-row items-center ml-3 flex-1">
-                                {isOnline ? (
-                                  <>
-                                    <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-                                    <Text className="text-sm text-black/80 dark:text-white/80">Online</Text>
-                                  </>
-                                ) : (
-                                  <Text className="text-sm text-black/80 dark:text-white/80">
-                                    {diffDays > 0
-                                      ? `Last seen ${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
-                                      : diffHours > 0
-                                        ? `Last seen ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
-                                        : `Last seen ${diffMinutes} ${diffMinutes === 1 ? 'min' : 'mins'} ago`}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-                          );
-                        })()}
-
-                      {/* Admin Details - Only for admins viewing their own profile */}
-                      <Rolegard authorized={['admin', 'coach']}>
-                        {(displayProfile?.phone || displayProfile?.cin || displayProfile?.formation_id) && (
-                          <View className="pt-3 mt-3 border-t border-light/20 dark:border-dark/20">
-                            <Text className="text-xs font-semibold text-black/50 dark:text-white/50 mb-2 uppercase">
-                              Admin Details
-                            </Text>
-                            {displayProfile?.phone && (
-                              <View className="flex-row items-center mb-2">
-                                <Ionicons
-                                  name="call-outline"
-                                  size={16}
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                                />
-                                <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
-                                  {displayProfile.phone}
-                                </Text>
-                              </View>
-                            )}
-                            {displayProfile?.cin && (
-                              <View className="flex-row items-center mb-2">
-                                <Ionicons
-                                  name="card-outline"
-                                  size={16}
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                                />
-                                <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
-                                  CIN: {displayProfile.cin}
-                                </Text>
-                              </View>
-                            )}
-                            {displayProfile?.formation_id && (
-                              <View className="flex-row items-center mb-2">
-                                <Ionicons
-                                  name="school-outline"
-                                  size={16}
-                                  color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}
-                                />
-                                <Text className="text-sm text-black/80 dark:text-white/80 ml-2">
-                                  Formation ID: {displayProfile.formation_id}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-                      </Rolegard>
-                    </View>
-
-                    {/* View Full Profile Link */}
-                    <View className="mt-4 pt-4 border-t border-light/20 dark:border-dark/20">
-                      <View className="flex-row items-center justify-center">
-                        <Text className="text-sm text-alpha font-medium mr-2">View Full Profile</Text>
-                        <Ionicons name="arrow-forward" size={16} color="#ffc801" />
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Menu Items Section */}
-          {menuItems.length > 0 && (
-            <View className="px-6 mt-6">
-              <Text className="text-sm font-semibold text-black/60 dark:text-white/60 mb-3 uppercase tracking-wide">
-                Actions
-              </Text>
-              <View className="bg-light dark:bg-dark rounded-2xl border border-light/20 dark:border-dark/20 overflow-hidden shadow-sm">
-                {menuItems.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={item?.onPress}
-                    className={`flex-row items-center py-4 px-4 ${
-                      index !== menuItems.length - 1 ? 'border-b border-light/20 dark:border-dark/20' : ''
-                    } active:opacity-70`}
-                  >
-                    <View className="w-10 h-10 rounded-full bg-alpha/10 dark:bg-alpha/20 items-center justify-center mr-3">
-                      <Ionicons name={item?.icon} size={22} color={isDark ? '#ffc801' : '#ffc801'} />
-                    </View>
-                    <Text className="flex-1 text-base font-medium text-black dark:text-white">{item?.label}</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Settings Section */}
-          <View className="px-6 mt-6">
-            <Text className="text-sm font-semibold text-black/60 dark:text-white/60 mb-3 uppercase tracking-wide">
-              Settings
-            </Text>
-            <View className="bg-light dark:bg-dark rounded-2xl border border-light/20 dark:border-dark/20 overflow-hidden shadow-sm">
-              <TouchableOpacity
-                onPress={() => router.push('/(tabs)/profile')}
-                className="flex-row items-center py-4 px-4 active:opacity-70"
-              >
-                <View className="w-10 h-10 rounded-full bg-alpha/10 dark:bg-alpha/20 items-center justify-center mr-3">
-                  <Ionicons name="person-outline" size={22} color={isDark ? '#ffc801' : '#ffc801'} />
-                </View>
-                <Text className="flex-1 text-base font-medium text-black dark:text-white">Edit Profile</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+            <View className="p-4">
+              {loading ? (
+                <ProfileSkeleton isDark={isDark} />
+              ) : (
+                <ProfileContent
+                  displayProfile={displayProfile}
+                  imageUrl={imageUrl}
+                  initials={initials}
+                  roles={roles}
+                  isDark={isDark}
                 />
-              </TouchableOpacity>
+              )}
             </View>
-          </View>
 
-          {/* Logout Section */}
-          <View className="px-6 mt-6 mb-6">
-            <Pressable
-              onPress={logout}
-              className="bg-red-500 dark:bg-red-600 rounded-2xl py-4 shadow-sm active:opacity-80"
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text className="text-center text-white font-semibold text-base">Log out</Text>
+            {/* View full profile CTA */}
+            {!loading && (
+              <View className="px-4 pb-4">
+                <View className="flex-row items-center justify-center bg-alpha/10 rounded-xl py-2.5">
+                  <Text className="text-[13px] font-semibold text-alpha mr-1.5">
+                    View Full Profile
+                  </Text>
+                  <Ionicons name="arrow-forward" size={13} color="#ffc801" />
+                </View>
               </View>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Quick actions (all users) ───────────────────────────────────── */}
+        <SectionLabel title="Actions" />
+        <SettingsCard>
+          <SettingRow
+            icon="qr-code-outline"
+            label="Scan QR Code"
+            sublabel="Check in to a training session"
+            onPress={() => router.push('/(tabs)/training/qr-scanner')}
+            right={chevron}
+          />
+          <Rolegard authorized={['admin', 'coach']}>
+            <RowDivider />
+            <SettingRow
+              icon="people-outline"
+              label="View All Members"
+              sublabel="Manage the community roster"
+              onPress={() => router.push('/(tabs)/members')}
+              right={chevron}
+            />
+          </Rolegard>
+        </SettingsCard>
+
+        {/* ── Preferences ────────────────────────────────────────────────── */}
+        <SectionLabel title="Preferences" />
+        <SettingsCard>
+          <SettingRow
+            icon={isDark ? 'moon' : 'sunny-outline'}
+            label="Dark Mode"
+            sublabel={isDark ? 'Currently dark' : 'Currently light'}
+            right={
+              <Switch
+                value={isDark}
+                onValueChange={handleThemeToggle}
+                trackColor={{ false: 'rgba(0,0,0,0.14)', true: '#ffc801' }}
+                thumbColor={Platform.OS === 'android' ? (isDark ? '#171717' : '#fafafa') : undefined}
+                ios_backgroundColor="rgba(0,0,0,0.14)"
+              />
+            }
+          />
+        </SettingsCard>
+
+        {/* ── Account ────────────────────────────────────────────────────── */}
+        <SectionLabel title="Account" />
+        <SettingsCard>
+          <SettingRow
+            icon="person-circle-outline"
+            label="Edit Profile"
+            sublabel="Update your photo, name & bio"
+            onPress={() => router.push('/(tabs)/profile')}
+            right={chevron}
+          />
+        </SettingsCard>
+
+        {/* ── Danger zone ────────────────────────────────────────────────── */}
+        <View className="mx-6 mt-7">
+          <TouchableOpacity
+            onPress={handleLogout}
+            activeOpacity={0.72}
+            className="flex-row items-center justify-center py-4 rounded-2xl bg-red-500/10 border border-red-500/20"
+          >
+            <Ionicons name="log-out-outline" size={19} color="#ef4444" />
+            <Text className="ml-2 text-[15px] font-semibold text-red-500">Log out</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── App version hint ───────────────────────────────────────────── */}
+        <Text className="text-center text-[11px] text-black/25 dark:text-white/25 mt-6">
+          LionsGeek v1.0.0
+        </Text>
+      </ScrollView>
     </AppLayout>
   );
 }
 
+// ─── Profile sub-components (extracted to keep More() readable) ──────────────
+
+function ProfileSkeleton({ isDark }) {
+  return (
+    <View className="flex-row items-center py-1">
+      <Skeleton width={60} height={60} borderRadius={16} isDark={isDark} />
+      <View className="ml-4 flex-1">
+        <Skeleton width={150} height={13} borderRadius={7} isDark={isDark} />
+        <View className="h-2" />
+        <Skeleton width={190} height={11} borderRadius={7} isDark={isDark} />
+        <View className="h-2.5" />
+        <Skeleton width={72} height={20} borderRadius={99} isDark={isDark} />
+      </View>
+    </View>
+  );
+}
+
+function ProfileContent({ displayProfile, imageUrl, initials, roles, isDark }) {
+  return (
+    <View className="flex-row items-center">
+      {/* Avatar */}
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          className="w-[60px] h-[60px] rounded-2xl border-2 border-alpha/30"
+          defaultSource={require('@/assets/images/icon.png')}
+        />
+      ) : (
+        <View className="w-[60px] h-[60px] rounded-2xl bg-alpha/20 dark:bg-alpha/30 items-center justify-center border-2 border-alpha/35">
+          <Text className="text-xl font-bold text-alpha">{initials}</Text>
+        </View>
+      )}
+
+      {/* User info */}
+      <View className="ml-4 flex-1">
+        <Text className="text-[15px] font-bold text-black dark:text-white" numberOfLines={1}>
+          {displayProfile?.name || displayProfile?.username || 'User'}
+        </Text>
+        {displayProfile?.email ? (
+          <Text
+            className="text-[13px] text-black/50 dark:text-white/45 mt-0.5"
+            numberOfLines={1}
+          >
+            {displayProfile.email}
+          </Text>
+        ) : null}
+        {roles.length > 0 ? (
+          <View className="flex-row flex-wrap mt-2 gap-1">
+            {roles.map((role, idx) => (
+              <View key={idx} className="px-2 py-0.5 rounded-full bg-alpha/20">
+                <Text className="text-[11px] font-semibold text-alpha capitalize">{role}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.22)'}
+      />
+    </View>
+  );
+}

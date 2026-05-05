@@ -6,6 +6,35 @@ import { format, isToday, isYesterday } from 'date-fns';
 import API from '@/api';
 import VoiceMessage from '../VoiceMessage';
 
+function tryParsePostShare(body) {
+    if (!body || typeof body !== 'string') return null;
+    const trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type !== 'post_share' || !parsed?.post_id) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
+function resolveImageUrl(value) {
+    if (!value || typeof value !== 'string') return null;
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    const baseUrl = (API?.APP_URL || '').replace(/\/+$/, '');
+    if (!baseUrl) return null;
+    if (value.includes('storage/')) {
+        const cleanPath = value.startsWith('/') ? value : `/${value}`;
+        return `${baseUrl}${cleanPath}`;
+    }
+    if (value.includes('img/posts/')) {
+        const cleanPath = value.startsWith('/') ? value : `/${value}`;
+        return `${baseUrl}/storage/${cleanPath.replace(/^\//, '')}`;
+    }
+    return `${baseUrl}/storage/img/posts/${value}`;
+}
+
 // Component dial message wahda
 export default function MessageItem({
     message,
@@ -26,6 +55,7 @@ export default function MessageItem({
     formatSeenTime,
 }) {
     const router = useRouter();
+    const postShare = tryParsePostShare(message?.body);
 
     // Format file size
     const formatFileSize = (bytes) => {
@@ -94,19 +124,47 @@ export default function MessageItem({
                         )}
                     </Pressable>
                 )}
-                <View
-                    style={bubbleRadius}
-                    className={`max-w-[85%] px-4 py-3 border ${
-                        isCurrentUser
-                            ? 'bg-alpha border-black/10 shadow-sm shadow-black/10'
-                            : 'bg-white dark:bg-zinc-900 border-black/[0.07] dark:border-white/[0.08] shadow-sm shadow-black/5'
-                    }`}
-                >
-                    {message.body && (
+                <View className={`max-w-[85%] rounded-2xl px-4 py-3 ${isCurrentUser ? 'bg-alpha rounded-br-md' : 'bg-gray-200 dark:bg-gray-800 rounded-bl-md'}`}>
+                    {postShare ? (
+                        <Pressable
+                            onPress={() => router.push(`/posts/${postShare.post_id}`)}
+                            className={`overflow-hidden rounded-xl border ${isCurrentUser ? 'border-black/10 bg-white/10' : 'border-gray-300/60 dark:border-gray-700 bg-white/60 dark:bg-gray-900/20'}`}
+                        >
+                            {resolveImageUrl(postShare.image) ? (
+                                <Image
+                                    source={{ uri: resolveImageUrl(postShare.image) }}
+                                    className="w-full h-44"
+                                    resizeMode="cover"
+                                />
+                            ) : (
+                                <View className="w-full h-32 items-center justify-center bg-black/10 dark:bg-white/5">
+                                    <Ionicons name="image-outline" size={28} color={isCurrentUser ? '#111' : '#888'} />
+                                </View>
+                            )}
+
+                            <View className="p-3 gap-1">
+                                <Text className={`text-xs font-semibold ${isCurrentUser ? 'text-black/70' : 'text-gray-600 dark:text-gray-300'}`} numberOfLines={1}>
+                                    {postShare.author_name ? postShare.author_name : 'Post'}
+                                </Text>
+                                {postShare.description ? (
+                                    <Text className={`${isCurrentUser ? 'text-black' : 'text-black dark:text-white'} text-sm font-semibold`} numberOfLines={2}>
+                                        {postShare.description}
+                                    </Text>
+                                ) : (
+                                    <Text className={`${isCurrentUser ? 'text-black' : 'text-black dark:text-white'} text-sm font-semibold`} numberOfLines={2}>
+                                        Shared a post
+                                    </Text>
+                                )}
+                                <Text className={`text-xs ${isCurrentUser ? 'text-black/60' : 'text-gray-500 dark:text-gray-400'}`}>
+                                    Tap to view
+                                </Text>
+                            </View>
+                        </Pressable>
+                    ) : message.body ? (
                         <Text className={`text-sm leading-relaxed ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
                             {message.body}
                         </Text>
-                    )}
+                    ) : null}
 
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Pressable

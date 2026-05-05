@@ -342,6 +342,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
 
 function ConversationItem({ conversation, currentUserId, isSelected, onClick, onLongPress }) {
     const unread = conversation.unread_count > 0;
+    const otherUserName = conversation.other_user?.name || 'User';
     const timeShort = conversation.last_message_at
         ? formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true })
             .replace('about ', '')
@@ -363,13 +364,30 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick, on
         if (!conversation.last_message) return 'Tap to open — blank thread';
         const { body, attachment_type, sender_id } = conversation.last_message;
         const isFromCurrentUser = sender_id === currentUserId;
-        const prefix = isFromCurrentUser ? 'You · ' : '';
-        if (attachment_type === 'image') return prefix + 'Photo attachment';
-        if (attachment_type === 'video') return prefix + 'Video attachment';
-        if (attachment_type === 'audio') return prefix + 'Voice note';
-        if (attachment_type === 'file') return prefix + 'File attachment';
+        const prefix = isFromCurrentUser ? 'You: ' : `${otherUserName}: `;
+
+        const isPostShare = (() => {
+            if (!body) return false;
+            if (typeof body === 'object') return body?.type === 'post_share' && !!body?.post_id;
+            if (typeof body !== 'string') return false;
+            const trimmed = body.trim();
+            if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
+            try {
+                const parsed = JSON.parse(trimmed);
+                return parsed?.type === 'post_share' && !!parsed?.post_id;
+            } catch {
+                return false;
+            }
+        })();
+        
+        if (attachment_type === 'image') return prefix + '📷 Image';
+        if (attachment_type === 'video') return prefix + '🎥 Video';
+        if (attachment_type === 'audio') return prefix + '🎤 Voice message';
+        if (attachment_type === 'file') return prefix + '📎 File';
+        if (isPostShare) return prefix + '📌 Post';
         if (body) {
-            const preview = body.length > 72 ? body.substring(0, 72) + '…' : body;
+            if (typeof body !== 'string') return prefix + 'Message';
+            const preview = body.length > 80 ? body.substring(0, 80) + '...' : body;
             return prefix + preview;
         }
         return prefix + 'Attachment';
