@@ -76,36 +76,50 @@ export default function MessageItem({
         ? message.attachment_path
         : `${API.APP_URL}/storage/${message.attachment_path}`;
 
+    const bubbleRadius = isCurrentUser
+        ? {
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              borderBottomLeftRadius: 18,
+              borderBottomRightRadius: 4,
+          }
+        : {
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              borderBottomLeftRadius: 4,
+              borderBottomRightRadius: 18,
+          };
+
     return (
         <>
             {showDateSeparator && (
-                <View className="items-center my-4">
-                    <View className="bg-yellow-500/10 px-3 py-1 rounded-full">
-                        <Text className="text-xs text-yellow-500">
-                            {isToday(new Date(message.created_at))
-                                ? 'Today'
-                                : isYesterday(new Date(message.created_at))
-                                    ? 'Yesterday'
-                                    : format(new Date(message.created_at), 'MMMM d, yyyy')}
-                        </Text>
-                    </View>
+                <View className="flex-row items-center my-5 px-2">
+                    <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
+                    <Text className="mx-3 text-[10px] font-bold tracking-[0.2em] text-black/40 dark:text-white/40 uppercase">
+                        {isToday(new Date(message.created_at))
+                            ? 'Today'
+                            : isYesterday(new Date(message.created_at))
+                              ? 'Yesterday'
+                              : format(new Date(message.created_at), 'MMM d, yyyy')}
+                    </Text>
+                    <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
                 </View>
             )}
-            <View className={`flex-row mb-4 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+            <View className={`flex-row mb-3 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 {!isCurrentUser && (
                     <Pressable
                         onPress={() => router.push(`/students/${otherUser.id}`)}
-                        className="mr-2"
+                        className="mr-2 self-end mb-1"
                     >
                         {otherUser?.image ? (
                             <Image
                                 source={{ uri: `${API.APP_URL}/storage/img/profile/${otherUser.image}` }}
-                                className="w-8 h-8 rounded-full"
+                                className="w-8 h-8 rounded-xl"
                                 resizeMode="cover"
                             />
                         ) : (
-                            <View className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                                <Ionicons name="person" size={16} color="#666" />
+                            <View className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 items-center justify-center border border-black/5 dark:border-white/10">
+                                <Ionicons name="person" size={16} color="#888" />
                             </View>
                         )}
                     </Pressable>
@@ -155,11 +169,11 @@ export default function MessageItem({
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Pressable
                             onPress={() => onPreviewAttachment({ type: 'image', path: message.attachment_path, name: message.attachment_name })}
-                            className="mt-1 rounded-lg overflow-hidden"
+                            className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08]"
                         >
                             <Image
                                 source={{ uri: imageUrl }}
-                                className="max-w-full max-h-64 rounded-lg"
+                                className="w-full max-h-72 min-h-[140px]"
                                 resizeMode="cover"
                             />
                             {message.attachment_size && (
@@ -173,10 +187,12 @@ export default function MessageItem({
                     {message.attachment_type === 'video' && message.attachment_path && (
                         <Pressable
                             onPress={() => onPreviewAttachment({ type: 'video', path: message.attachment_path, name: message.attachment_name })}
-                            className="mt-1 rounded-lg overflow-hidden"
+                            className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-zinc-900"
                         >
-                            <View className="max-w-full max-h-64 bg-gray-900 items-center justify-center rounded-lg">
-                                <Ionicons name="videocam" size={48} color="#fff" />
+                            <View className="w-full h-52 items-center justify-center">
+                                <View className="w-16 h-16 rounded-full bg-white/12 items-center justify-center border border-white/20">
+                                    <Ionicons name="play" size={36} color="#fff" style={{ marginLeft: 4 }} />
+                                </View>
                             </View>
                             {message.attachment_size && (
                                 <Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -207,7 +223,13 @@ export default function MessageItem({
                     )}
 
                     {message.attachment_type === 'audio' && message.attachment_path && (
-                        <View className={`mt-2 flex-row items-center gap-3 p-3 rounded-lg ${isCurrentUser ? 'bg-white/10' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                        <View
+                            className={`mt-2 rounded-2xl overflow-hidden border ${
+                                isCurrentUser
+                                    ? 'border-white/20 bg-black/10'
+                                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
+                            }`}
+                        >
                             <VoiceMessage
                                 audioUrl={imageUrl}
                                 duration={audioDuration[message.id] || message.audio_duration}
@@ -260,17 +282,17 @@ export default function MessageItem({
                 {isCurrentUser && (
                     <Pressable
                         onPress={() => router.push(`/students/${currentUser.id}`)}
-                        className="ml-2"
+                        className="ml-2 self-end mb-1"
                     >
                         {currentUser?.image ? (
                             <Image
                                 source={{ uri: `${API.APP_URL}/storage/img/profile/${currentUser.image}` }}
-                                className="w-8 h-8 rounded-full"
+                                className="w-8 h-8 rounded-xl"
                                 resizeMode="cover"
                             />
                         ) : (
-                            <View className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                                <Ionicons name="person" size={16} color="#666" />
+                            <View className="w-8 h-8 rounded-xl bg-alpha/30 items-center justify-center border border-black/10">
+                                <Ionicons name="person" size={16} color="#444" />
                             </View>
                         )}
                     </Pressable>
