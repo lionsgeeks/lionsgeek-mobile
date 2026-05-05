@@ -830,7 +830,15 @@ export default function ProfileScreen() {
                 </View>
               )}
             </Pressable>
-            <OnlineBadge lastOnline={profile?.last_online} />
+
+            {/* Own profile: show edit hint badge. Other users: show online dot. */}
+            {isOwnProfile ? (
+              <View className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-alpha border-2 border-light dark:border-dark items-center justify-center">
+                <Ionicons name="camera" size={16} color="#212529" />
+              </View>
+            ) : (
+              <OnlineBadge lastOnline={profile?.last_online} />
+            )}
           </View>
 
           {/* Stats */}
@@ -1258,21 +1266,6 @@ export default function ProfileScreen() {
             >
               <Ionicons name="close" size={22} color="#fff" />
             </TouchableOpacity>
-
-            {isOwnProfile && (
-              <TouchableOpacity
-                onPress={async () => {
-                  await pickAndUploadAvatar();
-                }}
-                disabled={avatarUploading}
-                hitSlop={12}
-                activeOpacity={0.75}
-                className="w-10 h-10 rounded-full items-center justify-center bg-white/10"
-                style={{ opacity: avatarUploading ? 0.6 : 1 }}
-              >
-                <Ionicons name="image-outline" size={20} color="#ffc801" />
-              </TouchableOpacity>
-            )}
           </View>
 
           <Pressable className="flex-1 items-center justify-center" onPress={() => setShowAvatarViewer(false)}>
