@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Alert, Dimensions, Linking, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Dimensions, Linking, Modal, ScrollView, View, Text, Image, Pressable, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
@@ -13,6 +13,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpr
 import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 const CAPTION_PREVIEW_LENGTH = 60;
+const SHARE_PAYLOAD_MAX_LEN = 4500;
 
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_PUNCTUATION_PATTERN = /[).,!?;:]+$/;
@@ -88,6 +89,48 @@ function normalizeUrl(url) {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   if (url.startsWith('www.')) return `https://${url}`;
   return null;
+}
+
+function clampText(value, maxLen) {
+  const str = value == null ? '' : String(value);
+  if (maxLen <= 0) return '';
+  return str.length > maxLen ? str.slice(0, maxLen) : str;
+}
+
+function buildShareBodyString(post, caption = '') {
+  const interactionPost = post?.repost_of ?? null;
+  const source = interactionPost ?? post;
+  const interactionPostId = post?.interaction_post_id ?? post?.repost_of_post_id ?? post?.id;
+
+  const payload = {
+    type: 'post_share',
+    post_id: interactionPostId,
+    caption: clampText(caption || '', 300),
+    author_name: clampText(source?.user_name ?? source?.user?.name ?? '', 80) || null,
+    author_image: source?.user_image ?? source?.user?.image ?? null,
+    description: clampText(source?.description ?? source?.content ?? '', 400),
+    image: Array.isArray(source?.images) && source.images.length > 0 ? source.images[0] : (source?.postImage ?? null),
+  };
+
+  let body = JSON.stringify(payload);
+  if (body.length > SHARE_PAYLOAD_MAX_LEN) {
+    payload.description = clampText(payload.description, 120);
+    body = JSON.stringify(payload);
+  }
+  if (body.length > SHARE_PAYLOAD_MAX_LEN) {
+    payload.description = '';
+    body = JSON.stringify(payload);
+  }
+  if (body.length > SHARE_PAYLOAD_MAX_LEN) {
+    payload.image = null;
+    body = JSON.stringify(payload);
+  }
+  if (body.length > SHARE_PAYLOAD_MAX_LEN) {
+    payload.author_image = null;
+    body = JSON.stringify(payload);
+  }
+
+  return body;
 }
 
 function LinkifiedText({ text, textStyle, linkStyle, mentionStyle, onMentionPress }) {
@@ -298,6 +341,15 @@ export default function FeedItem({ item, onPress }) {
   const [showLikes, setShowLikes] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
 
+  // Send/Share (Instagram-like) modal state
+  const [showSendPost, setShowSendPost] = useState(false);
+  const [sendUsers, setSendUsers] = useState([]);
+  const [sendQuery, setSendQuery] = useState('');
+  const [selectedSendUserId, setSelectedSendUserId] = useState(null);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [sendSending, setSendSending] = useState(false);
+
   const avatarUrl = resolveAvatarUrl(
     item.user?.avatar || item.userAvatar || item.user?.image
   );
@@ -382,6 +434,97 @@ export default function FeedItem({ item, onPress }) {
   const iconColor = isDark ? '#e5e5e5' : '#262626';
   const textColor = isDark ? '#f5f5f5' : '#111111';
   const mutedColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)';
+  const modalBg = isDark ? '#141414' : '#ffffff';
+  const modalBorder = isDark ? '#2e2e2e' : '#e8e5e0';
+
+  useEffect(() => {
+    if (!showSendPost) return;
+    if (!token) {
+      setSendError('You must be logged in to send this post.');
+      return;
+    }
+
+    let mounted = true;
+    const fetchFollowingUsers = async () => {
+      setSendLoading(true);
+      setSendError(null);
+      try {
+        const response = await API.getWithAuth('mobile/chat/following-users', token);
+        const users = response?.data?.users;
+        if (!mounted) return;
+        setSendUsers(Array.isArray(users) ? users : []);
+      } catch (_error) {
+        if (!mounted) return;
+        setSendError('Failed to load followers. Please try again.');
+        setSendUsers([]);
+      } finally {
+        if (mounted) setSendLoading(false);
+      }
+    };
+
+    fetchFollowingUsers();
+
+    return () => {
+      mounted = false;
+    };
+  }, [showSendPost, token]);
+
+  const filteredSendUsers = useMemo(() => {
+    const q = sendQuery.trim().toLowerCase();
+    if (!q) return sendUsers;
+    return sendUsers.filter((u) => {
+      const name = (u?.name || '').toLowerCase();
+      const email = (u?.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [sendUsers, sendQuery]);
+
+  const closeSendPostModal = () => {
+    setShowSendPost(false);
+    setSendQuery('');
+    setSelectedSendUserId(null);
+    setSendSending(false);
+    setSendError(null);
+    setSendLoading(false);
+  };
+
+  const handleSendPost = async () => {
+    if (!selectedSendUserId || sendSending) return;
+    if (!token) {
+      setSendError('You must be logged in to send this post.');
+      return;
+    }
+
+    setSendSending(true);
+    setSendError(null);
+    const body = buildShareBodyString(item, '');
+
+    try {
+      const conversationRes = await API.getWithAuth(`mobile/chat/conversation/${selectedSendUserId}`, token);
+      const conversationId = conversationRes?.data?.conversation?.id;
+      if (!conversationId) {
+        throw new Error('Conversation not available');
+      }
+
+      await API.postWithAuth(`mobile/chat/conversation/${conversationId}/send`, { body }, token);
+      closeSendPostModal();
+      Alert.alert('Sent', 'Post sent in messages.');
+    } catch (_error) {
+      setSendError('Failed to send post. Please try again.');
+    } finally {
+      setSendSending(false);
+    }
+  };
+
+  const resolveUserImageUrl = (u) => {
+    const raw = u?.image || u?.avatar;
+    if (!raw) return null;
+    if (typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) return raw;
+    const baseUrl = (API?.APP_URL || '').replace(/\/+$/, '');
+    if (!baseUrl) return null;
+    // Matches mobile chat UI convention
+    return `${baseUrl}/storage/img/profile/${raw}`;
+  };
 
   const handleDeletePost = () => {
     setShowPostMenu(false);
@@ -623,13 +766,13 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => { if (item.onRepost) item.onRepost(item); }}
+              onPress={() => setShowSendPost(true)}
               className="active:opacity-60"
             >
               <Ionicons
-                name={item.isReposted ? 'repeat' : 'paper-plane-outline'}
+                name="paper-plane-outline"
                 size={24}
-                color={item.isReposted ? '#ffc801' : iconColor}
+                color={iconColor}
               />
             </TouchableOpacity>
           </View>
@@ -746,6 +889,159 @@ export default function FeedItem({ item, onPress }) {
           <Pressable onPress={() => setShowPostMenu(false)} style={{ paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' }}>
             <Text style={{ color: mutedColor, fontWeight: '800' }}>Cancel</Text>
           </Pressable>
+        </View>
+      </Modal>
+
+      {/* Send post modal (Instagram-like) */}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showSendPost}
+        onRequestClose={closeSendPostModal}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={closeSendPostModal} />
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            maxHeight: '82%',
+            backgroundColor: modalBg,
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderTopWidth: 0.5,
+            borderColor: modalBorder,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <View style={{ paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 0.5, borderColor: modalBorder }}>
+            <View style={{ alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ width: 44, height: 4, borderRadius: 999, backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' }} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <TouchableOpacity onPress={closeSendPostModal} style={{ padding: 6 }}>
+                <Text style={{ color: mutedColor, fontWeight: '900' }}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={{ color: textColor, fontWeight: '900', fontSize: 16 }}>Send to</Text>
+              <TouchableOpacity
+                onPress={handleSendPost}
+                disabled={!selectedSendUserId || sendSending}
+                style={{ padding: 6, opacity: (!selectedSendUserId || sendSending) ? 0.5 : 1 }}
+              >
+                <Text style={{ color: '#ffc801', fontWeight: '900' }}>
+                  {sendSending ? 'Sending…' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search */}
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                borderWidth: 0.5,
+                borderColor: modalBorder,
+                backgroundColor: isDark ? '#1d1d1d' : '#f5f5f5',
+                borderRadius: 999,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            >
+              <Ionicons name="search" size={16} color={mutedColor} />
+              <TextInput
+                value={sendQuery}
+                onChangeText={setSendQuery}
+                placeholder="Search"
+                placeholderTextColor={mutedColor}
+                style={{ flex: 1, color: textColor, fontWeight: '700' }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          {/* Body */}
+          <ScrollView style={{ paddingHorizontal: 10 }} contentContainerStyle={{ paddingVertical: 10, paddingBottom: 18 }}>
+            {sendLoading ? (
+              <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator color="#ffc801" />
+                <Text style={{ color: mutedColor, marginTop: 10, fontWeight: '700' }}>Loading followers…</Text>
+              </View>
+            ) : filteredSendUsers.length === 0 ? (
+              <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: mutedColor, fontWeight: '700' }}>
+                  {sendError ? sendError : 'No followers found.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: 6 }}>
+                {sendError ? (
+                  <View style={{ paddingHorizontal: 6, paddingBottom: 6 }}>
+                    <Text style={{ color: '#ef4444', fontWeight: '800' }}>{sendError}</Text>
+                  </View>
+                ) : null}
+
+                {filteredSendUsers.map((u) => {
+                  const selected = Number(selectedSendUserId) === Number(u?.id);
+                  const imageUrl = resolveUserImageUrl(u);
+                  return (
+                    <Pressable
+                      key={u.id}
+                      onPress={() => setSelectedSendUserId(u.id)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        paddingHorizontal: 10,
+                        borderRadius: 14,
+                        backgroundColor: selected ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') : 'transparent',
+                      }}
+                    >
+                      <View style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', backgroundColor: isDark ? '#232323' : '#eaeaea', marginRight: 10 }}>
+                        {imageUrl ? (
+                          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="person" size={20} color={mutedColor} />
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ color: textColor, fontWeight: '900' }} numberOfLines={1}>
+                          {u?.name || 'User'}
+                        </Text>
+                        {u?.email ? (
+                          <Text style={{ color: mutedColor, marginTop: 2, fontWeight: '700' }} numberOfLines={1}>
+                            {u.email}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          borderWidth: 2,
+                          borderColor: selected ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.18)'),
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginLeft: 10,
+                        }}
+                      >
+                        {selected ? <View style={{ width: 10, height: 10, borderRadius: 999, backgroundColor: '#ffc801' }} /> : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
         </View>
       </Modal>
     </View>
