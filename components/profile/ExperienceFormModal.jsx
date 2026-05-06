@@ -235,6 +235,7 @@ export default function ExperienceFormModal({
   const [title, setTitle]               = useState('');
   const [company, setCompany]           = useState('');
   const [location, setLocation]         = useState('');
+  const [employmentType, setEmploymentType] = useState('');
   const [startMonth, setStartMonth]     = useState(null);
   const [startYear, setStartYear]       = useState('');
   const [isCurrent, setIsCurrent]       = useState(false);
@@ -251,6 +252,7 @@ export default function ExperienceFormModal({
       setTitle(experience.title ?? experience.position ?? experience.role ?? '');
       setCompany(experience.company ?? experience.company_name ?? experience.organization ?? '');
       setLocation(experience.location ?? experience.city ?? experience.place ?? '');
+      setEmploymentType(experience.employment_type ?? experience.employement_type ?? experience.employmentType ?? '');
       setStartMonth(experience.start_month ?? experience.startMonth ?? null);
       setStartYear(String(experience.start_year ?? experience.startYear ?? ''));
       const hasEnd = !!(
@@ -274,6 +276,7 @@ export default function ExperienceFormModal({
       setTitle('');
       setCompany('');
       setLocation('');
+      setEmploymentType('');
       setStartMonth(null);
       setStartYear('');
       setIsCurrent(false);
@@ -298,9 +301,39 @@ export default function ExperienceFormModal({
       Alert.alert('Required', 'Please enter a job title or role.');
       return false;
     }
+    if (!company.trim()) {
+      Alert.alert('Required', 'Please enter a company / organization.');
+      return false;
+    }
+    if (!location.trim()) {
+      Alert.alert('Required', 'Please enter a location.');
+      return false;
+    }
+    if (!employmentType.trim()) {
+      Alert.alert('Required', 'Please enter an employment type.');
+      return false;
+    }
+    if (startMonth == null) {
+      Alert.alert('Required', 'Please select a start month.');
+      return false;
+    }
+    if (!startYear) {
+      Alert.alert('Required', 'Please select a start year.');
+      return false;
+    }
     if (startYear && (isNaN(Number(startYear)) || Number(startYear) < MIN_YEAR || Number(startYear) > CURRENT_YEAR)) {
       Alert.alert('Invalid year', `Start year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
       return false;
+    }
+    if (!isCurrent) {
+      if (endMonth == null) {
+        Alert.alert('Required', 'Please select an end month.');
+        return false;
+      }
+      if (!endYear) {
+        Alert.alert('Required', 'Please select an end year.');
+        return false;
+      }
     }
     if (!isCurrent && endYear && (isNaN(Number(endYear)) || Number(endYear) < MIN_YEAR || Number(endYear) > CURRENT_YEAR)) {
       Alert.alert('Invalid year', `End year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
@@ -337,6 +370,7 @@ export default function ExperienceFormModal({
         title:       title.trim(),
         company:     company.trim(),
         location:    location.trim(),
+        employment_type: employmentType.trim(),
         start_month: startMonth ?? undefined,
         start_year:  startYear ? Number(startYear) : undefined,
         is_current:  isCurrent,
@@ -550,6 +584,16 @@ export default function ExperienceFormModal({
               value={location}
               onChangeText={setLocation}
               placeholder="e.g. Casablanca, Morocco"
+              isDark={isDark}
+            />
+          </InputCard>
+
+          {/* ── Employment type ── */}
+          <InputCard label="Employment Type *" icon="options-outline" isDark={isDark}>
+            <StyledTextInput
+              value={employmentType}
+              onChangeText={setEmploymentType}
+              placeholder="e.g. Full-time"
               isDark={isDark}
             />
           </InputCard>
