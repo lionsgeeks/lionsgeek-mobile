@@ -28,6 +28,7 @@ import FeedItem from '@/components/feed/FeedItem';
 import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
 import EditProfileModal from '@/components/profile/EditProfileModal';
+import ExperienceFormModal from '@/components/profile/ExperienceFormModal';
 import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
@@ -455,93 +456,9 @@ function AboutCard({ profile, isDark }) {
   );
 }
 
-// ─── Posts preview card ───────────────────────────────────────────────────────
-
-function PostsPreviewCard({ posts, postsLoading, isDark, onViewAll, onPostPress }) {
-  const firstPost = posts[0] ?? null;
-
-  return (
-    <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 overflow-hidden">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 pt-4 pb-3">
-        <Text className="text-base font-bold text-black dark:text-white">Posts</Text>
-        {posts.length > 1 && (
-          <TouchableOpacity onPress={onViewAll} hitSlop={10} activeOpacity={0.7}>
-            <Text className="text-sm text-alpha font-semibold">See all posts</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {postsLoading ? (
-        <View className="px-4 pb-4 gap-2">
-          <Skeleton width="100%" height={14} borderRadius={7} isDark={isDark} />
-          <Skeleton width="65%" height={14} borderRadius={7} isDark={isDark} />
-          <Skeleton width={SCREEN_WIDTH - 64} height={160} borderRadius={12} isDark={isDark} />
-        </View>
-      ) : firstPost ? (
-        <TouchableOpacity onPress={() => onPostPress(firstPost)} activeOpacity={0.85}>
-          {firstPost.body ? (
-            <Text
-              className="text-sm text-black/80 dark:text-white/80 leading-[22px] px-4 mb-3"
-              numberOfLines={3}
-            >
-              {firstPost.body}
-            </Text>
-          ) : (
-            <Text className="text-sm text-black/40 dark:text-white/40 px-4 mb-3">
-              Text post
-            </Text>
-          )}
-
-          {firstPost.postImage ? (
-            <Image
-              source={{ uri: firstPost.postImage }}
-              style={{ width: '100%', height: 200 }}
-              resizeMode="cover"
-            />
-          ) : null}
-
-          {/* Post meta row */}
-          <View className="flex-row items-center gap-4 px-4 py-3 border-t border-black/5 dark:border-white/5">
-            <View className="flex-row items-center gap-1">
-              <Ionicons
-                name="heart-outline"
-                size={14}
-                color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
-              />
-              <Text className="text-xs text-black/40 dark:text-white/40">
-                {firstPost.likes_count ?? 0}
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-1">
-              <Ionicons
-                name="chatbubble-outline"
-                size={13}
-                color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
-              />
-              <Text className="text-xs text-black/40 dark:text-white/40">
-                {firstPost.comments_count ?? 0}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      ) : (
-        <View className="px-4 pb-6 items-center pt-2">
-          <Ionicons
-            name="newspaper-outline"
-            size={36}
-            color={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
-          />
-          <Text className="text-xs text-black/30 dark:text-white/30 mt-2">No posts yet</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 // ─── Experience card ──────────────────────────────────────────────────────────
 
-function ExperienceCard({ profile, isDark }) {
+function ExperienceCard({ profile, isDark, isOwnProfile, token, onExperienceAdded, onExperienceUpdated, onExperienceDeleted }) {
   const rawList =
     profile?.experiences ??
     profile?.experience ??
@@ -552,12 +469,18 @@ function ExperienceCard({ profile, isDark }) {
 
   const MAX_DESC_CHARS = 140;
   const [expandedByKey, setExpandedByKey] = useState({});
+  const [formModal, setFormModal] = useState({ visible: false, experience: null });
 
   const toggleExpanded = (key) => {
     setExpandedByKey((prev) => ({ ...prev, [key]: !prev?.[key] }));
   };
 
+  const openAdd  = () => setFormModal({ visible: true, experience: null });
+  const openEdit = (exp) => setFormModal({ visible: true, experience: exp });
+  const closeForm = () => setFormModal({ visible: false, experience: null });
+
   return (
+    <>
     <View className="mx-4 mb-3 rounded-2xl bg-light dark:bg-dark border border-black/10 dark:border-white/10 overflow-hidden">
       {/* ── Section header ── */}
       <View className="flex-row items-center justify-between px-4 pt-4 pb-3 border-b border-black/5 dark:border-white/5">
@@ -567,11 +490,23 @@ function ExperienceCard({ profile, isDark }) {
           </View>
           <Text className="text-base font-bold text-black dark:text-white">Experience</Text>
         </View>
-        {list.length > 0 && (
-          <View className="px-2 py-0.5 rounded-full bg-alpha/10">
-            <Text className="text-xs font-semibold text-alpha">{list.length}</Text>
-          </View>
-        )}
+        <View className="flex-row items-center gap-2">
+          {list.length > 0 && (
+            <View className="px-2 py-0.5 rounded-full bg-alpha/10">
+              <Text className="text-xs font-semibold text-alpha">{list.length}</Text>
+            </View>
+          )}
+          {isOwnProfile && (
+            <TouchableOpacity
+              onPress={openAdd}
+              hitSlop={10}
+              activeOpacity={0.7}
+              className="w-7 h-7 rounded-full bg-alpha items-center justify-center"
+            >
+              <Ionicons name="add" size={16} color="#212529" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {list.length === 0 ? (
@@ -584,6 +519,16 @@ function ExperienceCard({ profile, isDark }) {
           <Text className="text-xs text-black/30 dark:text-white/30 mt-2">
             No experience added yet
           </Text>
+          {isOwnProfile && (
+            <TouchableOpacity
+              onPress={openAdd}
+              activeOpacity={0.7}
+              className="mt-3 px-4 py-2 rounded-full bg-alpha/15 flex-row items-center gap-1"
+            >
+              <Ionicons name="add-circle-outline" size={15} color="#ffc801" />
+              <Text className="text-xs font-bold text-alpha">Add Experience</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <View className="px-4 pt-4 pb-2">
@@ -672,14 +617,31 @@ function ExperienceCard({ profile, isDark }) {
                     <Text className="text-sm font-bold text-black dark:text-white flex-1 leading-[20px]">
                       {title}
                     </Text>
-                    {/* Duration pill — top-right */}
-                    {duration ? (
-                      <View className="px-2 py-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] shrink-0">
-                        <Text className="text-[10px] font-semibold text-black/50 dark:text-white/50">
-                          {duration}
-                        </Text>
-                      </View>
-                    ) : null}
+                    <View className="flex-row items-center gap-1.5 shrink-0">
+                      {/* Duration pill */}
+                      {duration ? (
+                        <View className="px-2 py-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08]">
+                          <Text className="text-[10px] font-semibold text-black/50 dark:text-white/50">
+                            {duration}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {/* Edit button — own profile only */}
+                      {isOwnProfile && (
+                        <TouchableOpacity
+                          onPress={() => openEdit(exp)}
+                          hitSlop={10}
+                          activeOpacity={0.7}
+                          className="w-6 h-6 rounded-full bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center"
+                        >
+                          <Ionicons
+                            name="pencil"
+                            size={11}
+                            color={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   {/* Company */}
@@ -744,6 +706,24 @@ function ExperienceCard({ profile, isDark }) {
         </View>
       )}
     </View>
+
+    {/* ── Add / Edit modal ── */}
+    <ExperienceFormModal
+      visible={formModal.visible}
+      experience={formModal.experience}
+      token={token}
+      isDark={isDark}
+      onClose={closeForm}
+      onSaved={(saved) => {
+        if (formModal.experience) {
+          onExperienceUpdated?.(saved);
+        } else {
+          onExperienceAdded?.(saved);
+        }
+      }}
+      onDeleted={(id) => onExperienceDeleted?.(id)}
+    />
+    </>
   );
 }
 
@@ -832,6 +812,267 @@ function EducationCard({ profile, isDark }) {
   );
 }
 
+// ─── Profile Tab Bar ──────────────────────────────────────────────────────────
+
+const PROFILE_TABS = [
+  { icon: 'grid-outline',      activeIcon: 'grid',      label: 'Posts'   },
+  { icon: 'briefcase-outline', activeIcon: 'briefcase', label: 'Resume'  },
+  { icon: 'repeat-outline',    activeIcon: 'repeat',    label: 'Reposts' },
+];
+
+function ProfileTabBar({ activeTab, onTabChange, isDark }) {
+  return (
+    <View
+      className="flex-row bg-light dark:bg-dark"
+      style={{ borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }}
+    >
+      {PROFILE_TABS.map((tab, index) => {
+        const isActive = activeTab === index;
+        return (
+          <TouchableOpacity
+            key={index}
+            onPress={() => onTabChange(index)}
+            activeOpacity={0.7}
+            className="flex-1 items-center py-3"
+            style={{
+              borderBottomWidth: 2,
+              borderBottomColor: isActive ? '#ffc801' : 'transparent',
+            }}
+          >
+            <Ionicons
+              name={isActive ? tab.activeIcon : tab.icon}
+              size={20}
+              color={isActive ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)')}
+            />
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: '600',
+                marginTop: 3,
+                color: isActive ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'),
+              }}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Posts Grid Tab (Instagram-style 3-column grid) ───────────────────────────
+
+function PostsGridTab({ posts, postsLoading, isDark, onPostPress }) {
+  const TILE_SIZE = Math.floor(SCREEN_WIDTH / 3);
+  const GAP = 1.5;
+
+  if (postsLoading) {
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            width={TILE_SIZE - GAP * 0.67}
+            height={TILE_SIZE}
+            borderRadius={0}
+            isDark={isDark}
+          />
+        ))}
+      </View>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <View className="items-center justify-center py-16 px-6">
+        <View
+          className="w-16 h-16 rounded-full items-center justify-center mb-3"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}
+        >
+          <Ionicons
+            name="images-outline"
+            size={30}
+            color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
+          />
+        </View>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: '600',
+            color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+          }}
+        >
+          No posts yet
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: GAP,
+        backgroundColor: isDark ? '#111' : '#d8d8d8',
+      }}
+    >
+      {posts.map((post) => (
+        <TouchableOpacity
+          key={String(post.id)}
+          onPress={() => onPostPress(post)}
+          activeOpacity={0.85}
+          style={{ width: TILE_SIZE - GAP * 0.67, height: TILE_SIZE }}
+        >
+          {post.postImage ? (
+            <Image
+              source={{ uri: post.postImage }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 8,
+                backgroundColor: isDark ? '#1c1c1e' : '#f2f2f2',
+              }}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
+              />
+              {post.body ? (
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)',
+                    textAlign: 'center',
+                    marginTop: 4,
+                    lineHeight: 13,
+                  }}
+                  numberOfLines={4}
+                >
+                  {post.body}
+                </Text>
+              ) : null}
+            </View>
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// ─── Reposts Tab (design-only placeholder) ────────────────────────────────────
+
+function RepostsTab({ isDark }) {
+  return (
+    <View className="py-4">
+      {/* Ghost repost cards */}
+      {[1, 0.7, 0.45].map((opacity, i) => (
+        <View
+          key={i}
+          className="mx-4 mb-3 rounded-2xl border border-black/10 dark:border-white/10 overflow-hidden"
+          style={{ opacity }}
+        >
+          {/* Repost indicator row */}
+          <View className="flex-row items-center px-4 py-2.5 border-b border-black/5 dark:border-white/5">
+            <Ionicons
+              name="repeat-outline"
+              size={13}
+              color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+            />
+            <Text
+              style={{
+                fontSize: 11,
+                marginLeft: 6,
+                color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)',
+              }}
+            >
+              Reposted
+            </Text>
+          </View>
+
+          {/* Skeleton-style original post preview */}
+          <View className="p-4">
+            <View className="flex-row items-center gap-3 mb-3">
+              <View
+                className="w-9 h-9 rounded-full"
+                style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }}
+              />
+              <View className="flex-1 gap-2">
+                <View
+                  className="h-3 rounded-full"
+                  style={{
+                    width: '50%',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                  }}
+                />
+                <View
+                  className="h-2 rounded-full"
+                  style={{
+                    width: '30%',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                  }}
+                />
+              </View>
+            </View>
+
+            <View className="gap-2">
+              {['100%', '80%', '60%'].map((w, j) => (
+                <View
+                  key={j}
+                  className="h-2.5 rounded-full"
+                  style={{
+                    width: w,
+                    backgroundColor: isDark
+                      ? `rgba(255,255,255,${0.07 - j * 0.015})`
+                      : `rgba(0,0,0,${0.06 - j * 0.012})`,
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      ))}
+
+      {/* Coming-soon callout */}
+      <View className="items-center pt-4 pb-8 px-6">
+        <View
+          className="w-12 h-12 rounded-full items-center justify-center mb-3"
+          style={{ backgroundColor: 'rgba(255,199,1,0.12)' }}
+        >
+          <Ionicons name="repeat" size={22} color="#ffc801" />
+        </View>
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: '700',
+            color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)',
+            marginBottom: 6,
+          }}
+        >
+          Reposts
+        </Text>
+        <Text
+          style={{
+            fontSize: 12,
+            textAlign: 'center',
+            color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+          }}
+        >
+          Posts shared by this user will appear here.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── Profile skeleton ─────────────────────────────────────────────────────────
 
 function ProfileSkeleton({ isDark, topInset = 0 }) {
@@ -904,6 +1145,7 @@ export default function ProfileScreen() {
   const [socialLinks, setSocialLinks] = useState([]);
   const [showAvatarOptions, setShowAvatarOptions] = useState(false);
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
   const feedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
@@ -916,6 +1158,7 @@ export default function ProfileScreen() {
     setProfile(null);
     setPosts([]);
     setSocialLinks([]);
+    setActiveTab(0);
   }, [resolvedUserId]);
 
   const loadProfile = useCallback(async () => {
@@ -1620,30 +1863,71 @@ export default function ProfileScreen() {
           </View>
         </Rolegard>
 
-        {/* ─── LinkedIn-style Content Sections ─── */}
+        {/* ─── Profile Tabs ─── */}
+        <ProfileTabBar activeTab={activeTab} onTabChange={setActiveTab} isDark={isDark} />
 
-        {/* About */}
-        <AboutCard profile={profile} isDark={isDark} />
+        {/* Tab 1 — Posts grid (Instagram-style) */}
+        {activeTab === 0 && (
+          <PostsGridTab
+            posts={posts}
+            postsLoading={postsLoading}
+            isDark={isDark}
+            onPostPress={(post) =>
+              setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
+            }
+          />
+        )}
 
-        {/* Posts — one preview + "See all posts" */}
-        <PostsPreviewCard
-          posts={posts}
-          postsLoading={postsLoading}
-          isDark={isDark}
-          onViewAll={() => setSelectedPostIndex(0)}
-          onPostPress={(post) =>
-            setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
-          }
-        />
+        {/* Tab 2 — Resume: About + Experience + Education */}
+        {activeTab === 1 && (
+          <View className="pt-3">
+            <AboutCard profile={profile} isDark={isDark} />
 
-        {/* Experience */}
-        <ExperienceCard profile={profile} isDark={isDark} />
+            <ExperienceCard
+              profile={profile}
+              isDark={isDark}
+              isOwnProfile={isOwnProfile}
+              token={token}
+              onExperienceAdded={(exp) => {
+                setProfile((prev) => {
+                  if (!prev) return prev;
+                  const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+                  return { ...prev, experiences: [exp, ...current] };
+                });
+              }}
+              onExperienceUpdated={(updated) => {
+                setProfile((prev) => {
+                  if (!prev) return prev;
+                  const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+                  return {
+                    ...prev,
+                    experiences: current.map((e) =>
+                      String(e.id) === String(updated.id) ? { ...e, ...updated } : e
+                    ),
+                  };
+                });
+              }}
+              onExperienceDeleted={(id) => {
+                setProfile((prev) => {
+                  if (!prev) return prev;
+                  const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+                  return {
+                    ...prev,
+                    experiences: current.filter((e) => String(e.id) !== String(id)),
+                  };
+                });
+              }}
+            />
 
-        {/* Education */}
-        <EducationCard profile={profile} isDark={isDark} />
+            <EducationCard profile={profile} isDark={isDark} />
+          </View>
+        )}
+
+        {/* Tab 3 — Reposts (design-only placeholder) */}
+        {activeTab === 2 && <RepostsTab isDark={isDark} />}
 
         {/* Bottom spacer */}
-        <View style={{ height: 32 }} />
+        <View style={{ height: insets.bottom + 32 }} />
       </ScrollView>
 
       {/* ─── Create Post Modal ─── */}
