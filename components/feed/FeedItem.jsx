@@ -333,13 +333,57 @@ export default function FeedItem({ item, onPress }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [liked, setLiked] = useState(Boolean(item.is_liked_by_user));
-  const [likeCount, setLikeCount] = useState(item.likes || 0);
+  const getRepostSource = (post) => {
+    const candidates = [
+      post?.repost_of,
+      post?.repostOf,
+      post?.original_post,
+      post?.originalPost,
+      post?.interaction_post,
+      post?.interactionPost,
+      post?.post,
+    ];
+    return candidates.find((c) => c && typeof c === 'object') ?? null;
+  };
+
+  const sourcePost = useMemo(() => getRepostSource(item) ?? item, [item]);
+  const effectivePostId =
+    sourcePost?.id ??
+    sourcePost?.post_id ??
+    sourcePost?.postId ??
+    item?.interaction_post_id ??
+    item?.interactionPostId ??
+    item?.repost_of_post_id ??
+    item?.repostOfPostId ??
+    item?.id;
+
+  const isRepostEntry = useMemo(() => {
+    const hasPointer =
+      Boolean(getRepostSource(item)) ||
+      (item?.interaction_post_id != null && item?.id != null && Number(item.interaction_post_id) !== Number(item.id)) ||
+      (item?.interactionPostId != null && item?.id != null && Number(item.interactionPostId) !== Number(item.id));
+
+    return Boolean(
+      hasPointer ||
+      item?.reposted ||
+      item?.is_repost ||
+      item?.isRepost ||
+      item?.repost_of_post_id ||
+      item?.repostOfPostId ||
+      (item?.type === 'repost' || item?.post_type === 'repost' || item?.postType === 'repost')
+    );
+  }, [item]);
+
+  const [liked, setLiked] = useState(Boolean(sourcePost?.is_liked_by_user ?? item?.is_liked_by_user));
+  const [likeCount, setLikeCount] = useState((sourcePost?.likes ?? item?.likes) || 0);
   const [saved, setSaved] = useState(false);
-  const [commentCount, setCommentCount] = useState(item.comments || 0);
+  const [commentCount, setCommentCount] = useState((sourcePost?.comments ?? item?.comments) || 0);
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [repostedByMe, setRepostedByMe] = useState(Boolean(item.isReposted || item.is_reposted_by_user));
+  const [repostCount, setRepostCount] = useState((sourcePost?.reposts ?? item?.reposts) || 0);
+  const [repostLoading, setRepostLoading] = useState(false);
 
   // Send/Share (Instagram-like) modal state
   const [showSendPost, setShowSendPost] = useState(false);
@@ -351,23 +395,37 @@ export default function FeedItem({ item, onPress }) {
   const [sendSending, setSendSending] = useState(false);
 
   const avatarUrl = resolveAvatarUrl(
-    item.user?.avatar || item.userAvatar || item.user?.image
+    sourcePost?.user?.avatar ||
+    sourcePost?.userAvatar ||
+    sourcePost?.user?.image ||
+    item.user?.avatar ||
+    item.userAvatar ||
+    item.user?.image
   );
   const mediaUrls = useMemo(() => {
-    if (Array.isArray(item.images) && item.images.length > 0) return item.images.filter(Boolean);
-    if (item.postImage) return [item.postImage];
+    const imagesLike = sourcePost?.images ?? item.images;
+    if (Array.isArray(imagesLike) && imagesLike.length > 0) return imagesLike.filter(Boolean);
+    const single = sourcePost?.postImage ?? sourcePost?.image ?? item.postImage ?? item.image;
+    if (single) return [single];
     return [];
-  }, [item.images, item.postImage]);
+  }, [item.images, item.postImage, item.image, sourcePost]);
   const hasMedia = mediaUrls.length > 0;
   const isCarousel = mediaUrls.length > 1;
   const [carouselIndex, setCarouselIndex] = useState(0);
 
   const screenWidth = Dimensions.get('window').width;
-  const displayName = item.user?.name || 'Unknown';
-  const caption = item.description || item.content || '';
-  const repostCount = item.reposts || 0;
-  const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
-  const profileUserId = item.user?.id ?? item.userId ?? item.user_id ?? item.user?.user_id;
+  const displayName = sourcePost?.user?.name || item.user?.name || 'Unknown';
+  const caption = sourcePost?.description || sourcePost?.content || item.description || item.content || '';
+  const isOwner = (user?.id && sourcePost?.user?.id) ? Number(user.id) === Number(sourcePost.user.id) : false;
+  const profileUserId =
+    sourcePost?.user?.id ??
+    sourcePost?.userId ??
+    sourcePost?.user_id ??
+    sourcePost?.user?.user_id ??
+    item.user?.id ??
+    item.userId ??
+    item.user_id ??
+    item.user?.user_id;
 
   const handleOpenProfile = () => {
     // Uses the same route pattern as search/members screens
@@ -413,7 +471,7 @@ export default function FeedItem({ item, onPress }) {
     setLikeCount(c => wasLiked ? c - 1 : c + 1);
 
     try {
-      const response = await API.post(`mobile/posts/like/${item.id}`, {}, token);
+      const response = await API.post(`mobile/posts/like/${effectivePostId}`, {}, token);
       // Sync with server truth
       if (response?.data) {
         setLiked(response.data.liked);
@@ -429,6 +487,33 @@ export default function FeedItem({ item, onPress }) {
   const handleDoubleTapLike = () => {
     // Instagram behavior: double tap only LIKES (doesn't unlike)
     if (!liked) handleLike();
+  };
+
+  const handleRepost = async () => {
+    if (repostLoading) return;
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+
+    if (repostedByMe) {
+      Alert.alert('Reposted', 'You already reposted this post.');
+      return;
+    }
+
+    setRepostLoading(true);
+    setRepostedByMe(true);
+    setRepostCount((c) => c + 1);
+
+    try {
+      await API.post('mobile/posts/repost', { post_id: effectivePostId }, token);
+    } catch (_error) {
+      setRepostedByMe(false);
+      setRepostCount((c) => Math.max(0, c - 1));
+      Alert.alert('Error', 'Failed to repost. Please try again.');
+    } finally {
+      setRepostLoading(false);
+    }
   };
 
   const iconColor = isDark ? '#e5e5e5' : '#262626';
@@ -569,11 +654,11 @@ export default function FeedItem({ item, onPress }) {
       }}
     >
       {/* ── Repost banner ── */}
-      {item.reposted ? (
+      {(isRepostEntry || repostedByMe) ? (
         <View className="flex-row items-center px-4 pt-3 pb-1">
           <Ionicons name="repeat" size={14} color={mutedColor} />
           <Text style={{ color: mutedColor }} className="text-xs ml-1 font-semibold">
-            {item.reposted_by || 'Someone'} reposted
+            {item.reposted_by || (repostedByMe ? (user?.name || 'You') : 'Someone')} reposted
           </Text>
         </View>
       ) : null}
@@ -766,6 +851,19 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
 
             <TouchableOpacity
+              onPress={handleRepost}
+              disabled={repostLoading}
+              className="active:opacity-60"
+              style={{ opacity: repostLoading ? 0.6 : 1 }}
+            >
+              {repostLoading ? (
+                <ActivityIndicator size="small" color="#ffc801" />
+              ) : (
+                <Ionicons name={repostedByMe ? 'repeat' : 'repeat-outline'} size={24} color={repostedByMe ? '#ffc801' : iconColor} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={() => setShowSendPost(true)}
               className="active:opacity-60"
             >
@@ -827,7 +925,7 @@ export default function FeedItem({ item, onPress }) {
       {/* ── Comments modal ── */}
       <CommentsModal
         visible={showComments}
-        postId={item.id}
+        postId={effectivePostId}
         postAuthorName={displayName}
         onClose={() => setShowComments(false)}
         onCommentCountChange={(change) => {
@@ -845,7 +943,7 @@ export default function FeedItem({ item, onPress }) {
 
       <LikesModal
         visible={showLikes}
-        postId={item.id}
+        postId={effectivePostId}
         onClose={() => setShowLikes(false)}
       />
 

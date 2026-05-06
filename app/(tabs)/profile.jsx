@@ -29,6 +29,7 @@ import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import ExperienceFormModal from '@/components/profile/ExperienceFormModal';
+import EducationFormModal from '@/components/profile/EducationFormModal';
 import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
@@ -419,12 +420,12 @@ async function tryFetchFirstList({ token, endpoints }) {
 // ─── About card ──────────────────────────────────────────────────────────────
 
 function AboutCard({ profile, isDark }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const bio = profile?.bio ?? profile?.about ?? profile?.description ?? null;
   const bioText = typeof bio === 'string' ? bio.trim() : String(bio ?? '').trim();
   if (!bioText) return null;
 
   const MAX_ABOUT_CHARS = 100;
-  const [isExpanded, setIsExpanded] = useState(false);
   const isTruncatable = bioText.length > MAX_ABOUT_CHARS;
   const displayedText =
     isExpanded || !isTruncatable
@@ -968,107 +969,133 @@ function PostsGridTab({ posts, postsLoading, isDark, onPostPress }) {
   );
 }
 
-// ─── Reposts Tab (design-only placeholder) ────────────────────────────────────
+// ─── Reposts Tab ──────────────────────────────────────────────────────────────
 
-function RepostsTab({ isDark }) {
-  return (
-    <View className="py-4">
-      {/* Ghost repost cards */}
-      {[1, 0.7, 0.45].map((opacity, i) => (
+function isRepostPost(post) {
+  const interactionId = post?.interaction_post_id ?? post?.interactionPostId ?? null;
+  const selfId = post?.id ?? null;
+  const hasInteractionPointer =
+    interactionId != null &&
+    selfId != null &&
+    Number.isFinite(Number(interactionId)) &&
+    Number.isFinite(Number(selfId)) &&
+    Number(interactionId) !== Number(selfId);
+
+  return Boolean(
+    post?.repost_of ??
+    post?.repostOf ??
+    post?.repost_of_post_id ??
+    post?.repostOfPostId ??
+    hasInteractionPointer ??
+    (post?.type === 'repost' || post?.post_type === 'repost' || post?.postType === 'repost') ??
+    // Some APIs mark repost entries with a "reposted" flag + pointer fields.
+    // We only treat it as a repost entry if it ALSO points to another post.
+    ((post?.reposted || post?.is_repost || post?.isRepost) && (post?.repost_of || post?.repost_of_post_id || hasInteractionPointer)) ??
+    null
+  );
+}
+
+function RepostsGridTab({ reposts, loading, isDark, onPostPress }) {
+  const TILE_SIZE = Math.floor(SCREEN_WIDTH / 3);
+  const GAP = 1.5;
+
+  if (loading) {
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            width={TILE_SIZE - GAP * 0.67}
+            height={TILE_SIZE}
+            borderRadius={0}
+            isDark={isDark}
+          />
+        ))}
+      </View>
+    );
+  }
+
+  if (!reposts || reposts.length === 0) {
+    return (
+      <View className="items-center justify-center py-16 px-6">
         <View
-          key={i}
-          className="mx-4 mb-3 rounded-2xl border border-black/10 dark:border-white/10 overflow-hidden"
-          style={{ opacity }}
+          className="w-16 h-16 rounded-full items-center justify-center mb-3"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}
         >
-          {/* Repost indicator row */}
-          <View className="flex-row items-center px-4 py-2.5 border-b border-black/5 dark:border-white/5">
-            <Ionicons
-              name="repeat-outline"
-              size={13}
-              color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
-            />
-            <Text
-              style={{
-                fontSize: 11,
-                marginLeft: 6,
-                color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)',
-              }}
-            >
-              Reposted
-            </Text>
-          </View>
-
-          {/* Skeleton-style original post preview */}
-          <View className="p-4">
-            <View className="flex-row items-center gap-3 mb-3">
-              <View
-                className="w-9 h-9 rounded-full"
-                style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }}
-              />
-              <View className="flex-1 gap-2">
-                <View
-                  className="h-3 rounded-full"
-                  style={{
-                    width: '50%',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-                  }}
-                />
-                <View
-                  className="h-2 rounded-full"
-                  style={{
-                    width: '30%',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                  }}
-                />
-              </View>
-            </View>
-
-            <View className="gap-2">
-              {['100%', '80%', '60%'].map((w, j) => (
-                <View
-                  key={j}
-                  className="h-2.5 rounded-full"
-                  style={{
-                    width: w,
-                    backgroundColor: isDark
-                      ? `rgba(255,255,255,${0.07 - j * 0.015})`
-                      : `rgba(0,0,0,${0.06 - j * 0.012})`,
-                  }}
-                />
-              ))}
-            </View>
-          </View>
-        </View>
-      ))}
-
-      {/* Coming-soon callout */}
-      <View className="items-center pt-4 pb-8 px-6">
-        <View
-          className="w-12 h-12 rounded-full items-center justify-center mb-3"
-          style={{ backgroundColor: 'rgba(255,199,1,0.12)' }}
-        >
-          <Ionicons name="repeat" size={22} color="#ffc801" />
+          <Ionicons
+            name="repeat-outline"
+            size={30}
+            color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
+          />
         </View>
         <Text
           style={{
-            fontSize: 14,
-            fontWeight: '700',
-            color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)',
-            marginBottom: 6,
-          }}
-        >
-          Reposts
-        </Text>
-        <Text
-          style={{
-            fontSize: 12,
-            textAlign: 'center',
+            fontSize: 13,
+            fontWeight: '600',
             color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
           }}
         >
-          Posts shared by this user will appear here.
+          No reposts yet
         </Text>
       </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: GAP,
+        backgroundColor: isDark ? '#111' : '#d8d8d8',
+      }}
+    >
+      {reposts.map((post) => (
+        <TouchableOpacity
+          key={String(post.repost_entry_id ?? post.id)}
+          onPress={() => onPostPress(post)}
+          activeOpacity={0.85}
+          style={{ width: TILE_SIZE - GAP * 0.67, height: TILE_SIZE }}
+        >
+          {post.postImage ? (
+            <Image
+              source={{ uri: post.postImage }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 8,
+                backgroundColor: isDark ? '#1c1c1e' : '#f2f2f2',
+              }}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
+              />
+              {post.body ? (
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)',
+                    textAlign: 'center',
+                    marginTop: 4,
+                    lineHeight: 13,
+                  }}
+                  numberOfLines={4}
+                >
+                  {post.body}
+                </Text>
+              ) : null}
+            </View>
+          )}
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -1134,9 +1161,15 @@ export default function ProfileScreen() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [reposts, setReposts] = useState([]);
+  const [repostsLoading, setRepostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
+  const [selectedRepostIndex, setSelectedRepostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showCreateEducation, setShowCreateEducation] = useState(false);
+  const [showCreateExperience, setShowCreateExperience] = useState(false);
   const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -1147,6 +1180,7 @@ export default function ProfileScreen() {
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const feedListRef = useRef(null);
+  const repostFeedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
 
@@ -1251,6 +1285,198 @@ export default function ProfileScreen() {
     }
   }, [token]);
 
+  const loadReposts = useCallback(async (profileId, profileName) => {
+    if (!token || !profileId) return;
+
+    setRepostsLoading(true);
+    try {
+      const repostCandidates = [
+        `mobile/profile/${profileId}/reposts`,
+        `mobile/users/${profileId}/reposts`,
+        `mobile/posts/reposts?user_id=${profileId}`,
+        `mobile/posts/reposts?userId=${profileId}`,
+      ];
+
+      let list = await tryFetchFirstList({ token, endpoints: repostCandidates });
+
+      // Fallback: if API doesn't have repost endpoints, extract repost entries from general feed.
+      if (!Array.isArray(list) || list.length === 0) {
+        const res = await API.getWithAuth('mobile/feed', token);
+        const feedList = Array.isArray(res?.data?.feed ?? res?.data?.posts)
+          ? (res?.data?.feed ?? res?.data?.posts)
+          : [];
+
+        list = feedList.filter((post) => {
+          const pid = post?.user?.id ?? post?.author?.id ?? post?.user_id ?? post?.userId;
+          return pid != null && Number(pid) === Number(profileId) && isRepostPost(post);
+        });
+      }
+
+      const getRepostSource = (post) => {
+        const candidates = [
+          post?.repost_of,
+          post?.repostOf,
+          post?.original_post,
+          post?.originalPost,
+          post?.interaction_post,
+          post?.interactionPost,
+          post?.post, // some APIs wrap the original post here
+        ];
+        return candidates.find((c) => c && typeof c === 'object') ?? null;
+      };
+
+      const normalized = (Array.isArray(list) ? list : [])
+        .filter((post) => isRepostPost(post))
+        .map((post) => {
+          const source = getRepostSource(post) ?? post;
+
+          const originalId =
+            source?.id ??
+            source?.post_id ??
+            source?.postId ??
+            post?.interaction_post_id ??
+            post?.interactionPostId ??
+            post?.repost_of_post_id ??
+            post?.repostOfPostId ??
+            post?.id ??
+            null;
+
+          const resolveImages = (imagesLike) => {
+            if (!Array.isArray(imagesLike)) return [];
+            return imagesLike
+              .map((img) => {
+                if (!img) return null;
+                if (typeof img === 'string') return resolvePostMediaUrl(img);
+                if (typeof img === 'object') {
+                  return resolvePostMediaUrl(
+                    img?.url ?? img?.uri ?? img?.path ?? img?.image ?? img?.image_url ?? img?.src ?? null
+                  );
+                }
+                return null;
+              })
+              .filter(Boolean);
+          };
+
+          const body =
+            source?.body ??
+            source?.content ??
+            source?.text ??
+            source?.caption ??
+            source?.description ??
+            source?.message ??
+            source?.post_body ??
+            source?.postBody ??
+            null;
+
+          const originalUserAvatar =
+            source?.user?.avatar || source?.author?.avatar || source?.user_avatar || source?.author_avatar;
+          const originalUserImage =
+            source?.user?.image || source?.author?.image || source?.user_image || source?.author_image;
+          const originalAvatarUrl = resolveAvatarUrl(originalUserAvatar || originalUserImage);
+
+          const resolvedImages = resolveImages(source?.images);
+          const mediaUrl = resolvedImages?.[0] ?? resolvePostMediaUrl(source);
+          const repostedBy =
+            post?.user?.name ||
+            post?.author?.name ||
+            post?.user_name ||
+            post?.author_name ||
+            profileName ||
+            'Someone';
+
+          return {
+            ...post,
+            // Keep repost entry id for stable keys / debugging
+            repost_entry_id: post?.id ?? null,
+            // Treat the item as the ORIGINAL post for interactions (like/comment/share)
+            id: originalId ?? post?.id,
+            // Preserve repost timestamp separately (the API "repost entry" time)
+            repost_created_at: post?.created_at ?? post?.repost_created_at ?? null,
+            // Display ORIGINAL post time in UI (under original author name)
+            created_at: source?.created_at ?? post?.created_at ?? null,
+            // Make sure the UI shows the ORIGINAL post content (tile + feed)
+            body,
+            description: source?.description ?? source?.content ?? post?.description ?? post?.content ?? null,
+            content: source?.content ?? source?.description ?? post?.content ?? post?.description ?? null,
+            // Force media into the same "array of absolute URL strings" shape FeedItem expects,
+            // otherwise double-tap gestures & rendering can break.
+            images: resolvedImages.length > 0 ? resolvedImages : [],
+            postImage: mediaUrl,
+            image: mediaUrl,
+
+            // Counts should match ORIGINAL post
+            likes:
+              source?.likes ??
+              source?.likes_count ??
+              source?.likesCount ??
+              post?.likes ??
+              post?.likes_count ??
+              post?.likesCount ??
+              0,
+            comments:
+              source?.comments ??
+              source?.comments_count ??
+              source?.commentsCount ??
+              post?.comments ??
+              post?.comments_count ??
+              post?.commentsCount ??
+              0,
+            reposts:
+              source?.reposts ??
+              source?.reposts_count ??
+              source?.repostsCount ??
+              post?.reposts ??
+              post?.reposts_count ??
+              post?.repostsCount ??
+              0,
+            is_liked_by_user:
+              source?.is_liked_by_user ??
+              source?.isLikedByUser ??
+              post?.is_liked_by_user ??
+              post?.isLikedByUser ??
+              false,
+
+            // Keep the ORIGINAL author on the post header
+            user: {
+              ...(source.user || source.author || {}),
+              id:
+                source?.user?.id ||
+                source?.author?.id ||
+                source?.user_id ||
+                source?.userId ||
+                post?.user?.id ||
+                post?.author?.id ||
+                post?.user_id ||
+                post?.userId,
+              name:
+                source?.user?.name ||
+                source?.author?.name ||
+                source?.user_name ||
+                source?.author_name ||
+                'Unknown',
+              avatar: originalAvatarUrl,
+              image: originalUserImage,
+            },
+            userAvatar: originalAvatarUrl,
+
+            // Repost banner
+            reposted: true,
+            reposted_by: post?.reposted_by || post?.repostedBy || repostedBy,
+
+            // Preserve original source object for share payloads / future features
+            repost_of: source,
+          };
+        });
+
+      setReposts(normalized);
+    } catch (err) {
+      console.error('[PROFILE] fetch reposts error:', err);
+      setReposts([]);
+    } finally {
+      setRepostsLoading(false);
+    }
+  }, [token]);
+
   const hydrateResumeSections = useCallback(async (profileId) => {
     if (!token || !profileId) return;
 
@@ -1319,15 +1545,19 @@ export default function ProfileScreen() {
   }, [loadPosts, profile?.id, profile?.name]);
 
   useEffect(() => {
+    loadReposts(profile?.id, profile?.name);
+  }, [loadReposts, profile?.id, profile?.name]);
+
+  useEffect(() => {
     hydrateResumeSections(profile?.id);
   }, [hydrateResumeSections, profile?.id]);
 
   const onRefresh = useCallback(async () => {
     if (!token) return;
     setRefreshing(true);
-    await Promise.all([loadProfile(), loadPosts(profile?.id, profile?.name)]);
+    await Promise.all([loadProfile(), loadPosts(profile?.id, profile?.name), loadReposts(profile?.id, profile?.name)]);
     setRefreshing(false);
-  }, [loadProfile, loadPosts, token, profile?.id, profile?.name]);
+  }, [loadProfile, loadPosts, loadReposts, token, profile?.id, profile?.name]);
 
   // Sync reactive follow state whenever the profile data arrives / refreshes
   useEffect(() => {
@@ -1383,6 +1613,10 @@ export default function ProfileScreen() {
     profile?.address ??
     null;
   const speciality = profile?.speciality ?? profile?.specialty ?? null;
+
+  const originalPosts = posts.filter((p) => !isRepostPost(p));
+  const originalPostsCount = originalPosts.length;
+  const repostedPosts = reposts;
 
   const pickAndUploadCover = useCallback(async () => {
     if (!token || !isOwnProfile || coverUploading) return;
@@ -1497,6 +1731,16 @@ export default function ProfileScreen() {
       </AppLayout>
     );
   }
+
+  const openCreateMenu = () => setShowCreateMenu(true);
+  const closeCreateMenu = () => setShowCreateMenu(false);
+
+  const handleCreateAction = (action) => {
+    closeCreateMenu();
+    if (action === 'post') setShowCreatePost(true);
+    if (action === 'education') setShowCreateEducation(true);
+    if (action === 'experience') setShowCreateExperience(true);
+  };
 
   return (
     <AppLayout showNavbar={false}>
@@ -1618,7 +1862,7 @@ export default function ProfileScreen() {
 
           {/* Stats */}
           <View className="flex-1 flex-row justify-around mt-14 ml-5">
-            <StatColumn label="Posts" value={profile?.posts_count ?? posts.length} />
+            <StatColumn label="Posts" value={originalPostsCount} />
             <StatColumn
               label="Followers"
               value={followersCount}
@@ -1760,7 +2004,7 @@ export default function ProfileScreen() {
                 <Text className="ml-1.5 text-sm font-bold text-beta">Edit Profile</Text>
               </Pressable>
               <Pressable
-                onPress={() => setShowCreatePost(true)}
+                onPress={openCreateMenu}
                 className="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/15 items-center justify-center active:opacity-70"
               >
                 <Ionicons name="add-outline" size={20} color={isDark ? '#fff' : '#000'} />
@@ -1869,11 +2113,11 @@ export default function ProfileScreen() {
         {/* Tab 1 — Posts grid (Instagram-style) */}
         {activeTab === 0 && (
           <PostsGridTab
-            posts={posts}
+            posts={originalPosts}
             postsLoading={postsLoading}
             isDark={isDark}
             onPostPress={(post) =>
-              setSelectedPostIndex(posts.findIndex((p) => p.id === post.id))
+              setSelectedPostIndex(originalPosts.findIndex((p) => p.id === post.id))
             }
           />
         )}
@@ -1923,12 +2167,94 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Tab 3 — Reposts (design-only placeholder) */}
-        {activeTab === 2 && <RepostsTab isDark={isDark} />}
+        {/* Tab 3 — Reposts */}
+        {activeTab === 2 && (
+          <RepostsGridTab
+            reposts={repostedPosts}
+            loading={repostsLoading}
+            isDark={isDark}
+            onPostPress={(post) =>
+              setSelectedRepostIndex(repostedPosts.findIndex((p) => p.id === post.id))
+            }
+          />
+        )}
 
         {/* Bottom spacer */}
         <View style={{ height: insets.bottom + 32 }} />
       </ScrollView>
+
+      {/* ─── Create dropdown (Post / Education / Experience) ─── */}
+      <Modal
+        visible={showCreateMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCreateMenu}
+      >
+        <Pressable
+          onPress={closeCreateMenu}
+          className="flex-1 bg-black/35 justify-end"
+        >
+          <Pressable
+            onPress={() => {}}
+            className="bg-light dark:bg-dark rounded-t-3xl px-4 pt-4 pb-6 border-t border-black/10 dark:border-white/10"
+            style={{ paddingBottom: insets.bottom + 18 }}
+          >
+            <View className="items-center mb-3">
+              <View className="w-10 h-1.5 rounded-full bg-black/20 dark:bg-white/20" />
+            </View>
+
+            <Text className="text-base font-bold text-black dark:text-white mb-3">
+              Create
+            </Text>
+
+            <Pressable
+              onPress={() => handleCreateAction('post')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04]"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="create-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Post</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Share something with your network</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleCreateAction('education')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="school-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Education</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Add a school or certification</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleCreateAction('experience')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="briefcase-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Experience</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Add a role to your resume</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable onPress={closeCreateMenu} className="items-center py-3 mt-2">
+              <Text className="text-sm font-semibold text-black/60 dark:text-white/60">Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ─── Create Post Modal ─── */}
       {showCreatePost && (
@@ -1960,6 +2286,40 @@ export default function ProfileScreen() {
         onSaved={(updated) => {
           if (updated) setProfile((prev) => ({ ...prev, ...updated }));
         }}
+      />
+
+      {/* ─── Create Education Modal ─── */}
+      <EducationFormModal
+        visible={showCreateEducation}
+        education={null}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowCreateEducation(false)}
+        onSaved={(saved) => {
+          setProfile((prev) => {
+            if (!prev) return prev;
+            const current = Array.isArray(prev.education) ? prev.education : (Array.isArray(prev.educations) ? prev.educations : []);
+            return { ...prev, education: [saved, ...current] };
+          });
+        }}
+        onDeleted={() => {}}
+      />
+
+      {/* ─── Create Experience Modal (quick add from + menu) ─── */}
+      <ExperienceFormModal
+        visible={showCreateExperience}
+        experience={null}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowCreateExperience(false)}
+        onSaved={(saved) => {
+          setProfile((prev) => {
+            if (!prev) return prev;
+            const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+            return { ...prev, experiences: [saved, ...current] };
+          });
+        }}
+        onDeleted={() => {}}
       />
 
       {/* ─── Followers / Following Modal ─── */}
@@ -2100,7 +2460,7 @@ export default function ProfileScreen() {
           {/* Full feed list — starts at the tapped post, scroll freely */}
           <FlatList
             ref={feedListRef}
-            data={posts}
+            data={originalPosts}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => <FeedItem item={item} />}
             showsVerticalScrollIndicator={false}
@@ -2115,6 +2475,50 @@ export default function ProfileScreen() {
             onScrollToIndexFailed={(info) => {
               // Fallback: wait for list to finish rendering then retry
               feedListRef.current?.scrollToOffset({
+                offset: 520 * info.index,
+                animated: false,
+              });
+            }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          />
+        </View>
+      </Modal>
+
+      {/* ─── Reposts Feed Modal (all reposts, scrolled to tapped index) ─── */}
+      <Modal
+        visible={selectedRepostIndex >= 0}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedRepostIndex(-1)}
+      >
+        <View className="flex-1 bg-light dark:bg-dark">
+          {/* Modal header */}
+          <View
+            className="flex-row items-center px-4 bg-light dark:bg-dark border-b border-black/10 dark:border-white/10"
+            style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+          >
+            <TouchableOpacity onPress={() => setSelectedRepostIndex(-1)} hitSlop={12} activeOpacity={0.7}>
+              <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
+            </TouchableOpacity>
+            <Text className="ml-3 text-base font-bold text-black dark:text-white">
+              {profile?.name || 'Reposts'}
+            </Text>
+          </View>
+
+          <FlatList
+            ref={repostFeedListRef}
+            data={repostedPosts}
+            keyExtractor={(item) => String(item.repost_entry_id ?? item.id)}
+            renderItem={({ item }) => <FeedItem item={item} />}
+            showsVerticalScrollIndicator={false}
+            initialScrollIndex={selectedRepostIndex >= 0 ? selectedRepostIndex : 0}
+            getItemLayout={(_, index) => ({
+              length: 520,
+              offset: 520 * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              repostFeedListRef.current?.scrollToOffset({
                 offset: 520 * info.index,
                 animated: false,
               });

@@ -14,6 +14,7 @@ import { setupNotificationListeners, removeNotificationListeners } from '@/servi
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Home as LogoIcon } from '@/components/logo';
+import Constants from 'expo-constants';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -23,8 +24,18 @@ function RootLayoutNav() {
   const stackBg = colorScheme === 'dark' ? Colors.dark : Colors.light;
 
   useEffect(() => {
+    // Avoid Expo Go push-token warnings / auto-registration errors.
+    // (In Expo Go, push tokens are not supported.)
+    if (Constants.appOwnership === 'expo') {
+      return;
+    }
+
     // Setup notification listeners when app mounts
-    notificationListenersRef.current = setupNotificationListeners();
+    setupNotificationListeners()
+      .then((listeners) => {
+        notificationListenersRef.current = listeners;
+      })
+      .catch(() => {});
 
     // Cleanup listeners on unmount
     return () => {
