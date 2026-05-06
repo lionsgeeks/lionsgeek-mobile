@@ -1615,6 +1615,7 @@ export default function ProfileScreen() {
   const speciality = profile?.speciality ?? profile?.specialty ?? null;
 
   const originalPosts = posts.filter((p) => !isRepostPost(p));
+  const originalPostsCount = originalPosts.length;
   const repostedPosts = reposts;
 
   const pickAndUploadCover = useCallback(async () => {
@@ -1861,7 +1862,7 @@ export default function ProfileScreen() {
 
           {/* Stats */}
           <View className="flex-1 flex-row justify-around mt-14 ml-5">
-            <StatColumn label="Posts" value={profile?.posts_count ?? posts.length} />
+            <StatColumn label="Posts" value={originalPostsCount} />
             <StatColumn
               label="Followers"
               value={followersCount}
