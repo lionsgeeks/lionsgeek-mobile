@@ -419,12 +419,12 @@ async function tryFetchFirstList({ token, endpoints }) {
 // ─── About card ──────────────────────────────────────────────────────────────
 
 function AboutCard({ profile, isDark }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const bio = profile?.bio ?? profile?.about ?? profile?.description ?? null;
   const bioText = typeof bio === 'string' ? bio.trim() : String(bio ?? '').trim();
   if (!bioText) return null;
 
   const MAX_ABOUT_CHARS = 100;
-  const [isExpanded, setIsExpanded] = useState(false);
   const isTruncatable = bioText.length > MAX_ABOUT_CHARS;
   const displayedText =
     isExpanded || !isTruncatable
@@ -994,27 +994,21 @@ function isRepostPost(post) {
   );
 }
 
-function RepostsTab({ reposts, loading, isDark }) {
+function RepostsGridTab({ reposts, loading, isDark, onPostPress }) {
+  const TILE_SIZE = Math.floor(SCREEN_WIDTH / 3);
+  const GAP = 1.5;
+
   if (loading) {
     return (
-      <View className="py-4 px-4 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <View
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Skeleton
             key={i}
-            className="rounded-2xl border border-black/10 dark:border-white/10 overflow-hidden"
-          >
-            <View className="p-4 gap-3">
-              <View className="flex-row items-center gap-3">
-                <Skeleton width={36} height={36} borderRadius={18} isDark={isDark} />
-                <View className="flex-1 gap-2">
-                  <Skeleton width="55%" height={12} borderRadius={8} isDark={isDark} />
-                  <Skeleton width="35%" height={10} borderRadius={8} isDark={isDark} />
-                </View>
-              </View>
-              <Skeleton width="100%" height={12} borderRadius={8} isDark={isDark} />
-              <Skeleton width="85%" height={12} borderRadius={8} isDark={isDark} />
-            </View>
-          </View>
+            width={TILE_SIZE - GAP * 0.67}
+            height={TILE_SIZE}
+            borderRadius={0}
+            isDark={isDark}
+          />
         ))}
       </View>
     );
@@ -1047,14 +1041,61 @@ function RepostsTab({ reposts, loading, isDark }) {
   }
 
   return (
-    <FlatList
-      data={reposts}
-      keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <FeedItem item={item} />}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: 16 }}
-      ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-    />
+    <View
+      style={{
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: GAP,
+        backgroundColor: isDark ? '#111' : '#d8d8d8',
+      }}
+    >
+      {reposts.map((post) => (
+        <TouchableOpacity
+          key={String(post.repost_entry_id ?? post.id)}
+          onPress={() => onPostPress(post)}
+          activeOpacity={0.85}
+          style={{ width: TILE_SIZE - GAP * 0.67, height: TILE_SIZE }}
+        >
+          {post.postImage ? (
+            <Image
+              source={{ uri: post.postImage }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 8,
+                backgroundColor: isDark ? '#1c1c1e' : '#f2f2f2',
+              }}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
+              />
+              {post.body ? (
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)',
+                    textAlign: 'center',
+                    marginTop: 4,
+                    lineHeight: 13,
+                  }}
+                  numberOfLines={4}
+                >
+                  {post.body}
+                </Text>
+              ) : null}
+            </View>
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
 
@@ -1122,6 +1163,7 @@ export default function ProfileScreen() {
   const [reposts, setReposts] = useState([]);
   const [repostsLoading, setRepostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
+  const [selectedRepostIndex, setSelectedRepostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
@@ -1134,6 +1176,7 @@ export default function ProfileScreen() {
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const feedListRef = useRef(null);
+  const repostFeedListRef = useRef(null);
 
   const insets = useSafeAreaInsets();
 
@@ -1265,39 +1308,161 @@ export default function ProfileScreen() {
         });
       }
 
+      const getRepostSource = (post) => {
+        const candidates = [
+          post?.repost_of,
+          post?.repostOf,
+          post?.original_post,
+          post?.originalPost,
+          post?.interaction_post,
+          post?.interactionPost,
+          post?.post, // some APIs wrap the original post here
+        ];
+        return candidates.find((c) => c && typeof c === 'object') ?? null;
+      };
+
       const normalized = (Array.isArray(list) ? list : [])
+        .filter((post) => isRepostPost(post))
         .map((post) => {
-          const body =
-            post?.body ??
-            post?.content ??
-            post?.text ??
-            post?.caption ??
-            post?.description ??
-            post?.message ??
-            post?.post_body ??
-            post?.postBody ??
+          const source = getRepostSource(post) ?? post;
+
+          const originalId =
+            source?.id ??
+            source?.post_id ??
+            source?.postId ??
+            post?.interaction_post_id ??
+            post?.interactionPostId ??
+            post?.repost_of_post_id ??
+            post?.repostOfPostId ??
+            post?.id ??
             null;
-          const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
-          const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
-          const avatarUrl = resolveAvatarUrl(userAvatar || userImage);
-          const mediaUrl = resolvePostMediaUrl(post);
+
+          const resolveImages = (imagesLike) => {
+            if (!Array.isArray(imagesLike)) return [];
+            return imagesLike
+              .map((img) => {
+                if (!img) return null;
+                if (typeof img === 'string') return resolvePostMediaUrl(img);
+                if (typeof img === 'object') {
+                  return resolvePostMediaUrl(
+                    img?.url ?? img?.uri ?? img?.path ?? img?.image ?? img?.image_url ?? img?.src ?? null
+                  );
+                }
+                return null;
+              })
+              .filter(Boolean);
+          };
+
+          const body =
+            source?.body ??
+            source?.content ??
+            source?.text ??
+            source?.caption ??
+            source?.description ??
+            source?.message ??
+            source?.post_body ??
+            source?.postBody ??
+            null;
+
+          const originalUserAvatar =
+            source?.user?.avatar || source?.author?.avatar || source?.user_avatar || source?.author_avatar;
+          const originalUserImage =
+            source?.user?.image || source?.author?.image || source?.user_image || source?.author_image;
+          const originalAvatarUrl = resolveAvatarUrl(originalUserAvatar || originalUserImage);
+
+          const resolvedImages = resolveImages(source?.images);
+          const mediaUrl = resolvedImages?.[0] ?? resolvePostMediaUrl(source);
+          const repostedBy =
+            post?.user?.name ||
+            post?.author?.name ||
+            post?.user_name ||
+            post?.author_name ||
+            profileName ||
+            'Someone';
 
           return {
             ...post,
+            // Keep repost entry id for stable keys / debugging
+            repost_entry_id: post?.id ?? null,
+            // Treat the item as the ORIGINAL post for interactions (like/comment/share)
+            id: originalId ?? post?.id,
+            // Preserve repost timestamp separately (the API "repost entry" time)
+            repost_created_at: post?.created_at ?? post?.repost_created_at ?? null,
+            // Display ORIGINAL post time in UI (under original author name)
+            created_at: source?.created_at ?? post?.created_at ?? null,
+            // Make sure the UI shows the ORIGINAL post content (tile + feed)
             body,
-            user: {
-              ...(post.user || post.author || {}),
-              id: post.user?.id || post.author?.id || post.user_id || post.userId || profileId,
-              name: post.user?.name || post.author?.name || post.user_name || post.author_name || profileName || 'Unknown',
-              avatar: avatarUrl,
-              image: userImage,
-            },
-            userAvatar: avatarUrl,
+            description: source?.description ?? source?.content ?? post?.description ?? post?.content ?? null,
+            content: source?.content ?? source?.description ?? post?.content ?? post?.description ?? null,
+            // Force media into the same "array of absolute URL strings" shape FeedItem expects,
+            // otherwise double-tap gestures & rendering can break.
+            images: resolvedImages.length > 0 ? resolvedImages : [],
             postImage: mediaUrl,
             image: mediaUrl,
+
+            // Counts should match ORIGINAL post
+            likes:
+              source?.likes ??
+              source?.likes_count ??
+              source?.likesCount ??
+              post?.likes ??
+              post?.likes_count ??
+              post?.likesCount ??
+              0,
+            comments:
+              source?.comments ??
+              source?.comments_count ??
+              source?.commentsCount ??
+              post?.comments ??
+              post?.comments_count ??
+              post?.commentsCount ??
+              0,
+            reposts:
+              source?.reposts ??
+              source?.reposts_count ??
+              source?.repostsCount ??
+              post?.reposts ??
+              post?.reposts_count ??
+              post?.repostsCount ??
+              0,
+            is_liked_by_user:
+              source?.is_liked_by_user ??
+              source?.isLikedByUser ??
+              post?.is_liked_by_user ??
+              post?.isLikedByUser ??
+              false,
+
+            // Keep the ORIGINAL author on the post header
+            user: {
+              ...(source.user || source.author || {}),
+              id:
+                source?.user?.id ||
+                source?.author?.id ||
+                source?.user_id ||
+                source?.userId ||
+                post?.user?.id ||
+                post?.author?.id ||
+                post?.user_id ||
+                post?.userId,
+              name:
+                source?.user?.name ||
+                source?.author?.name ||
+                source?.user_name ||
+                source?.author_name ||
+                'Unknown',
+              avatar: originalAvatarUrl,
+              image: originalUserImage,
+            },
+            userAvatar: originalAvatarUrl,
+
+            // Repost banner
+            reposted: true,
+            reposted_by: post?.reposted_by || post?.repostedBy || repostedBy,
+
+            // Preserve original source object for share payloads / future features
+            repost_of: source,
           };
-        })
-        .filter((post) => isRepostPost(post));
+        });
 
       setReposts(normalized);
     } catch (err) {
@@ -1989,7 +2154,14 @@ export default function ProfileScreen() {
 
         {/* Tab 3 — Reposts */}
         {activeTab === 2 && (
-          <RepostsTab reposts={repostedPosts} loading={repostsLoading} isDark={isDark} />
+          <RepostsGridTab
+            reposts={repostedPosts}
+            loading={repostsLoading}
+            isDark={isDark}
+            onPostPress={(post) =>
+              setSelectedRepostIndex(repostedPosts.findIndex((p) => p.id === post.id))
+            }
+          />
         )}
 
         {/* Bottom spacer */}
@@ -2181,6 +2353,50 @@ export default function ProfileScreen() {
             onScrollToIndexFailed={(info) => {
               // Fallback: wait for list to finish rendering then retry
               feedListRef.current?.scrollToOffset({
+                offset: 520 * info.index,
+                animated: false,
+              });
+            }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          />
+        </View>
+      </Modal>
+
+      {/* ─── Reposts Feed Modal (all reposts, scrolled to tapped index) ─── */}
+      <Modal
+        visible={selectedRepostIndex >= 0}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedRepostIndex(-1)}
+      >
+        <View className="flex-1 bg-light dark:bg-dark">
+          {/* Modal header */}
+          <View
+            className="flex-row items-center px-4 bg-light dark:bg-dark border-b border-black/10 dark:border-white/10"
+            style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+          >
+            <TouchableOpacity onPress={() => setSelectedRepostIndex(-1)} hitSlop={12} activeOpacity={0.7}>
+              <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
+            </TouchableOpacity>
+            <Text className="ml-3 text-base font-bold text-black dark:text-white">
+              {profile?.name || 'Reposts'}
+            </Text>
+          </View>
+
+          <FlatList
+            ref={repostFeedListRef}
+            data={repostedPosts}
+            keyExtractor={(item) => String(item.repost_entry_id ?? item.id)}
+            renderItem={({ item }) => <FeedItem item={item} />}
+            showsVerticalScrollIndicator={false}
+            initialScrollIndex={selectedRepostIndex >= 0 ? selectedRepostIndex : 0}
+            getItemLayout={(_, index) => ({
+              length: 520,
+              offset: 520 * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              repostFeedListRef.current?.scrollToOffset({
                 offset: 520 * info.index,
                 animated: false,
               });
