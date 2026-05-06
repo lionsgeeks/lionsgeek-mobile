@@ -29,7 +29,8 @@ const get = async (endpoint, Token) => {
             'Content-Type': 'application/json',
         };
 
-        const response = await axios.get(`${baseUrl}/api/${endpoint}`, { headers });
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.get(url, { headers });
         
         // Handle case where response.data is a string with HTML warnings + JSON
         if (typeof response.data === 'string') {
@@ -47,11 +48,15 @@ const get = async (endpoint, Token) => {
         
         return response;
     } catch (error) {
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
         const errorData = error?.response?.data;
         const errorMessage = typeof errorData === 'object' 
             ? JSON.stringify(errorData, null, 2)
             : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: GET\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        console.log(`API ERROR\nMethod: GET\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
         if (error?.response?.status) {
             console.log(`Status: ${error.response.status}`);
         }
@@ -90,7 +95,8 @@ const post = async (endpoint, data, Token) => {
             headers['Authorization'] = `Bearer ${Token}`;
         }
 
-        const response = await axios.post(`${baseUrl}/api/${endpoint}`, data, {
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.post(url, data, {
             headers,
             // Avoid custom transformRequest for FormData — it can break multipart in RN and cause Network Error
             timeout: 30000,
@@ -112,7 +118,16 @@ const post = async (endpoint, data, Token) => {
         
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: POST\nEndpoint: ${endpoint}\nError: ${error?.response?.data || error?.message}`);
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
+        const status = error?.response?.status;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: POST\nURL: ${url}\nEndpoint: ${endpoint}\nStatus: ${status ?? 'unknown'}\nError: ${errorMessage}`);
         throw error;
     }
 };
@@ -132,14 +147,19 @@ const put = async (endpoint, Token, data) => {
             'Content-Type': 'application/json',
         };
 
-        const response = await axios.put(`${baseUrl}/api/${endpoint}`, data, { headers });
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.put(url, data, { headers });
         return response;
     } catch (error) {
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
         const errorData = error?.response?.data;
         const errorMessage = typeof errorData === 'object'
             ? JSON.stringify(errorData, null, 2)
             : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: PUT\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        console.log(`API ERROR\nMethod: PUT\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
         throw error;
     }
 };
@@ -173,14 +193,19 @@ const remove = async (endpoint, Token) => {
             'Content-Type': 'application/json',
         };
 
-        const response = await axios.delete(`${baseUrl}/api/${endpoint}`, { headers });
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.delete(url, { headers });
         return response;
     } catch (error) {
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
         const errorData = error?.response?.data;
         const errorMessage = typeof errorData === 'object'
             ? JSON.stringify(errorData, null, 2)
             : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: DELETE\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        console.log(`API ERROR\nMethod: DELETE\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
         throw error;
     }
 };

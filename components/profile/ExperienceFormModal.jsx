@@ -34,6 +34,15 @@ const MONTHS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 2000;
+
+function buildYearOptions() {
+  const years = [];
+  for (let y = CURRENT_YEAR; y >= MIN_YEAR; y -= 1) years.push(y);
+  return years;
+}
+
+const YEAR_OPTIONS = buildYearOptions();
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -148,6 +157,54 @@ function MonthPicker({ label, icon, value, onChange, isDark }) {
   );
 }
 
+function YearPicker({ label, icon, value, onChange, isDark, disabled }) {
+  const selected = value ? Number(value) : null;
+  return (
+    <InputCard label={label} icon={icon} isDark={isDark}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingTop: 4, paddingBottom: 2 }}
+      >
+        {YEAR_OPTIONS.map((year) => {
+          const active = selected === year;
+          return (
+            <TouchableOpacity
+              key={year}
+              onPress={() => onChange(active ? '' : String(year))}
+              disabled={!!disabled}
+              activeOpacity={0.7}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                borderWidth: 1,
+                borderColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                opacity: disabled ? 0.45 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? '800' : '600',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                }}
+              >
+                {year}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </InputCard>
+  );
+}
+
 // ─── Main modal ───────────────────────────────────────────────────────────────
 
 /**
@@ -226,18 +283,27 @@ export default function ExperienceFormModal({
     }
   }, [visible, isEditMode, experience]);
 
+  // Clear end date parts when toggling to "current"
+  useEffect(() => {
+    if (!visible) return;
+    if (isCurrent) {
+      setEndMonth(null);
+      setEndYear('');
+    }
+  }, [isCurrent, visible]);
+
   // ── Validation ──
   const validate = () => {
     if (!title.trim()) {
       Alert.alert('Required', 'Please enter a job title or role.');
       return false;
     }
-    if (startYear && (isNaN(Number(startYear)) || Number(startYear) < 1950 || Number(startYear) > CURRENT_YEAR + 1)) {
-      Alert.alert('Invalid year', `Start year must be between 1950 and ${CURRENT_YEAR + 1}.`);
+    if (startYear && (isNaN(Number(startYear)) || Number(startYear) < MIN_YEAR || Number(startYear) > CURRENT_YEAR)) {
+      Alert.alert('Invalid year', `Start year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
       return false;
     }
-    if (!isCurrent && endYear && (isNaN(Number(endYear)) || Number(endYear) < 1950 || Number(endYear) > CURRENT_YEAR + 1)) {
-      Alert.alert('Invalid year', `End year must be between 1950 and ${CURRENT_YEAR + 1}.`);
+    if (!isCurrent && endYear && (isNaN(Number(endYear)) || Number(endYear) < MIN_YEAR || Number(endYear) > CURRENT_YEAR)) {
+      Alert.alert('Invalid year', `End year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
       return false;
     }
     return true;
@@ -279,15 +345,42 @@ export default function ExperienceFormModal({
           saved = res?.data?.data ?? res?.data ?? { ...experience, ...payload };
         }
       } else {
-        const res = await API.postWithAuth('mobile/profile/experiences', payload, token);
-        saved = res?.data?.data ?? res?.data ?? payload;
+        // Backend route naming differs across environments. Try a few common options.
+        const createEndpoints = [
+          'mobile/profile/experiences',
+          'mobile/profile/experience',
+          'mobile/experiences',
+          'mobile/experience',
+        ];
+
+        let lastError = null;
+        for (const endpoint of createEndpoints) {
+          try {
+            const res = await API.postWithAuth(endpoint, payload, token);
+            saved = res?.data?.data ?? res?.data ?? payload;
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err;
+            if (err?.response?.status !== 404) break; // don't hide non-404 errors (validation, auth, etc.)
+          }
+        }
+        if (lastError) throw lastError;
       }
 
       onSaved?.(saved);
       onClose();
     } catch (err) {
       console.error('[EXPERIENCE_FORM] save error:', err);
-      Alert.alert('Error', 'Could not save experience. Please try again.');
+      const status = err?.response?.status;
+      if (status === 404) {
+        Alert.alert(
+          'API route not found (404)',
+          'The app could not find the Experience endpoint on the server. Please check your backend routes for the mobile experience create endpoint.'
+        );
+      } else {
+        Alert.alert('Error', 'Could not save experience. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -306,12 +399,39 @@ export default function ExperienceFormModal({
           onPress: async () => {
             setDeleting(true);
             try {
-              await API.remove(`mobile/profile/experiences/${experience.id}`, token);
+              const deleteEndpoints = [
+                `mobile/profile/experiences/${experience.id}`,
+                `mobile/profile/experience/${experience.id}`,
+                `mobile/experiences/${experience.id}`,
+                `mobile/experience/${experience.id}`,
+              ];
+
+              let lastError = null;
+              for (const endpoint of deleteEndpoints) {
+                try {
+                  await API.remove(endpoint, token);
+                  lastError = null;
+                  break;
+                } catch (err) {
+                  lastError = err;
+                  if (err?.response?.status !== 404) break;
+                }
+              }
+              if (lastError) throw lastError;
+
               onDeleted?.(experience.id);
               onClose();
             } catch (err) {
               console.error('[EXPERIENCE_FORM] delete error:', err);
-              Alert.alert('Error', 'Could not delete experience. Please try again.');
+              const status = err?.response?.status;
+              if (status === 404) {
+                Alert.alert(
+                  'API route not found (404)',
+                  'The app could not find the Experience delete endpoint on the server. Please check your backend routes for the mobile experience delete endpoint.'
+                );
+              } else {
+                Alert.alert('Error', 'Could not delete experience. Please try again.');
+              }
             } finally {
               setDeleting(false);
             }
@@ -423,15 +543,13 @@ export default function ExperienceFormModal({
             onChange={setStartMonth}
             isDark={isDark}
           />
-          <InputCard label="Start Year" icon="calendar-number-outline" isDark={isDark}>
-            <StyledTextInput
-              value={startYear}
-              onChangeText={setStartYear}
-              placeholder={String(CURRENT_YEAR)}
-              keyboardType="number-pad"
-              isDark={isDark}
-            />
-          </InputCard>
+          <YearPicker
+            label="Start Year"
+            icon="calendar-number-outline"
+            value={startYear}
+            onChange={setStartYear}
+            isDark={isDark}
+          />
 
           {/* ── Currently working here toggle ── */}
           <TouchableOpacity
@@ -501,15 +619,13 @@ export default function ExperienceFormModal({
                 onChange={setEndMonth}
                 isDark={isDark}
               />
-              <InputCard label="End Year" icon="calendar-number-outline" isDark={isDark}>
-                <StyledTextInput
-                  value={endYear}
-                  onChangeText={setEndYear}
-                  placeholder={String(CURRENT_YEAR)}
-                  keyboardType="number-pad"
-                  isDark={isDark}
-                />
-              </InputCard>
+              <YearPicker
+                label="End Year"
+                icon="calendar-number-outline"
+                value={endYear}
+                onChange={setEndYear}
+                isDark={isDark}
+              />
             </>
           )}
 
