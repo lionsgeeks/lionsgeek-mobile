@@ -29,6 +29,7 @@ import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import ExperienceFormModal from '@/components/profile/ExperienceFormModal';
+import EducationFormModal from '@/components/profile/EducationFormModal';
 import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
@@ -1166,6 +1167,9 @@ export default function ProfileScreen() {
   const [selectedRepostIndex, setSelectedRepostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showCreateEducation, setShowCreateEducation] = useState(false);
+  const [showCreateExperience, setShowCreateExperience] = useState(false);
   const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -1727,6 +1731,16 @@ export default function ProfileScreen() {
     );
   }
 
+  const openCreateMenu = () => setShowCreateMenu(true);
+  const closeCreateMenu = () => setShowCreateMenu(false);
+
+  const handleCreateAction = (action) => {
+    closeCreateMenu();
+    if (action === 'post') setShowCreatePost(true);
+    if (action === 'education') setShowCreateEducation(true);
+    if (action === 'experience') setShowCreateExperience(true);
+  };
+
   return (
     <AppLayout showNavbar={false}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -1989,7 +2003,7 @@ export default function ProfileScreen() {
                 <Text className="ml-1.5 text-sm font-bold text-beta">Edit Profile</Text>
               </Pressable>
               <Pressable
-                onPress={() => setShowCreatePost(true)}
+                onPress={openCreateMenu}
                 className="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/15 items-center justify-center active:opacity-70"
               >
                 <Ionicons name="add-outline" size={20} color={isDark ? '#fff' : '#000'} />
@@ -2168,6 +2182,79 @@ export default function ProfileScreen() {
         <View style={{ height: insets.bottom + 32 }} />
       </ScrollView>
 
+      {/* ─── Create dropdown (Post / Education / Experience) ─── */}
+      <Modal
+        visible={showCreateMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCreateMenu}
+      >
+        <Pressable
+          onPress={closeCreateMenu}
+          className="flex-1 bg-black/35 justify-end"
+        >
+          <Pressable
+            onPress={() => {}}
+            className="bg-light dark:bg-dark rounded-t-3xl px-4 pt-4 pb-6 border-t border-black/10 dark:border-white/10"
+            style={{ paddingBottom: insets.bottom + 18 }}
+          >
+            <View className="items-center mb-3">
+              <View className="w-10 h-1.5 rounded-full bg-black/20 dark:bg-white/20" />
+            </View>
+
+            <Text className="text-base font-bold text-black dark:text-white mb-3">
+              Create
+            </Text>
+
+            <Pressable
+              onPress={() => handleCreateAction('post')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04]"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="create-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Post</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Share something with your network</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleCreateAction('education')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="school-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Education</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Add a school or certification</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleCreateAction('experience')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="briefcase-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Create Experience</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">Add a role to your resume</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+            </Pressable>
+
+            <Pressable onPress={closeCreateMenu} className="items-center py-3 mt-2">
+              <Text className="text-sm font-semibold text-black/60 dark:text-white/60">Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ─── Create Post Modal ─── */}
       {showCreatePost && (
         <Modal
@@ -2198,6 +2285,40 @@ export default function ProfileScreen() {
         onSaved={(updated) => {
           if (updated) setProfile((prev) => ({ ...prev, ...updated }));
         }}
+      />
+
+      {/* ─── Create Education Modal ─── */}
+      <EducationFormModal
+        visible={showCreateEducation}
+        education={null}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowCreateEducation(false)}
+        onSaved={(saved) => {
+          setProfile((prev) => {
+            if (!prev) return prev;
+            const current = Array.isArray(prev.education) ? prev.education : (Array.isArray(prev.educations) ? prev.educations : []);
+            return { ...prev, education: [saved, ...current] };
+          });
+        }}
+        onDeleted={() => {}}
+      />
+
+      {/* ─── Create Experience Modal (quick add from + menu) ─── */}
+      <ExperienceFormModal
+        visible={showCreateExperience}
+        experience={null}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowCreateExperience(false)}
+        onSaved={(saved) => {
+          setProfile((prev) => {
+            if (!prev) return prev;
+            const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+            return { ...prev, experiences: [saved, ...current] };
+          });
+        }}
+        onDeleted={() => {}}
       />
 
       {/* ─── Followers / Following Modal ─── */}
