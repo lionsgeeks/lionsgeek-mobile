@@ -313,6 +313,31 @@ function formatPeriod(startDate, endDate, isCurrent) {
   return `${start} – ${end}`;
 }
 
+function monthAbbr(month) {
+  const m = Number(month);
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (!Number.isFinite(m) || m < 1 || m > 12) return null;
+  return names[m - 1];
+}
+
+function formatMonthYear(month, year) {
+  const y = year != null ? String(year) : '';
+  const m = monthAbbr(month);
+  if (!m && !y) return null;
+  if (!m) return y;
+  if (!y) return m;
+  return `${m} ${y}`;
+}
+
+function formatPeriodFromParts(startMonth, startYear, endMonth, endYear, isCurrent) {
+  const start = formatMonthYear(startMonth, startYear);
+  const end = isCurrent ? 'Present' : formatMonthYear(endMonth, endYear);
+  if (!start && !end) return null;
+  if (!start) return end;
+  if (!end) return start;
+  return `${start} – ${end}`;
+}
+
 function calcDuration(startDate, endDate, isCurrent) {
   const start = startDate ? new Date(startDate) : null;
   const end = isCurrent || !endDate ? new Date() : new Date(endDate);
@@ -328,6 +353,37 @@ function calcDuration(startDate, endDate, isCurrent) {
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+async function tryFetchFirstList({ token, endpoints }) {
+  const listFrom = (payload) => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    // common nested response shapes: { data: [...] } or { data: { education: [...] } }
+    if (payload.data) {
+      const nested = listFrom(payload.data);
+      if (Array.isArray(nested) && nested.length >= 0) return nested;
+    }
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.posts)) return payload.posts;
+    if (Array.isArray(payload.feed)) return payload.feed;
+    if (Array.isArray(payload.experiences)) return payload.experiences;
+    if (Array.isArray(payload.education)) return payload.education;
+    if (Array.isArray(payload.educations)) return payload.educations;
+    if (Array.isArray(payload.experience)) return payload.experience;
+    return [];
+  };
+
+  for (const endpoint of endpoints) {
+    try {
+      const res = await API.getWithAuth(endpoint, token);
+      const list = listFrom(res?.data);
+      if (Array.isArray(list)) return list;
+    } catch (_err) {
+      // Try next candidate endpoint
+    }
+  }
+  return [];
 }
 
 // ─── About card ──────────────────────────────────────────────────────────────
@@ -376,7 +432,11 @@ function PostsPreviewCard({ posts, postsLoading, isDark, onViewAll, onPostPress 
             >
               {firstPost.body}
             </Text>
-          ) : null}
+          ) : (
+            <Text className="text-sm text-black/40 dark:text-white/40 px-4 mb-3">
+              Text post
+            </Text>
+          )}
 
           {firstPost.postImage ? (
             <Image
@@ -457,9 +517,15 @@ function ExperienceCard({ profile, isDark }) {
           const isCurrent = exp?.is_current ?? exp?.current ?? (!exp?.end_date && !exp?.to);
           const startDate = exp?.start_date ?? exp?.from ?? exp?.started_at ?? null;
           const endDate = exp?.end_date ?? exp?.to ?? exp?.ended_at ?? null;
+          const startMonth = exp?.start_month ?? exp?.startMonth ?? null;
+          const startYear = exp?.start_year ?? exp?.startYear ?? null;
+          const endMonth = exp?.end_month ?? exp?.endMonth ?? null;
+          const endYear = exp?.end_year ?? exp?.endYear ?? null;
           const location = exp?.location ?? exp?.city ?? exp?.place ?? null;
           const description = exp?.description ?? exp?.summary ?? null;
-          const period = formatPeriod(startDate, endDate, isCurrent);
+          const period =
+            formatPeriod(startDate, endDate, isCurrent) ??
+            formatPeriodFromParts(startMonth, startYear, endMonth, endYear, isCurrent);
           const duration = calcDuration(startDate, endDate, isCurrent);
           const isLast = idx === list.length - 1;
 
@@ -548,9 +614,15 @@ function EducationCard({ profile, isDark }) {
             edu?.field ?? edu?.field_of_study ?? edu?.specialization ?? edu?.major ?? null;
           const startDate = edu?.start_date ?? edu?.from ?? edu?.started_at ?? null;
           const endDate = edu?.end_date ?? edu?.to ?? edu?.ended_at ?? null;
+          const startMonth = edu?.start_month ?? edu?.startMonth ?? null;
+          const startYear = edu?.start_year ?? edu?.startYear ?? null;
+          const endMonth = edu?.end_month ?? edu?.endMonth ?? null;
+          const endYear = edu?.end_year ?? edu?.endYear ?? null;
           const isCurrent = edu?.is_current ?? edu?.current ?? !endDate;
           const description = edu?.description ?? edu?.activities ?? null;
-          const period = formatPeriod(startDate, endDate, isCurrent);
+          const period =
+            formatPeriod(startDate, endDate, isCurrent) ??
+            formatPeriodFromParts(startMonth, startYear, endMonth, endYear, isCurrent);
           const isLast = idx === list.length - 1;
 
           return (
@@ -686,7 +758,8 @@ export default function ProfileScreen() {
       if (isOwnProfile) {
         if (!token) { setProfile(currentUser); return; }
         const res = await API.getWithAuth('mobile/profile', token);
-        setProfile(res?.data || currentUser);
+        const next = res?.data || currentUser;
+        setProfile(next);
       } else {
         const res = await API.getWithAuth(`mobile/profile/${resolvedUserId}`, token);
         if (res?.data) setProfile(res.data);
@@ -704,10 +777,23 @@ export default function ProfileScreen() {
 
     setPostsLoading(true);
     try {
-      const res = await API.getWithAuth('mobile/feed', token);
-      const list = Array.isArray(res?.data?.feed ?? res?.data?.posts)
-        ? (res?.data?.feed ?? res?.data?.posts)
-        : [];
+      // Prefer backend endpoints that return a user's posts directly.
+      // Fallback to filtering `mobile/feed` only if needed.
+      const directCandidates = [
+        `mobile/profile/${profileId}/posts`,
+        `mobile/users/${profileId}/posts`,
+        `mobile/posts/user/${profileId}`,
+        `mobile/posts?user_id=${profileId}`,
+        `mobile/posts?userId=${profileId}`,
+      ];
+
+      let list = await tryFetchFirstList({ token, endpoints: directCandidates });
+      if (!Array.isArray(list) || list.length === 0) {
+        const res = await API.getWithAuth('mobile/feed', token);
+        list = Array.isArray(res?.data?.feed ?? res?.data?.posts)
+          ? (res?.data?.feed ?? res?.data?.posts)
+          : [];
+      }
 
       const normalized = list
         .filter((post) => {
@@ -715,12 +801,23 @@ export default function ProfileScreen() {
           return pid != null && Number(pid) === Number(profileId);
         })
         .map((post) => {
+          const body =
+            post?.body ??
+            post?.content ??
+            post?.text ??
+            post?.caption ??
+            post?.description ??
+            post?.message ??
+            post?.post_body ??
+            post?.postBody ??
+            null;
           const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
           const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
           const avatarUrl = resolveAvatarUrl(userAvatar || userImage);
           const mediaUrl = resolvePostMediaUrl(post);
           return {
             ...post,
+            body,
             user: {
               ...(post.user || post.author || {}),
               id: post.user?.id || post.author?.id || post.user_id || post.userId || profileId,
@@ -740,6 +837,42 @@ export default function ProfileScreen() {
       setPosts([]);
     } finally {
       setPostsLoading(false);
+    }
+  }, [token]);
+
+  const hydrateResumeSections = useCallback(async (profileId) => {
+    if (!token || !profileId) return;
+
+    // Experiences
+    const experiences = await tryFetchFirstList({
+      token,
+      endpoints: [
+        `mobile/profile/${profileId}/experiences`,
+        `mobile/profile/${profileId}/experience`,
+        `mobile/users/${profileId}/experiences`,
+        `mobile/users/${profileId}/experience`,
+      ],
+    });
+
+    // Education
+    const education = await tryFetchFirstList({
+      token,
+      endpoints: [
+        `mobile/profile/${profileId}/education`,
+        `mobile/profile/${profileId}/educations`,
+        `mobile/users/${profileId}/education`,
+        `mobile/users/${profileId}/educations`,
+      ],
+    });
+
+    if ((experiences && experiences.length > 0) || (education && education.length > 0)) {
+      setProfile((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if (experiences && experiences.length > 0) next.experiences = experiences;
+        if (education && education.length > 0) next.education = education;
+        return next;
+      });
     }
   }, [token]);
 
@@ -773,6 +906,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadPosts(profile?.id, profile?.name);
   }, [loadPosts, profile?.id, profile?.name]);
+
+  useEffect(() => {
+    hydrateResumeSections(profile?.id);
+  }, [hydrateResumeSections, profile?.id]);
 
   const onRefresh = useCallback(async () => {
     if (!token) return;
