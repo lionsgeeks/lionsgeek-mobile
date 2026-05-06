@@ -476,20 +476,38 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      {/* Dim overlay */}
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={handleClose} />
+      <View style={{ flex: 1 }}>
+        {/* Dim overlay */}
+        <Pressable
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            zIndex: 1,
+          }}
+          onPress={handleClose}
+        />
 
-      {/* Sheet */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          height: '78%',
-          backgroundColor: bgColor,
-          borderTopLeftRadius: 20, borderTopRightRadius: 20,
-          overflow: 'hidden',
-        }}
-      >
+        {/* Sheet */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '78%',
+            backgroundColor: bgColor,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            overflow: 'hidden',
+            zIndex: 2,
+            elevation: 2,
+          }}
+        >
         {/* Drag handle */}
         <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
           <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: handleColor }} />
@@ -711,7 +729,8 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             )}
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
