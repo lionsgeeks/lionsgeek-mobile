@@ -34,6 +34,23 @@ const MONTHS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 2000;
+
+function buildYearOptions() {
+  const years = [];
+  for (let y = CURRENT_YEAR; y >= MIN_YEAR; y -= 1) years.push(y);
+  return years;
+}
+
+const YEAR_OPTIONS = buildYearOptions();
+
+const EMPLOYMENT_TYPES = [
+  { value: 'full_time', label: 'Full-time' },
+  { value: 'part_time', label: 'Part-time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'internship', label: 'Internship' },
+];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -148,6 +165,95 @@ function MonthPicker({ label, icon, value, onChange, isDark }) {
   );
 }
 
+function YearPicker({ label, icon, value, onChange, isDark, disabled }) {
+  const selected = value ? Number(value) : null;
+  return (
+    <InputCard label={label} icon={icon} isDark={isDark}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingTop: 4, paddingBottom: 2 }}
+      >
+        {YEAR_OPTIONS.map((year) => {
+          const active = selected === year;
+          return (
+            <TouchableOpacity
+              key={year}
+              onPress={() => onChange(active ? '' : String(year))}
+              disabled={!!disabled}
+              activeOpacity={0.7}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                borderWidth: 1,
+                borderColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                opacity: disabled ? 0.45 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? '800' : '600',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                }}
+              >
+                {year}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </InputCard>
+  );
+}
+
+function EmploymentTypePicker({ value, onChange, isDark }) {
+  return (
+    <InputCard label="Employment Type *" icon="options-outline" isDark={isDark}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+        {EMPLOYMENT_TYPES.map((t) => {
+          const active = value === t.value;
+          return (
+            <TouchableOpacity
+              key={t.value}
+              onPress={() => onChange(active ? '' : t.value)}
+              activeOpacity={0.7}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                borderWidth: 1,
+                borderColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? '800' : '600',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                }}
+              >
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </InputCard>
+  );
+}
+
 // ─── Main modal ───────────────────────────────────────────────────────────────
 
 /**
@@ -178,6 +284,7 @@ export default function ExperienceFormModal({
   const [title, setTitle]               = useState('');
   const [company, setCompany]           = useState('');
   const [location, setLocation]         = useState('');
+  const [employmentType, setEmploymentType] = useState('');
   const [startMonth, setStartMonth]     = useState(null);
   const [startYear, setStartYear]       = useState('');
   const [isCurrent, setIsCurrent]       = useState(false);
@@ -194,6 +301,13 @@ export default function ExperienceFormModal({
       setTitle(experience.title ?? experience.position ?? experience.role ?? '');
       setCompany(experience.company ?? experience.company_name ?? experience.organization ?? '');
       setLocation(experience.location ?? experience.city ?? experience.place ?? '');
+      const rawEmploymentType = experience.employment_type ?? experience.employement_type ?? experience.employmentType ?? '';
+      // Normalize older free-text values into our limited set
+      const normalizedEmploymentType = String(rawEmploymentType)
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+      setEmploymentType(normalizedEmploymentType);
       setStartMonth(experience.start_month ?? experience.startMonth ?? null);
       setStartYear(String(experience.start_year ?? experience.startYear ?? ''));
       const hasEnd = !!(
@@ -217,6 +331,7 @@ export default function ExperienceFormModal({
       setTitle('');
       setCompany('');
       setLocation('');
+      setEmploymentType('');
       setStartMonth(null);
       setStartYear('');
       setIsCurrent(false);
@@ -226,19 +341,81 @@ export default function ExperienceFormModal({
     }
   }, [visible, isEditMode, experience]);
 
+  // Clear end date parts when toggling to "current"
+  useEffect(() => {
+    if (!visible) return;
+    if (isCurrent) {
+      setEndMonth(null);
+      setEndYear('');
+    }
+  }, [isCurrent, visible]);
+
   // ── Validation ──
   const validate = () => {
     if (!title.trim()) {
       Alert.alert('Required', 'Please enter a job title or role.');
       return false;
     }
-    if (startYear && (isNaN(Number(startYear)) || Number(startYear) < 1950 || Number(startYear) > CURRENT_YEAR + 1)) {
-      Alert.alert('Invalid year', `Start year must be between 1950 and ${CURRENT_YEAR + 1}.`);
+    if (!company.trim()) {
+      Alert.alert('Required', 'Please enter a company / organization.');
       return false;
     }
-    if (!isCurrent && endYear && (isNaN(Number(endYear)) || Number(endYear) < 1950 || Number(endYear) > CURRENT_YEAR + 1)) {
-      Alert.alert('Invalid year', `End year must be between 1950 and ${CURRENT_YEAR + 1}.`);
+    if (!location.trim()) {
+      Alert.alert('Required', 'Please enter a location.');
       return false;
+    }
+    if (!employmentType.trim()) {
+      Alert.alert('Required', 'Please enter an employment type.');
+      return false;
+    }
+    if (!EMPLOYMENT_TYPES.some((t) => t.value === employmentType.trim())) {
+      Alert.alert('Invalid value', 'Please select a valid employment type.');
+      return false;
+    }
+    if (startMonth == null) {
+      Alert.alert('Required', 'Please select a start month.');
+      return false;
+    }
+    if (!startYear) {
+      Alert.alert('Required', 'Please select a start year.');
+      return false;
+    }
+    if (startYear && (isNaN(Number(startYear)) || Number(startYear) < MIN_YEAR || Number(startYear) > CURRENT_YEAR)) {
+      Alert.alert('Invalid year', `Start year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
+      return false;
+    }
+    if (!isCurrent) {
+      if (endMonth == null) {
+        Alert.alert('Required', 'Please select an end month.');
+        return false;
+      }
+      if (!endYear) {
+        Alert.alert('Required', 'Please select an end year.');
+        return false;
+      }
+    }
+    if (!isCurrent && endYear && (isNaN(Number(endYear)) || Number(endYear) < MIN_YEAR || Number(endYear) > CURRENT_YEAR)) {
+      Alert.alert('Invalid year', `End year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
+      return false;
+    }
+
+    // Logical date validation: end date must be >= start date (when both are provided)
+    if (!isCurrent) {
+      const sy = startYear ? Number(startYear) : null;
+      const ey = endYear ? Number(endYear) : null;
+      const sm = startMonth != null ? Number(startMonth) : null;
+      const em = endMonth != null ? Number(endMonth) : null;
+
+      if (Number.isFinite(sy) && Number.isFinite(ey)) {
+        if (ey < sy) {
+          Alert.alert('Invalid date', 'End year cannot be before start year.');
+          return false;
+        }
+        if (ey === sy && Number.isFinite(sm) && Number.isFinite(em) && em < sm) {
+          Alert.alert('Invalid date', 'End month cannot be before start month (in the same year).');
+          return false;
+        }
+      }
     }
     return true;
   };
@@ -252,6 +429,7 @@ export default function ExperienceFormModal({
         title:       title.trim(),
         company:     company.trim(),
         location:    location.trim(),
+        employment_type: employmentType.trim(),
         start_month: startMonth ?? undefined,
         start_year:  startYear ? Number(startYear) : undefined,
         is_current:  isCurrent,
@@ -279,15 +457,42 @@ export default function ExperienceFormModal({
           saved = res?.data?.data ?? res?.data ?? { ...experience, ...payload };
         }
       } else {
-        const res = await API.postWithAuth('mobile/profile/experiences', payload, token);
-        saved = res?.data?.data ?? res?.data ?? payload;
+        // Backend route naming differs across environments. Try a few common options.
+        const createEndpoints = [
+          'mobile/profile/experiences',
+          'mobile/profile/experience',
+          'mobile/experiences',
+          'mobile/experience',
+        ];
+
+        let lastError = null;
+        for (const endpoint of createEndpoints) {
+          try {
+            const res = await API.postWithAuth(endpoint, payload, token);
+            saved = res?.data?.data ?? res?.data ?? payload;
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err;
+            if (err?.response?.status !== 404) break; // don't hide non-404 errors (validation, auth, etc.)
+          }
+        }
+        if (lastError) throw lastError;
       }
 
       onSaved?.(saved);
       onClose();
     } catch (err) {
       console.error('[EXPERIENCE_FORM] save error:', err);
-      Alert.alert('Error', 'Could not save experience. Please try again.');
+      const status = err?.response?.status;
+      if (status === 404) {
+        Alert.alert(
+          'API route not found (404)',
+          'The app could not find the Experience endpoint on the server. Please check your backend routes for the mobile experience create endpoint.'
+        );
+      } else {
+        Alert.alert('Error', 'Could not save experience. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -306,12 +511,39 @@ export default function ExperienceFormModal({
           onPress: async () => {
             setDeleting(true);
             try {
-              await API.remove(`mobile/profile/experiences/${experience.id}`, token);
+              const deleteEndpoints = [
+                `mobile/profile/experiences/${experience.id}`,
+                `mobile/profile/experience/${experience.id}`,
+                `mobile/experiences/${experience.id}`,
+                `mobile/experience/${experience.id}`,
+              ];
+
+              let lastError = null;
+              for (const endpoint of deleteEndpoints) {
+                try {
+                  await API.remove(endpoint, token);
+                  lastError = null;
+                  break;
+                } catch (err) {
+                  lastError = err;
+                  if (err?.response?.status !== 404) break;
+                }
+              }
+              if (lastError) throw lastError;
+
               onDeleted?.(experience.id);
               onClose();
             } catch (err) {
               console.error('[EXPERIENCE_FORM] delete error:', err);
-              Alert.alert('Error', 'Could not delete experience. Please try again.');
+              const status = err?.response?.status;
+              if (status === 404) {
+                Alert.alert(
+                  'API route not found (404)',
+                  'The app could not find the Experience delete endpoint on the server. Please check your backend routes for the mobile experience delete endpoint.'
+                );
+              } else {
+                Alert.alert('Error', 'Could not delete experience. Please try again.');
+              }
             } finally {
               setDeleting(false);
             }
@@ -415,6 +647,9 @@ export default function ExperienceFormModal({
             />
           </InputCard>
 
+          {/* ── Employment type ── */}
+          <EmploymentTypePicker value={employmentType} onChange={setEmploymentType} isDark={isDark} />
+
           {/* ── Start date ── */}
           <MonthPicker
             label="Start Month"
@@ -423,15 +658,13 @@ export default function ExperienceFormModal({
             onChange={setStartMonth}
             isDark={isDark}
           />
-          <InputCard label="Start Year" icon="calendar-number-outline" isDark={isDark}>
-            <StyledTextInput
-              value={startYear}
-              onChangeText={setStartYear}
-              placeholder={String(CURRENT_YEAR)}
-              keyboardType="number-pad"
-              isDark={isDark}
-            />
-          </InputCard>
+          <YearPicker
+            label="Start Year"
+            icon="calendar-number-outline"
+            value={startYear}
+            onChange={setStartYear}
+            isDark={isDark}
+          />
 
           {/* ── Currently working here toggle ── */}
           <TouchableOpacity
@@ -501,15 +734,13 @@ export default function ExperienceFormModal({
                 onChange={setEndMonth}
                 isDark={isDark}
               />
-              <InputCard label="End Year" icon="calendar-number-outline" isDark={isDark}>
-                <StyledTextInput
-                  value={endYear}
-                  onChangeText={setEndYear}
-                  placeholder={String(CURRENT_YEAR)}
-                  keyboardType="number-pad"
-                  isDark={isDark}
-                />
-              </InputCard>
+              <YearPicker
+                label="End Year"
+                icon="calendar-number-outline"
+                value={endYear}
+                onChange={setEndYear}
+                isDark={isDark}
+              />
             </>
           )}
 
