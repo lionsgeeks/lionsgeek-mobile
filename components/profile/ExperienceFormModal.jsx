@@ -306,6 +306,25 @@ export default function ExperienceFormModal({
       Alert.alert('Invalid year', `End year must be between ${MIN_YEAR} and ${CURRENT_YEAR}.`);
       return false;
     }
+
+    // Logical date validation: end date must be >= start date (when both are provided)
+    if (!isCurrent) {
+      const sy = startYear ? Number(startYear) : null;
+      const ey = endYear ? Number(endYear) : null;
+      const sm = startMonth != null ? Number(startMonth) : null;
+      const em = endMonth != null ? Number(endMonth) : null;
+
+      if (Number.isFinite(sy) && Number.isFinite(ey)) {
+        if (ey < sy) {
+          Alert.alert('Invalid date', 'End year cannot be before start year.');
+          return false;
+        }
+        if (ey === sy && Number.isFinite(sm) && Number.isFinite(em) && em < sm) {
+          Alert.alert('Invalid date', 'End month cannot be before start month (in the same year).');
+          return false;
+        }
+      }
+    }
     return true;
   };
 
