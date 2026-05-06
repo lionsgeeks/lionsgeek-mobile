@@ -44,6 +44,14 @@ function buildYearOptions() {
 
 const YEAR_OPTIONS = buildYearOptions();
 
+const EMPLOYMENT_TYPES = [
+  { value: 'full_time', label: 'Full-time' },
+  { value: 'part_time', label: 'Part-time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'internship', label: 'Internship' },
+];
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function FormLabel({ icon, text, isDark }) {
@@ -205,6 +213,47 @@ function YearPicker({ label, icon, value, onChange, isDark, disabled }) {
   );
 }
 
+function EmploymentTypePicker({ value, onChange, isDark }) {
+  return (
+    <InputCard label="Employment Type *" icon="options-outline" isDark={isDark}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+        {EMPLOYMENT_TYPES.map((t) => {
+          const active = value === t.value;
+          return (
+            <TouchableOpacity
+              key={t.value}
+              onPress={() => onChange(active ? '' : t.value)}
+              activeOpacity={0.7}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                borderWidth: 1,
+                borderColor: active
+                  ? '#ffc801'
+                  : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? '800' : '600',
+                  color: active ? '#212529' : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.65)',
+                }}
+              >
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </InputCard>
+  );
+}
+
 // ─── Main modal ───────────────────────────────────────────────────────────────
 
 /**
@@ -252,7 +301,13 @@ export default function ExperienceFormModal({
       setTitle(experience.title ?? experience.position ?? experience.role ?? '');
       setCompany(experience.company ?? experience.company_name ?? experience.organization ?? '');
       setLocation(experience.location ?? experience.city ?? experience.place ?? '');
-      setEmploymentType(experience.employment_type ?? experience.employement_type ?? experience.employmentType ?? '');
+      const rawEmploymentType = experience.employment_type ?? experience.employement_type ?? experience.employmentType ?? '';
+      // Normalize older free-text values into our limited set
+      const normalizedEmploymentType = String(rawEmploymentType)
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+      setEmploymentType(normalizedEmploymentType);
       setStartMonth(experience.start_month ?? experience.startMonth ?? null);
       setStartYear(String(experience.start_year ?? experience.startYear ?? ''));
       const hasEnd = !!(
@@ -311,6 +366,10 @@ export default function ExperienceFormModal({
     }
     if (!employmentType.trim()) {
       Alert.alert('Required', 'Please enter an employment type.');
+      return false;
+    }
+    if (!EMPLOYMENT_TYPES.some((t) => t.value === employmentType.trim())) {
+      Alert.alert('Invalid value', 'Please select a valid employment type.');
       return false;
     }
     if (startMonth == null) {
@@ -589,14 +648,7 @@ export default function ExperienceFormModal({
           </InputCard>
 
           {/* ── Employment type ── */}
-          <InputCard label="Employment Type *" icon="options-outline" isDark={isDark}>
-            <StyledTextInput
-              value={employmentType}
-              onChangeText={setEmploymentType}
-              placeholder="e.g. Full-time"
-              isDark={isDark}
-            />
-          </InputCard>
+          <EmploymentTypePicker value={employmentType} onChange={setEmploymentType} isDark={isDark} />
 
           {/* ── Start date ── */}
           <MonthPicker
