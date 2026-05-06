@@ -340,6 +340,9 @@ export default function FeedItem({ item, onPress }) {
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [repostedByMe, setRepostedByMe] = useState(Boolean(item.isReposted || item.is_reposted_by_user));
+  const [repostCount, setRepostCount] = useState(item.reposts || 0);
+  const [repostLoading, setRepostLoading] = useState(false);
 
   // Send/Share (Instagram-like) modal state
   const [showSendPost, setShowSendPost] = useState(false);
@@ -365,7 +368,6 @@ export default function FeedItem({ item, onPress }) {
   const screenWidth = Dimensions.get('window').width;
   const displayName = item.user?.name || 'Unknown';
   const caption = item.description || item.content || '';
-  const repostCount = item.reposts || 0;
   const isOwner = (user?.id && item.user?.id) ? Number(user.id) === Number(item.user.id) : false;
   const profileUserId = item.user?.id ?? item.userId ?? item.user_id ?? item.user?.user_id;
 
@@ -429,6 +431,33 @@ export default function FeedItem({ item, onPress }) {
   const handleDoubleTapLike = () => {
     // Instagram behavior: double tap only LIKES (doesn't unlike)
     if (!liked) handleLike();
+  };
+
+  const handleRepost = async () => {
+    if (repostLoading) return;
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+
+    if (repostedByMe) {
+      Alert.alert('Reposted', 'You already reposted this post.');
+      return;
+    }
+
+    setRepostLoading(true);
+    setRepostedByMe(true);
+    setRepostCount((c) => c + 1);
+
+    try {
+      await API.post('mobile/posts/repost', { post_id: item.id }, token);
+    } catch (_error) {
+      setRepostedByMe(false);
+      setRepostCount((c) => Math.max(0, c - 1));
+      Alert.alert('Error', 'Failed to repost. Please try again.');
+    } finally {
+      setRepostLoading(false);
+    }
   };
 
   const iconColor = isDark ? '#e5e5e5' : '#262626';
@@ -569,11 +598,11 @@ export default function FeedItem({ item, onPress }) {
       }}
     >
       {/* ── Repost banner ── */}
-      {item.reposted ? (
+      {(item.reposted || repostedByMe) ? (
         <View className="flex-row items-center px-4 pt-3 pb-1">
           <Ionicons name="repeat" size={14} color={mutedColor} />
           <Text style={{ color: mutedColor }} className="text-xs ml-1 font-semibold">
-            {item.reposted_by || 'Someone'} reposted
+            {item.reposted_by || (repostedByMe ? (user?.name || 'You') : 'Someone')} reposted
           </Text>
         </View>
       ) : null}
@@ -763,6 +792,19 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleRepost}
+              disabled={repostLoading}
+              className="active:opacity-60"
+              style={{ opacity: repostLoading ? 0.6 : 1 }}
+            >
+              {repostLoading ? (
+                <ActivityIndicator size="small" color="#ffc801" />
+              ) : (
+                <Ionicons name={repostedByMe ? 'repeat' : 'repeat-outline'} size={24} color={repostedByMe ? '#ffc801' : iconColor} />
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
