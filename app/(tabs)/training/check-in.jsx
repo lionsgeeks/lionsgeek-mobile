@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +24,7 @@ import {
   CHECKIN_UNAVAILABLE_TITLE,
   NETWORK_RESTRICTED_FALLBACK,
   checkAttendanceNetwork,
-  deriveButtonUi,
+  deriveCheckInScreenUi,
   fetchSlotStatus,
   formatCheckInSuccessMessage,
   getApiMessage,
@@ -26,6 +35,118 @@ import {
 
 const SLOT_STATUS_POLL_MS = 60_000;
 
+/** Visual tokens: prefer Colors.*; hex only where no matching token exists. */
+const V = {
+  screenBg: '#0b0b0c',
+  screenBgLight: Colors.light,
+  cardBg: Colors.card_dark,
+  cardBgLight: Colors.card,
+  border: Colors.card_border_dark,
+  primaryText: Colors.light,
+  primaryTextLight: Colors.beta,
+  secondaryText: '#8a8a8e',
+  tertiaryText: '#5f5f61',
+  accent: Colors.alpha,
+  onAccent: '#1a1400',
+  success: Colors.good,
+  danger: Colors.error,
+};
+
+function WifiPill({ networkStatus, networkMessage, onRetry, isDark }) {
+  if (networkStatus === 'checking') {
+    return (
+      <View style={styles.pillChecking}>
+        <ActivityIndicator size="small" color={V.secondaryText} />
+        <Text style={styles.pillCheckingText}>Checking connection</Text>
+      </View>
+    );
+  }
+
+  if (networkStatus === 'ok') {
+    return (
+      <View style={styles.pillSuccess}>
+        <Ionicons name="wifi-outline" size={14} color={V.success} />
+        <Text style={styles.pillSuccessText}>On school wifi</Text>
+      </View>
+    );
+  }
+
+  if (networkStatus === 'restricted' || networkStatus === 'unavailable') {
+    return (
+      <Pressable
+        style={styles.pillDanger}
+        onPress={onRetry}
+        accessibilityRole="button"
+        accessibilityLabel={networkMessage || 'Not on school wifi. Tap to check again.'}
+      >
+        <Ionicons name="wifi-outline" size={14} color={V.danger} />
+        <Text style={styles.pillDangerText}>Not on school wifi</Text>
+      </Pressable>
+    );
+  }
+
+  return null;
+}
+
+function StatusCard({ ui, isDark, onRetry }) {
+  const iconColor =
+    ui.iconTone === 'success'
+      ? V.success
+      : ui.iconTone === 'warning'
+        ? V.accent
+        : ui.iconTone === 'error'
+          ? V.danger
+          : isDark
+            ? V.secondaryText
+            : Colors.beta;
+
+  return (
+    <View
+      style={[styles.statusCard, !isDark && styles.statusCardLight]}
+      accessibilityRole="text"
+      accessibilityLabel={`${ui.primaryLine}. ${ui.secondaryLine || ''}`}
+    >
+      <View
+        style={[
+          styles.statusIconWrap,
+          ui.iconTone === 'success' && styles.statusIconWrapSuccess,
+          ui.iconTone === 'warning' && styles.statusIconWrapWarning,
+        ]}
+      >
+        <Ionicons name={ui.icon} size={26} color={iconColor} />
+      </View>
+      <Text style={[styles.statusPrimary, !isDark && styles.statusPrimaryLight]}>
+        {ui.primaryLine}
+      </Text>
+      {ui.secondaryLine ? (
+        <Text style={styles.statusSecondary}>{ui.secondaryLine}</Text>
+      ) : null}
+      {ui.mode === 'error' && onRetry ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.retryButton,
+            !isDark && styles.retryButtonLight,
+            pressed && styles.pressed,
+          ]}
+          onPress={onRetry}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading attendance status"
+          className={`px-4 flex flex-row gap-x-2 py-2  rounded-md mt-2`}
+        >
+          <Ionicons
+            name="refresh-outline"
+            size={16}
+            color={isDark ? V.primaryText : V.primaryTextLight}
+          />
+          <Text style={[styles.retryButtonText, !isDark && styles.retryButtonTextLight]}>
+            Retry
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function AttendanceCheckIn() {
   const router = useRouter();
   const { token, user } = useAppContext();
@@ -34,26 +155,50 @@ export default function AttendanceCheckIn() {
 
   const formationId = user?.formation_id != null ? Number(user.formation_id) : null;
   const pollRef = useRef(null);
+  const fetchInFlightRef = useRef(false);
 
   const [slotStatus, setSlotStatus] = useState(null);
   const [slotLoading, setSlotLoading] = useState(true);
+  const [slotFetchError, setSlotFetchError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   const [networkStatus, setNetworkStatus] = useState(null);
   const [networkMessage, setNetworkMessage] = useState('');
+  const [lastCheckInResult, setLastCheckInResult] = useState(null);
 
-  const buttonUi = useMemo(() => deriveButtonUi(slotStatus), [slotStatus]);
+  const screenUi = useMemo(
+    () =>
+      deriveCheckInScreenUi(slotStatus, {
+        networkStatus,
+        slotFetchError,
+        lastCheckInResult,
+      }),
+    [slotStatus, networkStatus, slotFetchError, lastCheckInResult],
+  );
 
-  const refreshSlotStatus = useCallback(async () => {
-    if (!token || !formationId || !isStudentUser(user)) return;
-    try {
-      const data = await fetchSlotStatus(token, formationId);
-      setSlotStatus(data);
-    } catch (error) {
-      console.error('[CHECK-IN] slot-status error:', error);
-    } finally {
-      setSlotLoading(false);
-    }
-  }, [token, formationId, user]);
+  const refreshSlotStatus = useCallback(
+    async ({ fromPull = false } = {}) => {
+      if (!token || !formationId || !isStudentUser(user)) return;
+      if (fetchInFlightRef.current && !fromPull) return;
+
+      fetchInFlightRef.current = true;
+      if (fromPull) setRefreshing(true);
+
+      try {
+        const data = await fetchSlotStatus(token, formationId);
+        setSlotStatus(data);
+        setSlotFetchError(false);
+      } catch (error) {
+        console.error('[CHECK-IN] slot-status error:', error);
+        setSlotFetchError(true);
+      } finally {
+        setSlotLoading(false);
+        setRefreshing(false);
+        fetchInFlightRef.current = false;
+      }
+    },
+    [token, formationId, user],
+  );
 
   const checkNetwork = useCallback(async () => {
     if (!token || isStaffUser(user)) {
@@ -91,7 +236,9 @@ export default function AttendanceCheckIn() {
   useEffect(() => {
     if (!token || !formationId || !isStudentUser(user)) return undefined;
 
-    pollRef.current = setInterval(refreshSlotStatus, SLOT_STATUS_POLL_MS);
+    pollRef.current = setInterval(() => {
+      refreshSlotStatus();
+    }, SLOT_STATUS_POLL_MS);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -115,6 +262,7 @@ export default function AttendanceCheckIn() {
                 formation_id: formationId,
                 attendance_day: slotStatus.attendance_day,
               });
+              setLastCheckInResult(data);
               Alert.alert('Attendance Marked', formatCheckInSuccessMessage(data));
               await refreshSlotStatus();
             } catch (retryError) {
@@ -138,7 +286,7 @@ export default function AttendanceCheckIn() {
   );
 
   const handleCheckIn = useCallback(async () => {
-    if (!token || !formationId || !slotStatus?.attendance_day || checkingIn || !buttonUi.actionable) {
+    if (!token || !formationId || !slotStatus?.attendance_day || checkingIn || !screenUi.actionable) {
       return;
     }
 
@@ -148,6 +296,7 @@ export default function AttendanceCheckIn() {
         formation_id: formationId,
         attendance_day: slotStatus.attendance_day,
       });
+      setLastCheckInResult(data);
       Alert.alert('Attendance Marked', formatCheckInSuccessMessage(data));
       await refreshSlotStatus();
     } catch (error) {
@@ -174,18 +323,22 @@ export default function AttendanceCheckIn() {
     formationId,
     slotStatus,
     checkingIn,
-    buttonUi.actionable,
+    screenUi.actionable,
     refreshSlotStatus,
     handleCheckInRestricted,
   ]);
 
+  const onPullRefresh = useCallback(async () => {
+    await Promise.all([refreshSlotStatus({ fromPull: true }), checkNetwork()]);
+  }, [refreshSlotStatus, checkNetwork]);
+
   if (isStaffUser(user)) {
     return (
       <AppLayout>
-        <View style={styles.centered(isDark)}>
-          <Ionicons name="lock-closed-outline" size={48} color={Colors.alpha} />
-          <Text style={styles.title(isDark)}>Student check-in only</Text>
-          <Text style={styles.subtitle(isDark)}>
+        <View style={[styles.centered, { backgroundColor: isDark ? V.screenBg : V.screenBgLight }]}>
+          <Ionicons name="lock-closed-outline" size={48} color={V.accent} />
+          <Text style={[styles.guardTitle, !isDark && styles.guardTitleLight]}>Student check-in only</Text>
+          <Text style={styles.guardSubtitle}>
             Attendance check-in is available to enrolled students.
           </Text>
           <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
@@ -199,10 +352,10 @@ export default function AttendanceCheckIn() {
   if (!formationId) {
     return (
       <AppLayout>
-        <View style={styles.centered(isDark)}>
-          <Ionicons name="school-outline" size={48} color={Colors.alpha} />
-          <Text style={styles.title(isDark)}>No training enrolled</Text>
-          <Text style={styles.subtitle(isDark)}>
+        <View style={[styles.centered, { backgroundColor: isDark ? V.screenBg : V.screenBgLight }]}>
+          <Ionicons name="school-outline" size={48} color={V.accent} />
+          <Text style={[styles.guardTitle, !isDark && styles.guardTitleLight]}>No training enrolled</Text>
+          <Text style={styles.guardSubtitle}>
             You need an active training enrollment to check in. Contact staff if this looks wrong.
           </Text>
           <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
@@ -213,96 +366,145 @@ export default function AttendanceCheckIn() {
     );
   }
 
+  const showSkeleton = slotLoading && !slotStatus && !slotFetchError;
+  const showCta = screenUi.mode === 'ready' && !showSkeleton;
+  const showStatusCard = !showSkeleton && !showCta;
+  const ctaIconColor = screenUi.mutedCta ? V.tertiaryText : V.onAccent;
+  const ctaSpinnerColor = screenUi.mutedCta ? V.tertiaryText : V.onAccent;
+
   return (
-    <AppLayout>
-      <View style={styles.screen(isDark)}>
+    <AppLayout className={isDark ? 'bg-[#0b0b0c] dark:bg-[#0b0b0c]' : ''}>
+      <View style={[styles.screen, { backgroundColor: isDark ? V.screenBg : V.screenBgLight }]}>
         <View style={styles.headerRow}>
-          <Pressable style={styles.backButton(isDark)} onPress={() => router.back()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={isDark ? Colors.light : Colors.beta} />
+          <Pressable
+            style={[styles.backButton, !isDark && styles.backButtonLight]}
+            onPress={() => router.back()}
+            hitSlop={8}
+          >
+            <Ionicons name="chevron-back" size={22} color={isDark ? V.primaryText : V.primaryTextLight} />
           </Pressable>
-          <Text style={styles.headerTitle(isDark)}>Mark attendance</Text>
+          <Text style={[styles.headerTitle, !isDark && styles.headerTitleLight]}>Mark attendance</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        {networkStatus === 'restricted' && (
-          <View style={styles.networkBannerRestricted}>
-            <Ionicons name="wifi-outline" size={18} color={Colors.light} />
-            <Text style={styles.networkBannerText}>{networkMessage}</Text>
-            <Pressable onPress={checkNetwork} style={styles.networkBannerAction}>
-              <Text style={styles.networkBannerActionText}>Check again</Text>
-            </Pressable>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onPullRefresh}
+              tintColor={V.accent}
+              colors={[V.accent]}
+            />
+          }
+        >
+          <View style={styles.topStack}>
+            {slotFetchError && networkStatus == null ? (
+              <View style={styles.pillChecking}>
+                <Ionicons name="wifi-outline" size={14} color={V.secondaryText} />
+                <Text style={styles.pillCheckingText}>Checking connection</Text>
+              </View>
+            ) : (
+              <WifiPill
+                networkStatus={networkStatus}
+                networkMessage={networkMessage}
+                onRetry={checkNetwork}
+                isDark={isDark}
+              />
+            )}
+
+            {showCta && screenUi.sessionRangeLabel ? (
+              <Text style={styles.sessionRange}>{screenUi.sessionRangeLabel}</Text>
+            ) : null}
           </View>
-        )}
 
-        {networkStatus === 'unavailable' && (
-          <View style={styles.networkBannerUnavailable}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.light} />
-            <Text style={styles.networkBannerText}>{networkMessage}</Text>
+          <View style={styles.content}>
+            {showSkeleton ? (
+              <View style={styles.loadingBlock}>
+                <Skeleton width={280} height={88} borderRadius={14} isDark={isDark} />
+                <View style={{ height: 16 }} />
+                <Skeleton width={200} height={12} borderRadius={8} isDark={isDark} />
+              </View>
+            ) : null}
+
+            {showCta ? (
+              <View style={styles.readyBlock}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.checkInButton,
+                    screenUi.mutedCta && styles.checkInButtonMuted,
+                    pressed && !checkingIn && styles.pressed,
+                  ]}
+                  onPress={handleCheckIn}
+                  disabled={checkingIn}
+                  accessibilityRole="button"
+                  accessibilityLabel={screenUi.label}
+                >
+                  {checkingIn ? (
+                    <ActivityIndicator color={ctaSpinnerColor} />
+                  ) : (
+                    <View className='flex items-center justify-center gap-2'>
+                      <Ionicons name="location-outline" size={28} color={ctaIconColor} />
+                      <Text
+                        style={[
+                          styles.checkInButtonText,
+                          screenUi.mutedCta && styles.checkInButtonTextMuted,
+                        ]}
+                      >
+                        {screenUi.label}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+                {screenUi.helperText ? (
+                  <Text
+                    style={[
+                      styles.helperText,
+                      screenUi.helperTone === 'danger' && styles.helperTextDanger,
+                    ]}
+                  >
+                    {screenUi.helperText}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {showStatusCard ? (
+              <>
+                <StatusCard ui={screenUi} isDark={isDark} onRetry={() => refreshSlotStatus()} />
+                {screenUi.nextSlotBanner ? (
+                  <View style={[styles.nextSlotBanner, !isDark && styles.nextSlotBannerLight]}>
+                    <Text style={styles.nextSlotLeft}>{screenUi.nextSlotBanner.left}</Text>
+                    {screenUi.nextSlotBanner.right ? (
+                      <Text style={[styles.nextSlotRight, !isDark && styles.nextSlotRightLight]}>
+                        {screenUi.nextSlotBanner.right}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                {screenUi.helperText ? (
+                  <Text style={styles.helperText}>{screenUi.helperText}</Text>
+                ) : null}
+              </>
+            ) : null}
           </View>
-        )}
-
-        {networkStatus === 'ok' && (
-          <View style={styles.networkBannerOk(isDark)}>
-            <Ionicons name="wifi" size={16} color={Colors.good} />
-            <Text style={styles.networkBannerOkText}>On school WiFi</Text>
-          </View>
-        )}
-
-        {buttonUi.showReminderBanner ? (
-          <View style={styles.reminderBanner}>
-            <Ionicons name="notifications-outline" size={18} color={Colors.beta} />
-            <Text style={styles.reminderBannerText}>{buttonUi.reminderBannerText}</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.content}>
-          {slotLoading && !slotStatus ? (
-            <View style={styles.loadingBlock}>
-              <Skeleton width={280} height={56} borderRadius={16} isDark={isDark} />
-              <View style={{ height: 16 }} />
-              <Skeleton width={220} height={14} borderRadius={10} isDark={isDark} />
-            </View>
-          ) : (
-            <>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.checkInButton,
-                  buttonUi.disabled && styles.checkInButtonDisabled,
-                  pressed && !buttonUi.disabled && !checkingIn && styles.checkInButtonPressed,
-                ]}
-                onPress={handleCheckIn}
-                disabled={buttonUi.disabled || checkingIn}
-              >
-                {checkingIn ? (
-                  <ActivityIndicator color={Colors.light} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={buttonUi.disabled ? 'checkmark-circle-outline' : 'finger-print-outline'}
-                      size={28}
-                      color={Colors.light}
-                    />
-                    <Text style={styles.checkInButtonText}>{buttonUi.label}</Text>
-                  </>
-                )}
-              </Pressable>
-
-              <Text style={styles.helperText(isDark)}>
-                Attendance timing is managed by the server. Connect to school WiFi before checking in.
-              </Text>
-            </>
-          )}
-        </View>
+        </ScrollView>
       </View>
     </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: (isDark) => ({
+  screen: {
     flex: 1,
-    backgroundColor: isDark ? Colors.dark : Colors.light,
-  }),
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 32,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -311,27 +513,133 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
-  backButton: (isDark) => ({
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: isDark ? Colors.dark_gray : Colors.light,
+    backgroundColor: V.cardBg,
+  },
+  backButtonLight: {
+    backgroundColor: V.cardBgLight,
     borderWidth: 1,
-    borderColor: isDark ? Colors.dark : Colors.dark_gray,
-  }),
-  headerTitle: (isDark) => ({
-    fontSize: 18,
-    fontWeight: '700',
-    color: isDark ? Colors.light : Colors.beta,
-  }),
+    borderColor: Colors.dark_gray + '22',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: V.primaryText,
+  },
+  headerTitleLight: {
+    color: V.primaryTextLight,
+  },
+  topStack: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 8,
+  },
+  pillSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(81, 176, 79, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(81, 176, 79, 0.4)',
+  },
+  pillSuccessText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: V.success,
+  },
+  pillDanger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  pillDangerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: V.danger,
+  },
+  pillChecking: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: V.cardBg,
+  },
+  pillCheckingText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: V.secondaryText,
+  },
+  sessionRange: {
+    fontSize: 12,
+    color: V.secondaryText,
+    textAlign: 'center',
+  },
+  reminderBanner: {
+    width: '100%',
+    maxWidth: 340,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: V.cardBg,
+  },
+  reminderBannerLight: {
+    backgroundColor: V.cardBgLight,
+    borderWidth: 1,
+    borderColor: Colors.dark_gray + '18',
+  },
+  reminderBannerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reminderBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: V.primaryText,
+    lineHeight: 20,
+  },
+  reminderBannerTextLight: {
+    color: V.primaryTextLight,
+  },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingBottom: 40,
+    minHeight: 280,
+  },
+  readyBlock: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    backgroundColor: Colors.alpha,
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
   loadingBlock: {
     alignItems: 'center',
@@ -340,154 +648,173 @@ const styles = StyleSheet.create({
   checkInButton: {
     width: '100%',
     maxWidth: 340,
-    minHeight: 72,
-    borderRadius: 18,
-    backgroundColor: Colors.alpha,
-    flexDirection: 'row',
+    borderRadius: 28,
+    backgroundColor: V.accent,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    shadowColor: Colors.alpha,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
   },
-  checkInButtonDisabled: {
-    backgroundColor: '#8a8a8a',
-    shadowOpacity: 0,
-    elevation: 0,
+  checkInButtonMuted: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: V.border,
   },
-  checkInButtonPressed: {
+  pressed: {
     opacity: 0.92,
     transform: [{ scale: 0.98 }],
   },
   checkInButtonText: {
-    flexShrink: 1,
-    fontSize: 17,
-    fontWeight: '800',
-    color: Colors.light,
-    textAlign: 'center',
-  },
-  helperText: (isDark) => ({
-    marginTop: 20,
-    maxWidth: 320,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-    color: isDark ? Colors.light + '99' : Colors.beta + '99',
-  }),
-  reminderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.alpha,
-  },
-  reminderBannerText: {
-    flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.beta,
-    lineHeight: 20,
+    color: V.onAccent,
+    textAlign: 'center',
   },
-  networkBannerRestricted: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 152, 0, 0.92)',
+  checkInButtonTextMuted: {
+    color: V.tertiaryText,
   },
-  networkBannerUnavailable: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(80, 80, 80, 0.92)',
-  },
-  networkBannerText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.light,
-    lineHeight: 18,
-  },
-  networkBannerAction: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  networkBannerActionText: {
+  helperText: {
+    marginTop: 16,
+    maxWidth: 300,
     fontSize: 12,
-    fontWeight: '700',
-    color: Colors.light,
+    lineHeight: 17,
+    textAlign: 'center',
+    color: V.secondaryText,
   },
-  networkBannerOk: (isDark) => ({
-    flexDirection: 'row',
+  helperTextDanger: {
+    color: V.danger,
+  },
+  statusCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 12,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    backgroundColor: V.cardBg,
+  },
+  statusCardLight: {
+    backgroundColor: V.cardBgLight,
+    borderWidth: 1,
+    borderColor: Colors.dark_gray + '18',
+  },
+  statusIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: isDark ? Colors.dark_gray : Colors.light,
-    borderWidth: 1,
-    borderColor: Colors.good + '55',
-  }),
-  networkBannerOkText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.good,
+    marginBottom: 10,
   },
-  centered: (isDark) => ({
+  statusIconWrapSuccess: {
+    backgroundColor: 'rgba(81, 176, 79, 0.15)',
+  },
+  statusIconWrapWarning: {
+    backgroundColor: 'rgba(255, 200, 1, 0.12)',
+  },
+  statusPrimary: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: V.primaryText,
+  },
+  statusPrimaryLight: {
+    color: V.primaryTextLight,
+  },
+  statusSecondary: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: V.secondaryText,
+  },
+  retryButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: V.primaryText,
+  },
+  retryButtonLight: {
+    borderColor: V.primaryTextLight,
+  },
+  retryButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: V.primaryText,
+  },
+  retryButtonTextLight: {
+    color: V.primaryTextLight,
+  },
+  nextSlotBanner: {
+    width: '100%',
+    maxWidth: 340,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: V.cardBg,
+  },
+  nextSlotBannerLight: {
+    backgroundColor: V.cardBgLight,
+    borderWidth: 1,
+    borderColor: Colors.dark_gray + '18',
+  },
+  nextSlotLeft: {
+    fontSize: 13,
+    color: V.secondaryText,
+  },
+  nextSlotRight: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: V.primaryText,
+  },
+  nextSlotRightLight: {
+    color: V.primaryTextLight,
+  },
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    backgroundColor: isDark ? Colors.dark : Colors.light,
-  }),
-  title: (isDark) => ({
+  },
+  guardTitle: {
     marginTop: 16,
     fontSize: 20,
     fontWeight: '800',
-    color: isDark ? Colors.light : Colors.beta,
+    color: V.primaryText,
     textAlign: 'center',
-  }),
-  subtitle: (isDark) => ({
+  },
+  guardTitleLight: {
+    color: V.primaryTextLight,
+  },
+  guardSubtitle: {
     marginTop: 10,
     fontSize: 14,
     lineHeight: 21,
-    color: isDark ? Colors.light + '99' : Colors.beta + '99',
+    color: V.secondaryText,
     textAlign: 'center',
-  }),
+  },
   secondaryButton: {
     marginTop: 24,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: Colors.alpha,
+    borderColor: V.accent,
   },
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.alpha,
+    color: V.accent,
   },
 });
