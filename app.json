@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.lionsgeek.lionsgeek-mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes for attendance.",
+        "NSCameraUsageDescription": "LionsGeek needs your camera to confirm it's you when you mark attendance.",
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice calls.",
         "UIBackgroundModes": [
           "audio",
@@ -77,7 +77,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for attendance."
+          "cameraPermission": "Allow LionsGeek to use your camera to verify your identity when marking attendance."
         }
       ],
       "expo-font"

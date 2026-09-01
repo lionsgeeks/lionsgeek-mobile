@@ -473,13 +473,58 @@ export async function fetchSlotStatus(token, formationId) {
   return response?.data ?? null;
 }
 
-export async function submitCheckIn(token, { formation_id, attendance_day }) {
-  const response = await API.postWithAuth(
-    'mobile/attendance/check-in',
-    { formation_id, attendance_day },
-    token,
-  );
-  return response?.data ?? null;
+/** True when a 422 response is the face-not-recognized case (not “no active slot”). */
+export function isFaceNotRecognizedError(error) {
+  if (error?.response?.status !== 422) return false;
+  const message = error?.response?.data?.message;
+  return typeof message === 'string' && message.includes('Face not recognized');
+}
+
+export async function submitCheckIn(token, { formation_id, attendance_day, photoUri }) {
+  if (!photoUri) {
+    const err = new Error('A live photo is required to check in.');
+    err.response = { status: 422, data: { message: 'A live photo is required to check in.' } };
+    throw err;
+  }
+
+  const formData = new FormData();
+  formData.append('formation_id', String(formation_id));
+  if (attendance_day) {
+    formData.append('attendance_day', attendance_day);
+  }
+  formData.append('live_photo', {
+    uri: photoUri,
+    type: 'image/jpeg',
+    name: 'live_photo.jpg',
+  });
+
+  const baseUrl = (process.env.EXPO_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+  const response = await fetch(`${baseUrl}/api/mobile/attendance/check-in`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      // Do NOT set Content-Type — fetch sets multipart boundary
+    },
+    body: formData,
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const err = new Error(
+      typeof data?.message === 'string' ? data.message : `Check-in failed (${response.status})`,
+    );
+    err.response = { status: response.status, data };
+    throw err;
+  }
+
+  return data ?? null;
 }
 
 export async function checkAttendanceNetwork(token) {
