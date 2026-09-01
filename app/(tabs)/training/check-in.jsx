@@ -17,6 +17,7 @@ import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import Skeleton from '@/components/ui/Skeleton';
+import FaceCaptureModal from '@/components/training/FaceCaptureModal';
 import {
   CHECKIN_RESTRICTED_FALLBACK,
   CHECKIN_UNAVAILABLE_BANNER,
@@ -28,6 +29,7 @@ import {
   fetchSlotStatus,
   formatCheckInSuccessMessage,
   getApiMessage,
+  isFaceNotRecognizedError,
   isStaffUser,
   isStudentUser,
   submitCheckIn,
@@ -165,6 +167,8 @@ export default function AttendanceCheckIn() {
   const [networkStatus, setNetworkStatus] = useState(null);
   const [networkMessage, setNetworkMessage] = useState('');
   const [lastCheckInResult, setLastCheckInResult] = useState(null);
+  const [showFaceCapture, setShowFaceCapture] = useState(false);
+  const [faceError, setFaceError] = useState(null);
 
   const screenUi = useMemo(
     () =>
@@ -250,83 +254,93 @@ export default function AttendanceCheckIn() {
       Alert.alert('Cannot Check In', message, [
         { text: 'OK' },
         {
-          text: 'Retry',
+          text: 'Try again',
           onPress: async () => {
-            if (!token || !slotStatus?.attendance_day || !formationId) return;
-            setCheckingIn(true);
+            if (!token) return;
             try {
               await checkAttendanceNetwork(token);
               setNetworkStatus('ok');
               setNetworkMessage('');
-              const data = await submitCheckIn(token, {
-                formation_id: formationId,
-                attendance_day: slotStatus.attendance_day,
-              });
-              setLastCheckInResult(data);
-              Alert.alert('Attendance Marked', formatCheckInSuccessMessage(data));
-              await refreshSlotStatus();
+              setFaceError(null);
+              setShowFaceCapture(true);
             } catch (retryError) {
               if (retryError?.response?.status === 403) {
                 handleCheckInRestricted(retryError);
               } else if (retryError?.response?.status === 503) {
                 Alert.alert(CHECKIN_UNAVAILABLE_TITLE, CHECKIN_UNAVAILABLE_MESSAGE);
-              } else if (retryError?.response?.status === 409 || retryError?.response?.status === 422) {
-                await refreshSlotStatus();
               } else {
-                Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+                Alert.alert('Error', 'Failed to verify school wifi. Please try again.');
               }
-            } finally {
-              setCheckingIn(false);
             }
           },
         },
       ]);
     },
-    [token, slotStatus, formationId, refreshSlotStatus],
+    [token],
   );
 
-  const handleCheckIn = useCallback(async () => {
+  const handleFaceCancel = useCallback(() => {
+    setShowFaceCapture(false);
+    setFaceError(null);
+  }, []);
+
+  const handleFaceCapture = useCallback(
+    async (photoUri) => {
+      if (!token || !formationId || !slotStatus?.attendance_day) return;
+
+      setShowFaceCapture(false);
+      setFaceError(null);
+      setCheckingIn(true);
+
+      try {
+        const data = await submitCheckIn(token, {
+          formation_id: formationId,
+          attendance_day: slotStatus.attendance_day,
+          photoUri,
+        });
+        setLastCheckInResult(data);
+        Alert.alert('Attendance Marked', formatCheckInSuccessMessage(data));
+        await refreshSlotStatus();
+      } catch (error) {
+        const status = error?.response?.status;
+        if (isFaceNotRecognizedError(error)) {
+          setFaceError("Hmm, we couldn't tell it was you.");
+          setShowFaceCapture(true);
+        } else if (status === 403) {
+          handleCheckInRestricted(error);
+        } else if (status === 503) {
+          Alert.alert(CHECKIN_UNAVAILABLE_TITLE, CHECKIN_UNAVAILABLE_MESSAGE);
+        } else if (status === 409) {
+          await refreshSlotStatus();
+          Alert.alert(
+            'Already Marked',
+            getApiMessage(error, 'You have already marked attendance for this slot.'),
+          );
+        } else if (status === 422) {
+          await refreshSlotStatus();
+          Alert.alert(
+            'No Active Slot',
+            getApiMessage(error, 'There is no active attendance slot right now.'),
+          );
+        } else {
+          console.error('[CHECK-IN] check-in error:', error);
+          Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+        }
+      } finally {
+        setCheckingIn(false);
+      }
+    },
+    [token, formationId, slotStatus, refreshSlotStatus, handleCheckInRestricted],
+  );
+
+  const handleCheckIn = useCallback(() => {
     if (!token || !formationId || !slotStatus?.attendance_day || checkingIn || !screenUi.actionable) {
       return;
     }
 
-    setCheckingIn(true);
-    try {
-      const data = await submitCheckIn(token, {
-        formation_id: formationId,
-        attendance_day: slotStatus.attendance_day,
-      });
-      setLastCheckInResult(data);
-      Alert.alert('Attendance Marked', formatCheckInSuccessMessage(data));
-      await refreshSlotStatus();
-    } catch (error) {
-      const status = error?.response?.status;
-      if (status === 403) {
-        handleCheckInRestricted(error);
-      } else if (status === 503) {
-        Alert.alert(CHECKIN_UNAVAILABLE_TITLE, CHECKIN_UNAVAILABLE_MESSAGE);
-      } else if (status === 409) {
-        await refreshSlotStatus();
-        Alert.alert('Already Marked', getApiMessage(error, 'You have already marked attendance for this slot.'));
-      } else if (status === 422) {
-        await refreshSlotStatus();
-        Alert.alert('No Active Slot', getApiMessage(error, 'There is no active attendance slot right now.'));
-      } else {
-        console.error('[CHECK-IN] check-in error:', error);
-        Alert.alert('Error', 'Failed to mark attendance. Please try again.');
-      }
-    } finally {
-      setCheckingIn(false);
-    }
-  }, [
-    token,
-    formationId,
-    slotStatus,
-    checkingIn,
-    screenUi.actionable,
-    refreshSlotStatus,
-    handleCheckInRestricted,
-  ]);
+    setFaceError(null);
+    setShowFaceCapture(true);
+  }, [token, formationId, slotStatus, checkingIn, screenUi.actionable]);
 
   const onPullRefresh = useCallback(async () => {
     await Promise.all([refreshSlotStatus({ fromPull: true }), checkNetwork()]);
@@ -491,6 +505,13 @@ export default function AttendanceCheckIn() {
             ) : null}
           </View>
         </ScrollView>
+
+        <FaceCaptureModal
+          visible={showFaceCapture}
+          onCapture={handleFaceCapture}
+          onCancel={handleFaceCancel}
+          errorMessage={faceError}
+        />
       </View>
     </AppLayout>
   );
