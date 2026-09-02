@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
+import FaceCaptureModal from '@/components/training/FaceCaptureModal';
 import {
   CHECKIN_RESTRICTED_FALLBACK,
   CHECKIN_UNAVAILABLE_BANNER,
@@ -19,6 +20,7 @@ import {
   formatCheckInSuccessMessage,
   getApiMessage,
   getTrainingHubRoute,
+  isFaceNotRecognizedError,
   isStaffUser,
   submitCheckIn,
 } from '@/components/training/attendanceCheckIn';
@@ -38,6 +40,10 @@ export default function QRScanner() {
   const [training, setTraining] = useState(null);
   const [networkStatus, setNetworkStatus] = useState(null);
   const [networkMessage, setNetworkMessage] = useState('');
+  const [showFaceCapture, setShowFaceCapture] = useState(false);
+  const [faceError, setFaceError] = useState(null);
+  const [pendingFormationId, setPendingFormationId] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
 
   const navigateToTraining = useCallback(() => {
     try {
@@ -63,6 +69,11 @@ export default function QRScanner() {
     setScanned(false);
     setProcessing(false);
     scanLockRef.current = false;
+    setIsPaused(false);
+    setShowFaceCapture(false);
+    setFaceError(null);
+    setPendingFormationId(null);
+    pendingCheckInRef.current = null;
   }, []);
 
   const showAttendanceSuccess = useCallback((message) => {
@@ -112,7 +123,7 @@ export default function QRScanner() {
       [
         { text: 'OK', onPress: resetScanner },
         {
-          text: 'Retry',
+          text: 'Try again',
           onPress: async () => {
             const pending = pendingCheckInRef.current;
             if (!pending || !token) {
@@ -120,37 +131,21 @@ export default function QRScanner() {
               return;
             }
 
-            setProcessing(true);
             try {
               await checkAttendanceNetwork(token);
               setNetworkStatus('ok');
               setNetworkMessage('');
-
-              const data = await submitCheckIn(token, pending);
-              pendingCheckInRef.current = null;
+              setFaceError(null);
+              setIsPaused(true);
+              setShowFaceCapture(true);
               setProcessing(false);
-              showAttendanceSuccess(formatCheckInSuccessMessage(data));
             } catch (retryError) {
-              setProcessing(false);
               if (retryError?.response?.status === 403) {
                 handleCheckInRestricted(retryError);
               } else if (retryError?.response?.status === 503) {
                 handleCheckInUnavailable();
-              } else if (retryError?.response?.status === 409) {
-                Alert.alert(
-                  'Already Marked',
-                  getApiMessage(retryError, 'You have already marked attendance for this slot.'),
-                  [{ text: 'OK', onPress: navigateToTraining }],
-                );
-              } else if (retryError?.response?.status === 422) {
-                Alert.alert(
-                  'No Active Slot',
-                  getApiMessage(retryError, 'There is no active attendance slot right now.'),
-                  [{ text: 'OK', onPress: resetScanner }],
-                );
               } else {
-                console.error('Retry check-in error:', retryError);
-                Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+                Alert.alert('Error', 'Failed to verify school wifi. Please try again.');
                 resetScanner();
               }
             }
@@ -158,7 +153,7 @@ export default function QRScanner() {
         },
       ],
     );
-  }, [token, resetScanner, showAttendanceSuccess, handleCheckInUnavailable, navigateToTraining]);
+  }, [token, resetScanner, handleCheckInUnavailable]);
 
   useFocusEffect(
     useCallback(() => {
@@ -194,8 +189,95 @@ export default function QRScanner() {
     }
   };
 
+  const handleFaceCancel = useCallback(() => {
+    setShowFaceCapture(false);
+    setFaceError(null);
+    setIsPaused(false);
+    setPendingFormationId(null);
+    pendingCheckInRef.current = null;
+    resetScanner();
+  }, [resetScanner]);
+
+  const handleFaceCapture = useCallback(
+    async (photoUri) => {
+      const pending = pendingCheckInRef.current;
+      if (!token || !pending) {
+        handleFaceCancel();
+        return;
+      }
+
+      setShowFaceCapture(false);
+      setFaceError(null);
+      setProcessing(true);
+
+      try {
+        const data = await submitCheckIn(token, {
+          ...pending,
+          photoUri,
+        });
+        pendingCheckInRef.current = null;
+        setPendingFormationId(null);
+        setIsPaused(false);
+        setProcessing(false);
+        showAttendanceSuccess(formatCheckInSuccessMessage(data));
+      } catch (checkInError) {
+        setProcessing(false);
+        const status = checkInError?.response?.status;
+
+        if (isFaceNotRecognizedError(checkInError)) {
+          setFaceError("Hmm, we couldn't tell it was you.");
+          setIsPaused(true);
+          setShowFaceCapture(true);
+          return;
+        }
+        if (status === 403) {
+          handleCheckInRestricted(checkInError);
+          return;
+        }
+        if (status === 503) {
+          handleCheckInUnavailable();
+          return;
+        }
+        if (status === 409) {
+          pendingCheckInRef.current = null;
+          setPendingFormationId(null);
+          setIsPaused(false);
+          Alert.alert(
+            'Already Marked',
+            getApiMessage(checkInError, 'You have already marked attendance for this slot.'),
+            [{ text: 'OK', onPress: navigateToTraining }],
+          );
+          return;
+        }
+        if (status === 422) {
+          pendingCheckInRef.current = null;
+          setPendingFormationId(null);
+          Alert.alert(
+            'No Active Slot',
+            getApiMessage(checkInError, 'There is no active attendance slot right now.'),
+            [{ text: 'OK', onPress: resetScanner }],
+          );
+          return;
+        }
+
+        console.error('Face check-in error:', checkInError);
+        Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+        resetScanner();
+      }
+    },
+    [
+      token,
+      handleFaceCancel,
+      showAttendanceSuccess,
+      handleCheckInRestricted,
+      handleCheckInUnavailable,
+      navigateToTraining,
+      resetScanner,
+    ],
+  );
+
   const handleBarCodeScanned = async ({ data }) => {
-    if (scanned || processing || scanLockRef.current) return;
+    if (scanned || processing || scanLockRef.current || isPaused || showFaceCapture) return;
 
     scanLockRef.current = true;
     setScanned(true);
@@ -252,41 +334,11 @@ export default function QRScanner() {
       };
 
       pendingCheckInRef.current = checkInPayload;
-
-      try {
-        const data = await submitCheckIn(token, checkInPayload);
-        pendingCheckInRef.current = null;
-        showAttendanceSuccess(formatCheckInSuccessMessage(data));
-      } catch (checkInError) {
-        const status = checkInError?.response?.status;
-        if (status === 403) {
-          handleCheckInRestricted(checkInError);
-          return;
-        }
-        if (status === 503) {
-          handleCheckInUnavailable();
-          return;
-        }
-        if (status === 409) {
-          pendingCheckInRef.current = null;
-          Alert.alert(
-            'Already Marked',
-            getApiMessage(checkInError, 'You have already marked attendance for this slot.'),
-            [{ text: 'OK', onPress: navigateToTraining }],
-          );
-          return;
-        }
-        if (status === 422) {
-          pendingCheckInRef.current = null;
-          Alert.alert(
-            'No Active Slot',
-            getApiMessage(checkInError, 'There is no active attendance slot right now.'),
-            [{ text: 'OK', onPress: resetScanner }],
-          );
-          return;
-        }
-        throw checkInError;
-      }
+      setPendingFormationId(trainingIdFromQR);
+      setProcessing(false);
+      setIsPaused(true);
+      setFaceError(null);
+      setShowFaceCapture(true);
     } catch (error) {
       console.error('QR Scan Error:', error);
       Alert.alert('Error', 'Failed to process QR code. Please try again.');
@@ -331,8 +383,8 @@ export default function QRScanner() {
       <CameraView
         style={StyleSheet.absoluteFillObject}
         facing="back"
-        active={true}
-        onBarcodeScanned={scanned || processing ? undefined : handleBarCodeScanned}
+        active={!isPaused && !showFaceCapture}
+        onBarcodeScanned={scanned || processing || isPaused || showFaceCapture ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
@@ -399,6 +451,13 @@ export default function QRScanner() {
           </View>
         </View>
       </CameraView>
+
+      <FaceCaptureModal
+        visible={showFaceCapture}
+        onCapture={handleFaceCapture}
+        onCancel={handleFaceCancel}
+        errorMessage={faceError}
+      />
     </View>
   );
 }
