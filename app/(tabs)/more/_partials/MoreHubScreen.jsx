@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 import { Colors } from '@/constants/Colors';
 
 /**
@@ -16,11 +17,14 @@ export default function MoreHubScreen({
   primaryAction,
   secondaryAction,
 }) {
+  const scrollBottomPadding = useScrollTabPadding(24);
+
   return (
     <AppLayout showNavbar={false} className="flex-1 bg-light dark:bg-dark">
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-5 pb-16 pt-4"
+        contentContainerClassName="px-5 pt-4"
+        contentContainerStyle={{ paddingBottom: scrollBottomPadding }}
         showsVerticalScrollIndicator={false}
       >
         {eyebrow ? (

@@ -7,7 +7,7 @@ import { router, Link } from 'expo-router';
 import { Home as LogoIcon } from '@/components/logo';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '@/components/ui';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenStorage';
 
 export default function LoginScreen() {
   const colorScheme = useColorScheme();
@@ -73,7 +73,7 @@ export default function LoginScreen() {
         console.log('[LOGIN] Auth data saved successfully');
         
         // Verify token was saved before redirecting
-        const savedToken = await AsyncStorage.getItem('auth_token');
+        const savedToken = await getAuthToken();
         console.log('[LOGIN] Token verification after save:', {
           saved: !!savedToken,
           matches: savedToken === String(responseData.token),

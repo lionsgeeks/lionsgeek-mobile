@@ -48,11 +48,11 @@ export default function FollowUserRow({ user, isDark, currentUserId, token, onPr
           {user.name}
         </Text>
         {user.status ? (
-          <Text className="text-xs text-black/50 dark:text-white/50 mt-0.5" numberOfLines={1}>
+          <Text className="text-xs text-black/50 dark:text-dark_gray0 mt-0.5" numberOfLines={1}>
             {user.status}
           </Text>
         ) : user.promo ? (
-          <Text className="text-xs text-black/50 dark:text-white/50 mt-0.5">Promo {user.promo}</Text>
+          <Text className="text-xs text-black/50 dark:text-dark_gray0 mt-0.5">Promo {user.promo}</Text>
         ) : null}
       </View>
 

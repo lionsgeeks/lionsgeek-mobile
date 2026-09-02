@@ -8,7 +8,7 @@ const SUPPORT_EMAIL = 'support@lionsgeek.com';
 
 export default function SupportScreen() {
   const openMail = () => {
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=LionsGeek%20Mobile%20support`).catch(() => {});
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=LionsGeek%20Mobile%20support`).catch(() => { });
   };
 
   return (
@@ -62,7 +62,7 @@ export default function SupportScreen() {
             <Ionicons name="mail-outline" size={22} color={Colors.alpha} />
           </View>
           <View className="flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-white/50">
+            <Text className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-dark_gray0">
               Email support
             </Text>
             <Text className="mt-0.5 text-base font-semibold text-beta dark:text-white">{SUPPORT_EMAIL}</Text>

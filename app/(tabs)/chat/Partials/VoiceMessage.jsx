@@ -77,7 +77,7 @@ export default function VoiceMessage({ audioUrl, duration, isCurrentUser, onPlay
     const barPlayed = isCurrentUser ? 'bg-alpha' : 'bg-alpha';
     const barIdle = isCurrentUser ? 'bg-white/35' : 'bg-black/20 dark:bg-white/25';
     const textMain = isCurrentUser ? 'text-white' : 'text-black dark:text-white';
-    const textSub = isCurrentUser ? 'text-white/70' : 'text-black/55 dark:text-white/55';
+    const textSub = isCurrentUser ? 'text-white/70' : 'text-black/55 dark:text-dark_gray5';
     const trackBg = isCurrentUser ? 'bg-white/20' : 'bg-black/10 dark:bg-white/15';
     const trackFill = isCurrentUser ? 'bg-alpha' : 'bg-alpha';
 

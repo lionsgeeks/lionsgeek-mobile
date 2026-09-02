@@ -3,6 +3,8 @@ import { View, useColorScheme } from "react-native";
 import { colorScheme as nwColorScheme } from "nativewind";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ThemeTransitionOverlay from "@/components/theme/ThemeTransitionOverlay";
+import API from "@/api";
+import { getAuthToken, removeAuthToken, setAuthToken } from "@/utils/authTokenStorage";
 
 const THEME_STORAGE_KEY = 'app_theme_preference';
 
@@ -20,19 +22,17 @@ const AppProvider = ({ children }) => {
     useEffect(() => {
         (async () => {
             // Restore auth session
-            const t = await AsyncStorage.getItem('auth_token');
+            const t = await getAuthToken();
             const u = await AsyncStorage.getItem('auth_user');
-            if (t && t !== 'false' && t !== 'null' && t.trim() !== '') {
+            if (t) {
                 setToken(t);
-                console.log('[CONTEXT] Token loaded from storage');
             }
             if (u) {
                 try {
                     const parsedUser = JSON.parse(u);
                     setUser(parsedUser);
-                    console.log('[CONTEXT] User data loaded from storage');
                 } catch (e) {
-                    console.error('[CONTEXT] Failed to parse user data:', e);
+                    if (__DEV__) console.error('[CONTEXT] Failed to parse user data:', e);
                 }
             }
 
@@ -46,22 +46,13 @@ const AppProvider = ({ children }) => {
     }, []);
 
     const saveAuth = async (nextToken, nextUser) => {
-        console.log('[CONTEXT] Saving auth data:', { 
-            hasToken: !!nextToken, 
-            tokenType: typeof nextToken,
-            tokenValue: nextToken ? `${String(nextToken).substring(0, 20)}...` : 'null/empty',
-            hasUser: !!nextUser 
-        });
-        
         // Validate token
         if (!nextToken) {
-            console.error('[CONTEXT] Invalid token: token is null/undefined');
             throw new Error('Invalid token: token is required');
         }
         
         const tokenStr = String(nextToken).trim();
         if (!tokenStr || tokenStr === 'false' || tokenStr === 'null' || tokenStr === 'undefined') {
-            console.error('[CONTEXT] Invalid token value:', tokenStr);
             throw new Error(`Invalid token: cannot be "${tokenStr}"`);
         }
         
@@ -69,23 +60,33 @@ const AppProvider = ({ children }) => {
         setToken(tokenStr);
         setUser(nextUser);
         
-        // Save to AsyncStorage
-        await AsyncStorage.setItem('auth_token', tokenStr);
+        await setAuthToken(tokenStr);
         await AsyncStorage.setItem('auth_user', JSON.stringify(nextUser ?? null));
-        
-        // Verify it was saved
-        const savedToken = await AsyncStorage.getItem('auth_token');
-        console.log('[CONTEXT] Auth data saved. Verification:', {
-            saved: !!savedToken,
-            matches: savedToken === tokenStr,
-            savedLength: savedToken?.length
-        });
     };
 
     const signOut = async () => {
+        let tokenToRevoke = token;
+        if (!tokenToRevoke) {
+            tokenToRevoke = await getAuthToken();
+        }
+
+        try {
+            if (
+                tokenToRevoke &&
+                tokenToRevoke !== 'false' &&
+                tokenToRevoke !== 'null' &&
+                String(tokenToRevoke).trim() !== ''
+            ) {
+                await API.postWithAuth('mobile/logout', {}, tokenToRevoke);
+            }
+        } catch {
+            // Token may already be invalid or the network may be unavailable.
+        }
+
         setToken(null);
         setUser(null);
-        await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
+        await removeAuthToken();
+        await AsyncStorage.removeItem('auth_user');
     };
 
     const applyTheme = useCallback((theme) => {

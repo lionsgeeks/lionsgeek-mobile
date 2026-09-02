@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAuthToken } from '@/utils/authTokenStorage';
 
 const PUBLIC_URL = (
   process.env.EXPO_PUBLIC_EVENTS_INFO_SECTION_URL ||
@@ -20,13 +21,24 @@ const API_KEY = (
 const REQUEST_BASE = USE_PROXY ? APP_URL : PUBLIC_URL;
 const API_PREFIX = USE_PROXY ? 'api/events-info' : 'api';
 
-const ensureConfig = () => {
-  if (USE_PROXY && !APP_URL) {
-    throw new Error(
-      'EXPO_PUBLIC_APP_URL is not set but proxy mode is on. Set it in .env and restart Expo with: npx expo start -c'
-    );
+const getSanctumToken = async () => {
+  const tokenStr = await getAuthToken();
+  if (!tokenStr) {
+    throw new Error('Authentication token is required');
   }
-  if (!USE_PROXY && !PUBLIC_URL) {
+  return tokenStr;
+};
+
+const ensureConfig = async () => {
+  if (USE_PROXY) {
+    if (!APP_URL) {
+      throw new Error(
+        'EXPO_PUBLIC_APP_URL is not set but proxy mode is on. Set it in .env and restart Expo with: npx expo start -c'
+      );
+    }
+    return;
+  }
+  if (!PUBLIC_URL) {
     throw new Error(
       'EXPO_PUBLIC_EVENTS_INFO_SECTION_URL is not set. Add it to .env and restart Expo with: npx expo start -c'
     );
@@ -38,29 +50,41 @@ const ensureConfig = () => {
   }
 };
 
-const authHeaders = () => ({
-  Authorization: `Bearer ${API_KEY}`,
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-});
+const authHeaders = async () => {
+  if (USE_PROXY) {
+    const token = await getSanctumToken();
+    return {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  return {
+    Authorization: `Bearer ${API_KEY}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+};
 
 const buildUrl = (endpoint) => `${REQUEST_BASE}/${API_PREFIX}/${endpoint}`;
 
 const get = async (endpoint) => {
-  ensureConfig();
-  return axios.get(buildUrl(endpoint), { headers: authHeaders() });
+  await ensureConfig();
+  return axios.get(buildUrl(endpoint), { headers: await authHeaders() });
 };
 
 const put = async (endpoint, data) => {
-  ensureConfig();
-  return axios.put(buildUrl(endpoint), data, { headers: authHeaders() });
+  await ensureConfig();
+  return axios.put(buildUrl(endpoint), data, { headers: await authHeaders() });
 };
 
 const postMultipart = async (endpoint, formData) => {
-  ensureConfig();
+  await ensureConfig();
+  const headers = await authHeaders();
   return axios.post(buildUrl(endpoint), formData, {
     headers: {
-      Authorization: `Bearer ${API_KEY}`,
+      Authorization: headers.Authorization,
       Accept: 'application/json',
       'Content-Type': 'multipart/form-data',
     },

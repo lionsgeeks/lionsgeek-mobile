@@ -29,7 +29,7 @@ import {
   getSessionAvailabilityLabel,
   getSessionStatusLabel,
   mapInfoParticipants,
-} from './helpers';
+} from './_helpers';
 
 function StatusBadge({ status }) {
   const isDark = useColorScheme() === 'dark';
@@ -73,17 +73,17 @@ function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
   const toneClasses =
     tone === 'good'
       ? {
-          box: 'bg-good/12 border-good/20',
-          icon: Colors.good,
-          value: 'text-good',
-          label: 'text-good',
-        }
+        box: 'bg-good/12 border-good/20',
+        icon: Colors.good,
+        value: 'text-good',
+        label: 'text-good',
+      }
       : {
-          box: 'bg-beta/12 dark:bg-alpha/12 border-beta/20 dark:border-alpha/20',
-          icon: getAccentIconColor(isDark),
-          value: 'text-beta dark:text-light',
-          label: 'text-beta/55 dark:text-light/55',
-        };
+        box: 'bg-beta/12 dark:bg-alpha/12 border-beta/20 dark:border-alpha/20',
+        icon: getAccentIconColor(isDark),
+        value: 'text-beta dark:text-light',
+        label: 'text-beta/55 dark:text-light/55',
+      };
 
   return (
     <View className={`flex-1 border rounded-xl p-3.5 ${toneClasses.box}`}>
@@ -213,7 +213,7 @@ export default function InfoSessionDetailScreen() {
         className="flex-1 bg-light dark:bg-dark"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
+        <View className="pt-3 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
             className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
@@ -236,9 +236,8 @@ export default function InfoSessionDetailScreen() {
             <Pressable
               onPress={scannable ? openScanner : undefined}
               disabled={!scannable}
-              className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${
-                scannable ? 'bg-beta dark:bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
-              }`}
+              className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${scannable ? 'bg-beta dark:bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
+                }`}
             >
               <Ionicons
                 name="qr-code"
@@ -246,9 +245,8 @@ export default function InfoSessionDetailScreen() {
                 color={scannable ? onAccentText : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
               />
               <Text
-                className={`text-xs font-bold ${
-                  scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
-                }`}
+                className={`text-xs font-bold ${scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
+                  }`}
               >
                 {scannable ? 'Scan' : 'Not today'}
               </Text>

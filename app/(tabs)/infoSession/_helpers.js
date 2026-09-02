@@ -171,7 +171,7 @@ export function getParticipantDetailRows(participant) {
 export function resolveInfoSessionError(err) {
   const status = err?.response?.status;
   if (status === 401) {
-    return 'Invalid API key (401). Fix EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY in .env, then restart: npx expo start -c';
+    return 'Authentication failed (401). Sign in again so the app can send your Sanctum token.';
   }
   if (status) {
     return `Info session server returned ${status}.`;
@@ -179,7 +179,7 @@ export function resolveInfoSessionError(err) {
 
   const message = String(err?.message || '');
   if (message.includes('is not set')) {
-    return 'API not configured in the running build. Set EXPO_PUBLIC_EVENTS_INFO_SECTION_URL and _KEY in .env, then restart: npx expo start -c';
+    return 'API not configured in the running build. Set EXPO_PUBLIC_APP_URL and EXPO_PUBLIC_EVENTS_INFO_USE_PROXY in .env, then restart: npx expo start -c';
   }
   if (message.toLowerCase().includes('network')) {
     return 'Network error reaching the info session server. Check the device has internet and can reach lionsgeek.ma.';

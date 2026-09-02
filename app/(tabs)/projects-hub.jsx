@@ -1,7 +1,11 @@
 import { router } from 'expo-router';
-import MoreHubScreen from './more/Partials/MoreHubScreen';
+import MoreHubScreen from './more/_partials/MoreHubScreen';
+import { useAppContext } from '@/context';
+import { getTrainingHubRoute } from '@/components/training/attendanceCheckIn';
 
 export default function ProjectsHubScreen() {
+  const { user } = useAppContext();
+
   return (
     <MoreHubScreen
       eyebrow="Build"
@@ -13,7 +17,10 @@ export default function ProjectsHubScreen() {
         'Collaborate with peers via Chat.',
         'Reserve demo rooms under Reservations.',
       ]}
-      primaryAction={{ label: 'Training & modules', onPress: () => router.push('/(tabs)/training') }}
+      primaryAction={{
+        label: 'Training & modules',
+        onPress: () => router.push(getTrainingHubRoute(user)),
+      }}
       secondaryAction={{ label: 'Messages', onPress: () => router.push('/(tabs)/chat') }}
     />
   );

@@ -166,7 +166,7 @@ export async function tryFetchFirstList({ token, endpoints }) {
 
   for (const endpoint of endpoints) {
     try {
-      const res = await API.getWithAuth(endpoint, token);
+      const res = await API.getWithAuth(endpoint, token, { silent: true });
       const list = listFrom(res?.data);
       if (Array.isArray(list)) return list;
     } catch (_err) {

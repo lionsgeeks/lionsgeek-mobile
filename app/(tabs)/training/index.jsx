@@ -8,9 +8,10 @@ import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
+import { getUserFormationId, isStudentUser } from '@/components/training/attendanceCheckIn';
 
 export default function Training() {
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [trainings, setTrainings] = useState([]);
@@ -18,8 +19,23 @@ export default function Training() {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
+  const studentFormationId = getUserFormationId(user);
+  const isStudent = isStudentUser(user);
+
+  useEffect(() => {
+    if (!user || !isStudent) return;
+    if (studentFormationId) {
+      router.replace({
+        pathname: '/(tabs)/training/[id]',
+        params: { id: String(studentFormationId) },
+      });
+    } else {
+      setLoading(false);
+    }
+  }, [user, isStudent, studentFormationId, router]);
+
   const fetchTrainings = useCallback(async () => {
-    if (!token) return;
+    if (!token || isStudentUser(user)) return;
     try {
       const response = await API.getWithAuth('mobile/trainings', token);
       if (response?.data) {
@@ -29,14 +45,14 @@ export default function Training() {
     } catch (error) {
       console.error('[TRAINING] Fetch Error:', error);
     }
-  }, [token]);
+  }, [token, user]);
 
   useEffect(() => {
-    if (token) {
+    if (token && !isStudent) {
       setLoading(true);
       fetchTrainings().finally(() => setLoading(false));
     }
-  }, [token, fetchTrainings]);
+  }, [token, isStudent, fetchTrainings]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -49,6 +65,29 @@ export default function Training() {
     if (img.startsWith('http')) return img;
     return `${API.APP_URL || ''}/${img.replace(/^\/+/, '')}`;
   };
+
+  if (isStudent && !studentFormationId) {
+    return (
+      <AppLayout>
+        <View style={styles.emptyContainer(isDark)}>
+          <Ionicons name="school-outline" size={48} color={isDark ? Colors.light + '50' : Colors.beta + '50'} />
+          <Text style={styles.emptyText(isDark)}>
+            You are not enrolled in a training yet.
+          </Text>
+        </View>
+      </AppLayout>
+    );
+  }
+
+  if (isStudent && studentFormationId) {
+    return (
+      <AppLayout>
+        <View className="flex-1 bg-light dark:bg-dark" style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+          <Skeleton width={180} height={28} borderRadius={12} isDark={isDark} />
+        </View>
+      </AppLayout>
+    );
+  }
 
   if (loading) {
     return (

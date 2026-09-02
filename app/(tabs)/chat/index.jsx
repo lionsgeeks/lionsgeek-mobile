@@ -42,7 +42,7 @@ export default function ChatListScreen() {
                   className={`flex-1 py-2 rounded-xl items-center ${selected ? 'bg-alpha' : ''}`}
                 >
                   <Text
-                    className={`text-xs font-semibold uppercase ${selected ? 'text-black' : 'text-black/55 dark:text-white/55'}`}
+                    className={`text-xs font-semibold uppercase ${selected ? 'text-black' : 'text-black/55 dark:text-dark_gray5'}`}
                   >
                     {tab}
                   </Text>
@@ -60,7 +60,7 @@ export default function ChatListScreen() {
               <Text className="text-lg font-bold text-black dark:text-white mb-1">
                 {activeTab === 'groups' ? 'Groups' : 'Calls'}
               </Text>
-              <Text className="text-sm text-black/55 dark:text-white/55 text-center">
+              <Text className="text-sm text-black/55 dark:text-dark_gray5 text-center">
                 {activeTab === 'groups'
                   ? 'Groups section is ready for your API/data hookup.'
                   : 'Calls section is ready for your API/data hookup.'}

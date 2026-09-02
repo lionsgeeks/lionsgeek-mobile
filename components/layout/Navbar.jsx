@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 import { Home as LogoIcon } from '@/components/logo';
+import { goToOwnProfileTab } from '@/utils/profileNavigation';
 
 export default function Navbar() {
   const { user } = useAppContext();
@@ -12,7 +13,7 @@ export default function Navbar() {
   const isDark = colorScheme === 'dark';
 
   const handleProfilePress = () => {
-    router.push('/(tabs)/profile');
+    goToOwnProfileTab();
   };
 
   const handleSearchPress = () => {

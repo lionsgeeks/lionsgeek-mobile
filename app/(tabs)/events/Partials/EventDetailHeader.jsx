@@ -18,7 +18,7 @@ export default function EventDetailHeader({
   const showScan = showScanButton;
 
   return (
-    <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
+    <View className="pt-3 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
       <Pressable
         onPress={() => router.back()}
         className="w-10 h-10 rounded-xl items-center justify-center active:opacity-70"

@@ -18,6 +18,7 @@ import {
   checkAttendanceNetwork,
   formatCheckInSuccessMessage,
   getApiMessage,
+  getTrainingHubRoute,
   isStaffUser,
   submitCheckIn,
 } from '@/components/training/attendanceCheckIn';
@@ -41,11 +42,12 @@ export default function QRScanner() {
   const navigateToTraining = useCallback(() => {
     try {
       const routerToUse = routerHook || routerDirect;
+      const route = getTrainingHubRoute(user);
       if (routerToUse) {
         if (typeof routerToUse.push === 'function') {
-          routerToUse.push('/(tabs)/training');
+          routerToUse.push(route);
         } else if (typeof routerToUse.replace === 'function') {
-          routerToUse.replace('/(tabs)/training');
+          routerToUse.replace(route);
         } else {
           console.warn('Router navigation methods not available');
         }
@@ -55,7 +57,7 @@ export default function QRScanner() {
     } catch (error) {
       console.error('Navigation error:', error);
     }
-  }, [routerHook]);
+  }, [routerHook, user]);
 
   const resetScanner = useCallback(() => {
     setScanned(false);

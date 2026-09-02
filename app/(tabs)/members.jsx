@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 import Skeleton from '@/components/ui/Skeleton';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 
@@ -13,6 +14,7 @@ export default function MembersScreen() {
   const { user: currentUser, token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const scrollBottomPadding = useScrollTabPadding(24);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +25,7 @@ export default function MembersScreen() {
   useEffect(() => {
     const fetchMembers = async () => {
       if (!token) return;
-      
+
       try {
         const response = await API.getWithAuth('users', token);
         setMembers(Array.isArray(response?.data) ? response.data : []);
@@ -87,7 +89,7 @@ export default function MembersScreen() {
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
         {/* Header */}
-        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-4 px-6">
+        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-3 pb-4 px-6">
           <View className="flex-row items-center mb-4">
             <TouchableOpacity onPress={() => router.back()} className="mr-3">
               <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
@@ -97,7 +99,7 @@ export default function MembersScreen() {
         </View>
 
         {/* Members List */}
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: scrollBottomPadding }}>
           {loading ? (
             <View>
               {Array.from({ length: 10 }).map((_, idx) => (
@@ -175,7 +177,7 @@ export default function MembersScreen() {
                       ) : null}
                       <View className="flex-row items-center mt-1">
                         {member.promo && (
-                          <Text className="text-xs text-black/50 dark:text-white/50 mr-2">
+                          <Text className="text-xs text-black/50 dark:text-dark_gray0 mr-2">
                             {member.promo}
                           </Text>
                         )}

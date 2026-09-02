@@ -63,12 +63,12 @@ export default function MessageItem({
         const units = ['B', 'KB', 'MB', 'GB'];
         let size = bytes;
         let unitIndex = 0;
-        
+
         while (size >= 1024 && unitIndex < units.length - 1) {
             size /= 1024;
             unitIndex++;
         }
-        
+
         return `${size.toFixed(1)} ${units[unitIndex]}`;
     };
 
@@ -78,17 +78,17 @@ export default function MessageItem({
 
     const bubbleRadius = isCurrentUser
         ? {
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              borderBottomLeftRadius: 18,
-              borderBottomRightRadius: 4,
-          }
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderBottomLeftRadius: 18,
+            borderBottomRightRadius: 4,
+        }
         : {
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              borderBottomLeftRadius: 4,
-              borderBottomRightRadius: 18,
-          };
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderBottomLeftRadius: 4,
+            borderBottomRightRadius: 18,
+        };
 
     return (
         <>
@@ -99,8 +99,8 @@ export default function MessageItem({
                         {isToday(new Date(message.created_at))
                             ? 'Today'
                             : isYesterday(new Date(message.created_at))
-                              ? 'Yesterday'
-                              : format(new Date(message.created_at), 'MMM d, yyyy')}
+                                ? 'Yesterday'
+                                : format(new Date(message.created_at), 'MMM d, yyyy')}
                     </Text>
                     <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
                 </View>
@@ -137,7 +137,7 @@ export default function MessageItem({
                                     resizeMode="cover"
                                 />
                             ) : (
-                                <View className="w-full h-32 items-center justify-center bg-black/10 dark:bg-white/5">
+                                <View className="w-full h-32 items-center justify-center bg-black/10 dark:bg-dark_gray">
                                     <Ionicons name="image-outline" size={28} color={isCurrentUser ? '#111' : '#888'} />
                                 </View>
                             )}
@@ -224,11 +224,10 @@ export default function MessageItem({
 
                     {message.attachment_type === 'audio' && message.attachment_path && (
                         <View
-                            className={`mt-2 rounded-2xl overflow-hidden border ${
-                                isCurrentUser
-                                    ? 'border-white/20 bg-black/10'
-                                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
-                            }`}
+                            className={`mt-2 rounded-2xl overflow-hidden border ${isCurrentUser
+                                ? 'border-white/20 bg-black/10'
+                                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
+                                }`}
                         >
                             <VoiceMessage
                                 audioUrl={imageUrl}

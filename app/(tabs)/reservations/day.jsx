@@ -1,15 +1,28 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, RefreshControl, ScrollView, Modal } from 'react-native';
+import { View, Text, Pressable, RefreshControl, Modal } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import API from '@/api';
-import { Colors } from '@/constants/Colors';
-import { format, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { Colors, getAccentFillColor, Overlays } from '@/constants/Colors';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import NewReservation from './reserve';
 import NewCoworkReservation from './reserveCowork';
 import Skeleton from '@/components/ui/Skeleton';
+import ReservationDetailHeader from './Partials/ReservationDetailHeader';
+import TimelineSlotSelector from './Partials/TimelineSlotSelector';
+import {
+  TIMELINE_END_MINUTES,
+  TIMELINE_HOUR_HEIGHT,
+  TIMELINE_START_MINUTES,
+  clamp,
+  getTimelineTotalHeight,
+  minutesToY,
+  selectionToTimeRange,
+} from './Partials/timelineUtils';
 
 export default function DayView() {
   const { date, tab, reservations: reservationsParam, reservationsCowork: reservationsCoworkParam, place: placeParam } = useLocalSearchParams();
@@ -17,6 +30,7 @@ export default function DayView() {
   const colorScheme = useColorScheme();
   const { token } = useAppContext();
   const isDark = colorScheme === 'dark';
+  const accentFill = getAccentFillColor(isDark);
 
   // Parse place from params
   const selectedPlace = useMemo(() => {
@@ -78,7 +92,7 @@ export default function DayView() {
   const [currentMonthDate, setCurrentMonthDate] = useState(new Date(day));
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState(null);
-  const [pressY, setPressY] = useState(null);
+  const [timelineScrollEnabled, setTimelineScrollEnabled] = useState(true);
 
   // Update day when date param changes
   useEffect(() => {
@@ -147,11 +161,10 @@ export default function DayView() {
       }));
   }, [reservations, day, isDark]);
 
-  // ---- Layout Constants ----
-  const HOUR_HEIGHT = 80;
-  const START_MINUTES = 7 * 60 + 30; // Start from 7:30 AM
-  const END_MINUTES = 17 * 60 + 30; // End at 18:30 (6:30 PM)
-  const TOTAL_HEIGHT = ((END_MINUTES - START_MINUTES) * HOUR_HEIGHT) / 60;
+  const HOUR_HEIGHT = TIMELINE_HOUR_HEIGHT;
+  const START_MINUTES = TIMELINE_START_MINUTES;
+  const END_MINUTES = TIMELINE_END_MINUTES;
+  const TOTAL_HEIGHT = getTimelineTotalHeight(HOUR_HEIGHT, START_MINUTES, END_MINUTES);
 
   // Parse time exactly - ensure precise time matching
   const parseHm = (hm) => {
@@ -168,19 +181,25 @@ export default function DayView() {
     const [h = '0', m = '0'] = timeStr.split(':');
     return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
   };
-  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const toY = useCallback((minutes) => ((minutes - START_MINUTES) * HOUR_HEIGHT) / 60, []);
+  const clampMinutes = (v, min, max) => clamp(v, min, max);
+  const toY = useCallback((minutes) => minutesToY(minutes, HOUR_HEIGHT, START_MINUTES), [HOUR_HEIGHT, START_MINUTES]);
 
   // Position events and detect overlaps for side-by-side display
   const positioned = useMemo(() => {
     return events.map((e) => {
-      const s = clamp(parseHm(e.rawStart), START_MINUTES, END_MINUTES);
-      const en = clamp(parseHm(e.rawEnd), START_MINUTES, END_MINUTES);
+      const s = clampMinutes(parseHm(e.rawStart), START_MINUTES, END_MINUTES);
+      const en = clampMinutes(parseHm(e.rawEnd), START_MINUTES, END_MINUTES);
       const top = toY(s);
       const height = Math.max(36, toY(en) - toY(s));
       return { ...e, top, height, startMin: s, endMin: en };
     });
   }, [events]);
+
+  const daysInMonth = useMemo(() => {
+    const start = startOfMonth(currentMonthDate);
+    const end = endOfMonth(currentMonthDate);
+    return eachDayOfInterval({ start, end });
+  }, [currentMonthDate]);
 
   const timelineScrollRef = useRef(null);
   const dateSelectorScrollRef = useRef(null);
@@ -260,25 +279,19 @@ export default function DayView() {
     setRefreshing(false);
   }, [fetchReservations]);
 
-  // ---- Calendar Header ----
-  const daysInMonth = useMemo(() => {
-    const start = startOfMonth(currentMonthDate);
-    const end = endOfMonth(currentMonthDate);
-    return eachDayOfInterval({ start, end });
-  }, [currentMonthDate]);
+  const clearSlotSelection = useCallback(() => {
+    setSelectedTimeRange(null);
+  }, []);
 
-  // Get current week days
-  const currentWeekDays = useMemo(() => {
-    const selectedDayDate = new Date(day);
-    const weekStart = startOfWeek(selectedDayDate, { weekStartsOn: 1 }); // Monday as start
-    const weekEnd = endOfWeek(selectedDayDate, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: weekStart, end: weekEnd });
-  }, [day]);
+  useEffect(() => {
+    clearSlotSelection();
+    setShowNewReservation(false);
+  }, [day, clearSlotSelection]);
 
-  const goToPrevMonth = () => setCurrentMonthDate(addMonths(currentMonthDate, -1));
-  const goToNextMonth = () => setCurrentMonthDate(addMonths(currentMonthDate, 1));
-  const currentMonth = format(currentMonthDate, 'LLLL yyyy');
-  const selectedDate = new Date(day);
+  const handleSlotSelected = useCallback((selection) => {
+    setSelectedTimeRange(selectionToTimeRange(selection));
+    setShowNewReservation(true);
+  }, []);
 
   // Optimized navigation data
   const navigationData = useMemo(() => JSON.stringify(reservations), [reservations]);
@@ -302,14 +315,9 @@ export default function DayView() {
   if (isLoading) {
     return (
       <AppLayout>
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          backgroundColor: isDark ? Colors.dark : Colors.light,
-        }}>
-          <Skeleton width={26} height={26} borderRadius={13} isDark={false} />
-          <View style={{ height: 14 }} />
+        <View className="flex-1 justify-center items-center bg-light dark:bg-dark">
+          <Skeleton width={26} height={26} borderRadius={13} isDark={isDark} />
+          <View className="h-3.5" />
           <Skeleton width={220} height={14} borderRadius={12} isDark={isDark} />
         </View>
       </AppLayout>
@@ -318,167 +326,43 @@ export default function DayView() {
 
   return (
     <AppLayout>
-      {/* ===== Month Navigation Bar ===== */}
-      <View style={{ 
-        paddingHorizontal: 20, 
-        paddingVertical: 16, 
-        borderBottomWidth: 1, 
-        borderBottomColor: isDark ? Colors.dark_gray : Colors.dark_gray + '30',
-        backgroundColor: isDark ? Colors.dark_gray : Colors.light,
-        shadowColor: Colors.dark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-      }}>
-        <View className="flex-row items-center justify-between">
-          {/* <Pressable
-            onPress={goToPrevMonth}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 12,
-              backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-            }}
-          >
-            <Text style={{ fontSize: 18, fontWeight: '600', color: isDark ? Colors.light : Colors.beta }}>‹</Text>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: isDark ? Colors.light : Colors.beta }}>
-              {format(addMonths(currentMonthDate, -1), 'LLLL')}
-            </Text>
-          </Pressable> */}
-
-          {/* Current Month Display with Add Button */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable
-              onPress={() => {
-                // Reset to current month
-                setCurrentMonthDate(new Date());
-              }}
-              style={{
-                paddingHorizontal: 18,
-                paddingVertical: 10,
-                borderRadius: 14,
-                backgroundColor: isDark ? Colors.dark : Colors.light,
-                borderWidth: 1,
-                borderColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
-                shadowColor: Colors.dark,
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 3,
-                elevation: 2,
-              }}
-            >
-              <Text style={{ 
-                fontSize: 17, 
-                fontWeight: '700', 
-                color: isDark ? Colors.light : Colors.beta,
-                letterSpacing: 0.3,
-              }}>
-                {format(currentMonthDate, 'LLLL yyyy')}
-              </Text>
-            </Pressable>
-
-
-          </View>
-
-          <View className="flex-row items-center" style={{ gap: 8 }}>
-            {/* <Pressable
-              onPress={goToNextMonth}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 12,
-                backgroundColor: isDark ? Colors.dark_gray : Colors.light,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: '600', color: isDark ? Colors.light : Colors.beta }}>
-                {format(addMonths(currentMonthDate, 1), 'LLLL')}
-              </Text>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: isDark ? Colors.light : Colors.beta }}>›</Text>
-            </Pressable> */}
-
-            <Pressable
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: isDark ? Colors.dark : Colors.light,
-                borderWidth: 1,
-                borderColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
-                shadowColor: Colors.dark,
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 3,
-                elevation: 2,
-              }}
-            >
-              <Text style={{ fontSize: 18, color: isDark ? Colors.light : Colors.beta }}>🔍</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setShowNewReservation(true)}
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: Colors.alpha,
-                shadowColor: Colors.alpha,
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.35,
-                shadowRadius: 6,
-                elevation: 5,
-                minWidth: 44,
-                minHeight: 44,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 22, fontWeight: '700', color: Colors.dark }}>＋</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
+      <View className="flex-1 bg-light dark:bg-dark">
+      <ReservationDetailHeader
+        title={format(new Date(day), 'EEE, d MMM yyyy')}
+        subtitle={selectedPlace?.name || 'Day schedule'}
+        rightAction={{
+          label: 'Add',
+          icon: 'add',
+          onPress: () => {
+            clearSlotSelection();
+            setShowNewReservation(true);
+          },
+        }}
+      />
 
       {/* ===== Date Selector ===== */}
-      <View style={{ 
-        paddingHorizontal: 20, 
-        paddingTop: 20, 
-        paddingBottom: 16,
-        backgroundColor: isDark ? Colors.dark : Colors.light,
-        borderBottomWidth: 1,
-        borderBottomColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
-      }}>
+      <View className="px-4 pt-3 pb-3 border-b border-beta/8 dark:border-light/8 bg-light dark:bg-dark">
         {/* Weekday Labels */}
-        <View className="flex-row justify-between" style={{ marginBottom: 8, paddingHorizontal: 4 }}>
+        <View className="flex-row justify-between mb-2 px-1">
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-            <View key={i} style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={{
-                fontSize: 11,
-                fontWeight: '600',
-                color: isDark ? Colors.light + 'CC' : Colors.beta + 'CC',
-              }}>
-                {d}
-              </Text>
+            <View key={i} className="items-center flex-1">
+              <Text className="text-[11px] font-semibold text-beta/60 dark:text-light/60">{d}</Text>
             </View>
           ))}
         </View>
 
-        {/* Scrollable Days - Show current month days */}
         <ScrollView
           ref={dateSelectorScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+          contentContainerClassName="gap-2 px-1"
         >
           {daysInMonth.map((dateObj) => {
             const num = dateObj.getDate();
             const dateString = format(dateObj, 'yyyy-MM-dd');
             const isSelected = dateString === day;
             const isToday = dateString === format(new Date(), 'yyyy-MM-dd');
-            const hasReservations = reservations.some(r => getReservationDate(r) === dateString);
+            const hasReservations = reservations.some((r) => getReservationDate(r) === dateString);
 
             return (
               <Pressable
@@ -490,46 +374,24 @@ export default function DayView() {
                     goToDayView({ dateString });
                   }
                 }}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isSelected ? Colors.alpha : 'transparent',
-                  borderWidth: isToday && !isSelected ? 2 : 0,
-                  borderColor: Colors.alpha,
-                  shadowColor: isSelected ? Colors.alpha : 'transparent',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: isSelected ? 0.25 : 0,
-                  shadowRadius: 4,
-                  elevation: isSelected ? 3 : 0,
-                }}
+                className={`w-11 h-11 rounded-full items-center justify-center active:opacity-80 ${
+                  isSelected ? 'bg-beta dark:bg-alpha' : isToday ? 'border-2 border-beta dark:border-alpha' : ''
+                }`}
               >
-                <Text style={{
-                  fontWeight: isSelected ? '800' : (isToday ? '700' : '600'),
-                  fontSize: 15,
-                  color: isSelected ? Colors.dark : (isDark ? Colors.light : Colors.beta)
-                }}>
+                <Text
+                  className={`text-[15px] ${
+                    isSelected
+                      ? 'font-extrabold text-light dark:text-beta'
+                      : isToday
+                        ? 'font-bold text-beta dark:text-light'
+                        : 'font-semibold text-beta dark:text-light'
+                  }`}
+                >
                   {num}
                 </Text>
-                {hasReservations && !isSelected && (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      bottom: 5,
-                      width: 5,
-                      height: 5,
-                      borderRadius: 2.5,
-                      backgroundColor: Colors.alpha,
-                      shadowColor: Colors.alpha,
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.5,
-                      shadowRadius: 2,
-                      elevation: 2,
-                    }}
-                  />
-                )}
+                {hasReservations && !isSelected ? (
+                  <View className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-beta dark:bg-alpha" />
+                ) : null}
               </Pressable>
             );
           })}
@@ -549,29 +411,25 @@ export default function DayView() {
       </View>
 
       {/* ===== Timeline Scroll ===== */}
-      <View className="flex-1" style={{ backgroundColor: isDark ? Colors.dark : Colors.light }}>
+      <View className="flex-1 bg-light dark:bg-dark">
         <ScrollView
           ref={timelineScrollRef}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.alpha} />}
+          scrollEnabled={timelineScrollEnabled}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accentFill} colors={[accentFill]} />}
           showsVerticalScrollIndicator
           contentContainerStyle={{
-            // paddingBottom: 5, // Increased padding to ensure all reservations are accessible
-            minHeight: TOTAL_HEIGHT + 100, // Increased minHeight to ensure full scrollability
+            minHeight: TOTAL_HEIGHT + 48,
+            paddingBottom: 16,
           }}
         >
           <View style={{ height: TOTAL_HEIGHT, flexDirection: 'row', minHeight: TOTAL_HEIGHT }}>
-            {/* Hour Labels - From 7:30 to 18:30 */}
             <View style={{ width: 60, paddingRight: 8, paddingLeft: 8 }}>
               {Array.from({ length: Math.ceil(END_MINUTES / 60) - Math.floor(START_MINUTES / 60) + 1 }).map((_, idx) => {
                 const hr = Math.floor(START_MINUTES / 60) + idx;
                 const top = toY(hr * 60);
                 return (
                   <View key={hr} style={{ position: 'absolute', top: top - 10, height: 20, width: '100%', alignItems: 'flex-end' }}>
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: '500',
-                      color: isDark ? Colors.light + 'CC' : Colors.beta + 'CC'
-                    }}>
+                    <Text className="text-xs font-medium text-beta/60 dark:text-light/60">
                       {String(hr).padStart(2, '0')}:00
                     </Text>
                   </View>
@@ -579,68 +437,33 @@ export default function DayView() {
               })}
             </View>
 
-            {/* Events */}
             <View style={{ flex: 1, position: 'relative' }}>
-              {pressY !== null && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: pressY - 15,
-                    left: 0,
-                    right: 0,
-                    height: 30,
-                    backgroundColor: Colors.alpha + '4D',
-                    borderRadius: 4,
-                    zIndex: 3,
-                  }}
-                />
-              )}
-
-              <Pressable
-                onLongPress={(event) => {
-                  const y = event.nativeEvent.locationY;
-                  setPressY(y);
-
-                  const totalMinutes = START_MINUTES + (y / TOTAL_HEIGHT) * (END_MINUTES - START_MINUTES);
-                  const roundedMinutes = Math.round(totalMinutes / 30) * 30;
-
-                  const startHour = Math.floor(roundedMinutes / 60);
-                  const startMin = roundedMinutes % 60;
-                  const endMinutes = roundedMinutes + 30;
-                  const endHour = Math.floor(endMinutes / 60);
-                  const endMin = endMinutes % 60;
-
-                  const startTime = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
-                  const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
-
-                  setSelectedTimeRange({ start: startTime, end: endTime });
-                  setTimeout(() => setPressY(null), 2000);
-                  setTimeout(() => setShowNewReservation(true), 500);
-                }}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: TOTAL_HEIGHT, zIndex: 1 }}
+              <TimelineSlotSelector
+                occupiedSlots={positioned}
+                leftInset={52}
+                onDragStateChange={setTimelineScrollEnabled}
+                onSelectionComplete={handleSlotSelected}
+                onClearSelection={clearSlotSelection}
               />
 
-              {/* Hour lines - From 7:30 to 18:30 */}
               {Array.from({ length: Math.ceil(END_MINUTES / 60) - Math.floor(START_MINUTES / 60) + 1 }).map((_, idx) => {
                 const hr = Math.floor(START_MINUTES / 60) + idx;
                 const top = toY(hr * 60);
                 return (
-                  <View key={hr} style={{ 
-                    position: 'absolute', 
-                    top, 
-                    left: 52, 
-                    right: 0, 
-                    height: 1, 
-                    backgroundColor: isDark ? Colors.dark_gray : Colors.dark_gray + '40'
-                  }} />
+                  <View
+                    key={hr}
+                    pointerEvents="none"
+                    className="absolute right-0 border-t border-beta/10 dark:border-light/10"
+                    style={{ top, left: 52, height: 1 }}
+                  />
                 );
               })}
 
               {positioned.map((e, i) => {
-                // Event color - orange-brown like the reference
-                const eventColor = e.canceled ? Colors.dark_gray : Colors.alpha;
+                const stripeColor = e.canceled
+                  ? (isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)')
+                  : accentFill;
 
-                // Display all events as lines - they can overlap
                 return (
                   <Pressable
                     key={e.id || i}
@@ -650,150 +473,77 @@ export default function DayView() {
                       top: e.top,
                       left: 52,
                       right: 12,
-                      height: Math.max(e.height, 36), // Minimum height for better visibility
+                      height: Math.max(e.height, 36),
                       flexDirection: 'row',
                       alignItems: 'center',
                       zIndex: 2,
                     }}
                   >
-                    {/* Vertical line on left edge */}
-                    <View style={{
-                      width: 4,
-                      height: '100%',
-                      backgroundColor: eventColor,
-                      borderRadius: 2,
-                    }} />
-
-                    {/* Icon on left edge */}
-                    <View style={{
-                      marginLeft: 10,
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      backgroundColor: eventColor,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'absolute',
-                      left: 2,
-                      shadowColor: Colors.dark,
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 3,
-                      elevation: 3,
-                    }}>
-                      <Text style={{ fontSize: 12, color: Colors.light }}>🕐</Text>
+                    <View
+                      className="absolute inset-0 rounded-xl border border-beta/10 dark:border-light/10 bg-white dark:bg-card"
+                      style={{ opacity: e.canceled ? 0.55 : 1, zIndex: -1 }}
+                    />
+                    <View style={{ width: 4, height: '100%', backgroundColor: stripeColor, borderRadius: 2 }} />
+                    <View className="flex-1 ml-3 py-1.5 pr-2">
+                      <Text className="text-sm font-bold text-beta dark:text-light" numberOfLines={2}>
+                        {e.title}
+                      </Text>
+                      <Text className="text-xs font-semibold text-beta/55 dark:text-light/55 mt-1" numberOfLines={1}>
+                        {e.rawStart} - {e.rawEnd}
+                      </Text>
                     </View>
-
-                    {/* Event content */}
-                    <View style={{
-                      flex: 1,
-                      marginLeft: 36,
-                      paddingVertical: 6,
-                      paddingRight: 8,
-                    }}>
-                    <Text style={{
-                      fontWeight: '700',
-                      fontSize: 14,
-                      color: Colors.light,
-                      lineHeight: 20,
-                      letterSpacing: 0.2,
-                    }} numberOfLines={2}>
-                      {e.title}
-                    </Text>
-                    <Text style={{
-                      marginTop: 4,
-                      fontSize: 12,
-                      color: Colors.light + 'E6',
-                      fontWeight: '600',
-                      letterSpacing: 0.3,
-                    }} numberOfLines={1}>
-                      {e.rawStart} - {e.rawEnd}
-                    </Text>
-                    </View>
-
-                    {/* Background bar */}
-                    <View style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      backgroundColor: eventColor,
-                      opacity: e.canceled ? 0.5 : 0.98,
-                      borderRadius: 8,
-                      zIndex: -1,
-                      shadowColor: Colors.dark,
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 4,
-                      elevation: 3,
-                    }} />
                   </Pressable>
                 );
               })}
             </View>
           </View>
         </ScrollView>
+
+        <View className="px-4 py-2 border-t border-beta/8 dark:border-light/8 bg-light dark:bg-dark">
+          <Text className="text-[11px] text-beta/45 dark:text-light/45 text-center">
+            Long press an empty slot, drag to adjust the time, then release to book
+          </Text>
+        </View>
       </View>
 
-      {/* Modal New Reservation - Show different modal based on tab */}
-      {showNewReservation && (
-        <Modal visible={showNewReservation} animationType="slide" transparent onRequestClose={() => setShowNewReservation(false)}>
-          <View className="flex-1 justify-center" style={{ backgroundColor: isDark ? Colors.dark + 'E6' : Colors.dark + '80', padding: 16 }}>
-            <View style={{ 
-              flex: 1, 
-              maxHeight: '90%', 
-              borderRadius: 20, 
-              overflow: 'hidden', 
-              backgroundColor: isDark ? Colors.dark : Colors.light,
-              shadowColor: Colors.dark, 
-              shadowOffset: { width: 0, height: 4 }, 
-              shadowOpacity: 0.3, 
-              shadowRadius: 12, 
-              elevation: 8 
-            }}>
+      {showNewReservation ? (
+        <Modal
+          visible={showNewReservation}
+          animationType="slide"
+          transparent
+          onRequestClose={() => {
+            setShowNewReservation(false);
+            clearSlotSelection();
+          }}
+        >
+          <View className="flex-1 justify-end" style={{ backgroundColor: Overlays.modalScrim }}>
+            <View className="flex-1 max-h-[92%] bg-light dark:bg-dark rounded-t-3xl overflow-hidden border-t border-beta/10 dark:border-light/10">
               {tab === 'cowork' ? (
-                <NewCoworkReservation 
-                  selectedDate={day} 
-                  prefillTime={selectedTimeRange} 
-                  onClose={() => setShowNewReservation(false)}
+                <NewCoworkReservation
+                  selectedDate={day}
+                  prefillTime={selectedTimeRange}
+                  onClose={() => {
+                    setShowNewReservation(false);
+                    clearSlotSelection();
+                  }}
                   placeId={selectedPlace?.id === 'cowork-all' ? undefined : selectedPlace?.id}
                 />
               ) : (
-                <NewReservation 
-                  selectedDate={day} 
-                  prefillTime={selectedTimeRange} 
-                  onClose={() => setShowNewReservation(false)}
+                <NewReservation
+                  selectedDate={day}
+                  prefillTime={selectedTimeRange}
+                  onClose={() => {
+                    setShowNewReservation(false);
+                    clearSlotSelection();
+                  }}
                   placeId={selectedPlace?.id}
                 />
               )}
             </View>
-
-            <Pressable
-              onPress={() => setShowNewReservation(false)}
-              style={{ 
-                position: 'absolute', 
-                top: 50, 
-                right: 20, 
-                padding: 14, 
-                borderRadius: 28, 
-                minWidth: 52, 
-                minHeight: 52,
-                alignItems: 'center', 
-                justifyContent: 'center',
-                backgroundColor: Colors.alpha,
-                shadowColor: Colors.alpha,
-                shadowOffset: { width: 0, height: 3 }, 
-                shadowOpacity: 0.35, 
-                shadowRadius: 6, 
-                elevation: 6 
-              }}
-            >
-              <Text style={{ fontWeight: '700', fontSize: 20, color: Colors.dark }}>✕</Text>
-            </Pressable>
           </View>
         </Modal>
-      )}
+      ) : null}
+      </View>
     </AppLayout>
   );
 }

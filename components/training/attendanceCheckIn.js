@@ -39,6 +39,24 @@ export function isStudentUser(user) {
   return Boolean(user && !isStaffUser(user));
 }
 
+export function getUserFormationId(user) {
+  const raw = user?.formation_id ?? user?.formationId;
+  if (raw == null || raw === '') return null;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+/** Staff → global list; students → their enrolled training detail only. */
+export function getTrainingHubRoute(user) {
+  if (isStudentUser(user)) {
+    const formationId = getUserFormationId(user);
+    if (formationId) {
+      return { pathname: '/(tabs)/training/[id]', params: { id: String(formationId) } };
+    }
+  }
+  return '/(tabs)/training';
+}
+
 export function getSlotActionLabel(slot) {
   const key = normalizeSlotKey(slot);
   if (!key) return 'Mark attendance';
@@ -466,11 +484,19 @@ export function formatCheckInSuccessMessage(data) {
 }
 
 export async function fetchSlotStatus(token, formationId) {
-  const response = await API.getWithAuth(
-    `mobile/attendance/slot-status?formation_id=${encodeURIComponent(String(formationId))}`,
-    token,
-  );
-  return response?.data ?? null;
+  try {
+    const response = await API.getWithAuth(
+      `mobile/attendance/slot-status?formation_id=${encodeURIComponent(String(formationId))}`,
+      token,
+      { silent: true },
+    );
+    return response?.data ?? null;
+  } catch (error) {
+    if (error?.response?.status === 503) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function submitCheckIn(token, { formation_id, attendance_day }) {

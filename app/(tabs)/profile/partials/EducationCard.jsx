@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { formatPeriod, formatPeriodFromParts } from './helpers';
+import { formatPeriod, formatPeriodFromParts } from './_helpers';
 
 export default function EducationCard({ profile, isDark }) {
   const rawList =
@@ -49,7 +49,7 @@ export default function EducationCard({ profile, isDark }) {
           return (
             <View
               key={edu?.id ?? idx}
-              className={`flex-row ${!isLast ? 'pb-5 mb-4 border-b border-black/5 dark:border-white/5' : ''}`}
+              className={`flex-row ${!isLast ? 'pb-5 mb-4 border-b border-black/5 dark:border-dark_gray' : ''}`}
             >
               {/* School icon badge */}
               <View className="w-12 h-12 rounded-xl bg-alpha/10 items-center justify-center mr-3 mt-0.5 shrink-0">
@@ -70,7 +70,7 @@ export default function EducationCard({ profile, isDark }) {
                 ) : null}
                 {description ? (
                   <Text
-                    className="text-sm text-black/55 dark:text-white/55 mt-1.5 leading-[20px]"
+                    className="text-sm text-black/55 dark:text-dark_gray5 mt-1.5 leading-[20px]"
                     numberOfLines={3}
                   >
                     {description}

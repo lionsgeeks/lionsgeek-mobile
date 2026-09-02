@@ -15,10 +15,11 @@ import { router } from "expo-router";
 import API from "@/api";
 import { Ionicons } from "@expo/vector-icons";
 import AppLayout from "@/components/layout/AppLayout";
+import { useScrollTabPadding } from "@/hooks/useScrollTabPadding";
 import Skeleton from "@/components/ui/Skeleton";
 import EditProfileModal from "./profile/_components/EditProfileModal";
 import SmoothThemeToggle from "@/components/ui/SmoothThemeToggle";
-import GamerProfileStats from "./more/Partials/GamerProfileStats";
+import GamerProfileStats from "./more/_partials/GamerProfileStats";
 import {
   resolveAvatarUrl,
   getUserRolesNormalized,
@@ -126,7 +127,7 @@ function SectionLabel({ title, className = "" }) {
 
 function SettingsCard({ children }) {
   return (
-    <View className="mx-5 overflow-hidden rounded-3xl border border-black/[0.06] bg-white dark:border-white/5 dark:bg-[#1A1816]">
+    <View className="mx-5 overflow-hidden rounded-3xl border border-black/[0.06] bg-white dark:border-dark_gray dark:bg-[#1A1816]">
       {children}
     </View>
   );
@@ -146,6 +147,7 @@ export default function More() {
   const { user, token, signOut, saveAuth, colorScheme, setTheme } =
     useAppContext();
   const isDark = colorScheme === "dark";
+  const scrollBottomPadding = useScrollTabPadding(24);
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -180,7 +182,7 @@ export default function More() {
   const refreshUnread = useCallback(async () => {
     if (!token) return;
     try {
-      const response = await API.getWithAuth("notifications", token);
+      const response = await API.getWithAuth("mobile/notifications", token);
       const list = response?.data?.notifications ?? [];
       const unread = list.filter((n) => !n.read_at).length;
       setUnreadNotifications(unread);
@@ -272,7 +274,8 @@ export default function More() {
     <AppLayout showNavbar={false} className="dark:bg-[#0D0C0B]">
       <ScrollView
         className="flex-1 bg-light dark:bg-[#0D0C0B]"
-        contentContainerClassName="pt-14"
+        contentContainerClassName="pt-4"
+        contentContainerStyle={{ paddingBottom: scrollBottomPadding }}
         showsVerticalScrollIndicator={false}
       >
         {/* Profile — centered premium block */}

@@ -143,13 +143,13 @@ function ActivityRow({ item, onPress }) {
           {relative}
         </Text>
       </View>
-        {thumbUri ? (
-          <Image source={{ uri: thumbUri }} className="w-14 h-14 rounded-xl bg-black/10 dark:bg-white/10" />
-        ) : item.type === 'follow' && item.follow?.name ? (
-          <View className="w-14 h-14 rounded-xl bg-alpha/20 dark:bg-alpha/25 items-center justify-center border border-alpha/40">
-            <Text className="text-lg font-extrabold text-alpha">{item.follow.name.charAt(0).toUpperCase()}</Text>
-          </View>
-        ) : null}
+      {thumbUri ? (
+        <Image source={{ uri: thumbUri }} className="w-14 h-14 rounded-xl bg-black/10 dark:bg-white/10" />
+      ) : item.type === 'follow' && item.follow?.name ? (
+        <View className="w-14 h-14 rounded-xl bg-alpha/20 dark:bg-alpha/25 items-center justify-center border border-alpha/40">
+          <Text className="text-lg font-extrabold text-alpha">{item.follow.name.charAt(0).toUpperCase()}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -308,7 +308,7 @@ export default function ActivityScreen() {
           <Text className="text-base font-semibold text-black dark:text-white text-center">
             Sign in to see your activity
           </Text>
-          <Text className="text-sm text-black/55 dark:text-white/55 text-center mt-2">
+          <Text className="text-sm text-black/55 dark:text-dark_gray5 text-center mt-2">
             Likes, comments, bookings, and more — excluding messages — stay on this timeline.
           </Text>
           <TouchableOpacity
@@ -337,11 +337,10 @@ export default function ActivityScreen() {
               key={p.id}
               activeOpacity={0.75}
               onPress={() => setFilter(p.id)}
-              className={`px-3.5 py-2 rounded-full border ${
-                selected
-                  ? 'bg-alpha border-alpha'
-                  : 'border-black/[0.1] bg-white dark:border-white/14 dark:bg-[#1f1f1f]'
-              }`}
+              className={`px-3.5 py-2 rounded-full border ${selected
+                ? 'bg-alpha border-alpha'
+                : 'border-black/[0.1] bg-white dark:border-white/14 dark:bg-[#1f1f1f]'
+                }`}
             >
               <Text
                 className={`text-[13px] font-semibold ${selected ? 'text-black' : 'text-black/75 dark:text-white'}`}

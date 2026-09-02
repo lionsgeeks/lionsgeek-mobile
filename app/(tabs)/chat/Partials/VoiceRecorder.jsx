@@ -11,7 +11,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState(null);
     const shouldSendDirectlyRef = useRef(false);
-    
+
     const recordingRef = useRef(null);
     const timerRef = useRef(null);
     const touchStartTimeRef = useRef(null);
@@ -28,7 +28,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     const startRecording = async () => {
         try {
             setError(null);
-            
+
             // Request permissions
             const { status } = await Audio.requestPermissionsAsync();
             if (status !== 'granted') {
@@ -45,7 +45,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
             const { recording } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
-            
+
             recordingRef.current = recording;
             setIsRecording(true);
             setRecordingTime(0);
@@ -80,29 +80,29 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
         }
 
         shouldSendDirectlyRef.current = true;
-        
+
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
-        
+
         try {
             await recordingRef.current.stopAndUnloadAsync();
             const uri = recordingRef.current.getURI();
             const status = await recordingRef.current.getStatusAsync();
-            
+
             if (uri && status.isLoaded) {
                 const duration = Math.round(status.durationMillis / 1000) || recordingTime;
-                
+
                 // Create file object for upload
                 const fileType = 'audio/m4a'; // iOS/Android default
-                
+
                 if (shouldSendDirectlyRef.current && onSendAudioDirect) {
                     setIsUploading(false);
                     setIsRecording(false);
                     setCanSend(false);
                     setRecordingTime(0);
-                    
+
                     // In React Native, we need to create a FormData with the file
                     // For now, we'll pass the URI and let the parent handle it
                     try {
@@ -113,7 +113,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                     }
                     return;
                 }
-                
+
                 if (onRecordingComplete) {
                     await onRecordingComplete(uri, duration, fileType);
                 }
@@ -167,12 +167,12 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     const handlePressOut = (e) => {
         if (!isRecording) return;
         const holdTime = Date.now() - touchStartTimeRef.current;
-        
+
         if (holdTime < 500) {
             handleCancel();
             return;
         }
-        
+
         if (canSend) {
             shouldSendDirectlyRef.current = true;
             stopRecordingAndSend();
@@ -221,7 +221,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                                 <Text className="text-lg font-extrabold text-black dark:text-white tabular-nums">
                                     {formatTime(recordingTime)}
                                 </Text>
-                                <Text className="text-[11px] font-semibold text-black/50 dark:text-white/50 uppercase tracking-wide">
+                                <Text className="text-[11px] font-semibold text-black/50 dark:text-dark_gray0 uppercase tracking-wide">
                                     {canSend ? 'Release to send' : 'Hold to record'}
                                 </Text>
                             </View>

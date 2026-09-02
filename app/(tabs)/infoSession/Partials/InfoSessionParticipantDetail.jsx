@@ -11,6 +11,7 @@ import AccessDenied from '../../events/Partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { eventsInfoImageSource } from '@/utils/eventsConfig';
 import {
   findParticipantById,
   formatSessionDate,
@@ -19,7 +20,7 @@ import {
   isParticipantCheckedIn,
   mapInfoParticipant,
   mapInfoParticipants,
-} from '../helpers';
+} from '../_helpers';
 
 function SectionCard({ children, className = '' }) {
   return (
@@ -48,7 +49,7 @@ function DetailRow({ icon, label, value, accentIcon }) {
 }
 
 export default function ParticipantDetail() {
-  const { user } = useAppContext();
+  const { user, token } = useAppContext();
   const params = useLocalSearchParams();
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
   const participantId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -68,6 +69,7 @@ export default function ParticipantDetail() {
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
   const photoUrl = useMemo(() => getParticipantPhotoUrl(participant?.image), [participant?.image]);
+  const photoSource = useMemo(() => eventsInfoImageSource(photoUrl, token), [photoUrl, token]);
   const checkedIn = isParticipantCheckedIn(participant);
 
   const loadParticipant = useCallback(
@@ -206,7 +208,7 @@ export default function ParticipantDetail() {
   return (
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
-        <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
+        <View className="pt-3 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
             className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
@@ -277,7 +279,7 @@ export default function ParticipantDetail() {
             <SectionCard className="p-4 items-center">
               <View className="w-24 h-24 rounded-full overflow-hidden bg-beta/15 dark:bg-alpha/15 items-center justify-center mb-3 border-2 border-beta/10 dark:border-light/10">
                 {photoUrl ? (
-                  <Image source={{ uri: photoUrl }} className="w-full h-full" resizeMode="cover" />
+                  <Image source={photoSource} className="w-full h-full" resizeMode="cover" />
                 ) : (
                   <Text className="text-3xl font-bold text-beta dark:text-alpha">{initial}</Text>
                 )}

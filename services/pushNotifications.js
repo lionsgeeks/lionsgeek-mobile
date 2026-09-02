@@ -52,8 +52,6 @@ export async function registerForPushNotificationsAsync() {
     });
 
     token = tokenData.data;
-    console.log('✅ Expo push token obtained:', token.substring(0, 20) + '...');
-    console.log('📱 Full token (for debugging):', token);
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -93,23 +91,15 @@ export async function sendPushTokenToBackend(token, authToken) {
   }
 
   try {
-    console.log('📤 Sending push token to backend...');
     const response = await API.post('mobile/push-token', {
       expo_push_token: token,
     }, authToken);
 
-    console.log('📥 Backend response:', JSON.stringify(response?.data, null, 2));
-
-    if (response?.data?.success) {
-      console.log('✅ Push token sent to backend successfully');
-      return true;
-    } else {
-      console.warn('⚠️ Backend did not confirm push token save:', response?.data);
-      return false;
-    }
+    return response?.data?.success === true;
   } catch (error) {
-    console.error('❌ Error sending push token to backend:', error);
-    console.error('Error details:', error?.response?.data || error?.message);
+    if (__DEV__) {
+      console.error('Error sending push token to backend:', error?.response?.data || error?.message);
+    }
     return false;
   }
 }
@@ -119,12 +109,9 @@ export async function sendPushTokenToBackend(token, authToken) {
  */
 export function setupNotificationListeners(navigation) {
   ensureNotificationHandler();
-  const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received (foreground):', notification);
-  });
+  const notificationListener = Notifications.addNotificationReceivedListener(() => {});
 
   const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification tapped:', response);
     const data = response.notification.request.content.data;
     
     if (data && navigation) {

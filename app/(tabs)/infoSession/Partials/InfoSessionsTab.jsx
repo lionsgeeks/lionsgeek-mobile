@@ -12,12 +12,14 @@ import {
   normalizeInfoSessions,
   resolveInfoSessionError,
   sortSessionsByDate,
-} from '../helpers';
+} from '../_helpers';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 
 export default function InfoSessionsTab() {
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
+  const scrollBottomPadding = useScrollTabPadding(24);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -141,7 +143,7 @@ export default function InfoSessionsTab() {
   return (
     <ScrollView
       className="flex-1"
-      contentContainerStyle={{ paddingBottom: 32 }}
+      contentContainerStyle={{ paddingBottom: scrollBottomPadding }}
       keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => fetchSessions(true)} tintColor={accentFill} />

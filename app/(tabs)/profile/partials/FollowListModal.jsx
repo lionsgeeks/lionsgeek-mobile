@@ -71,7 +71,7 @@ export default function FollowListModal({ visible, type, profileId, token, curre
         ) : error ? (
           <View className="flex-1 items-center justify-center px-6">
             <Ionicons name="cloud-offline-outline" size={48} color={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} />
-            <Text className="text-black/50 dark:text-white/50 mt-4 text-sm text-center">{error}</Text>
+            <Text className="text-black/50 dark:text-dark_gray0 mt-4 text-sm text-center">{error}</Text>
           </View>
         ) : users.length === 0 ? (
           <View className="flex-1 items-center justify-center px-6">
@@ -94,7 +94,7 @@ export default function FollowListModal({ visible, type, profileId, token, curre
               />
             )}
             ItemSeparatorComponent={() => (
-              <View className="h-px mx-4 bg-black/5 dark:bg-white/5" />
+              <View className="h-px mx-4 bg-black/5 dark:bg-dark_gray" />
             )}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}

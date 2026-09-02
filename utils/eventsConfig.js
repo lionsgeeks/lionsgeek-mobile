@@ -18,3 +18,18 @@ export const EVENTS_API_KEY = (
 export const EVENTS_REQUEST_BASE = EVENTS_USE_PROXY ? EVENTS_APP_URL : EVENTS_PUBLIC_URL;
 
 export const EVENTS_API_PREFIX = EVENTS_USE_PROXY ? 'api/events-info' : 'api';
+
+export function eventsInfoImageSource(uri, token) {
+  if (!uri) return null;
+  const needsAuth = String(uri).includes('/api/events-info/');
+  if (!needsAuth || !token) {
+    return { uri };
+  }
+  return {
+    uri,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'image/*',
+    },
+  };
+}
