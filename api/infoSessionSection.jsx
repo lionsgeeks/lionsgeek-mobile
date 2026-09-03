@@ -1,73 +1,22 @@
 import axios from 'axios';
 import { getAuthToken } from '@/utils/authTokenStorage';
-
-const PUBLIC_URL = (
-  process.env.EXPO_PUBLIC_EVENTS_INFO_SECTION_URL ||
-  process.env.EVENTS_INFO_SECTION_URL ||
-  ''
-).replace(/\/+$/, '');
-
-const APP_URL = (process.env.EXPO_PUBLIC_APP_URL || '').replace(/\/+$/, '');
-
-const USE_PROXY =
-  String(process.env.EXPO_PUBLIC_EVENTS_INFO_USE_PROXY || '').toLowerCase() === 'true';
-
-const API_KEY = (
-  process.env.EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY ||
-  process.env.EVENTS_INFO_SECTION_KEY ||
-  ''
-).trim();
-
-const REQUEST_BASE = USE_PROXY ? APP_URL : PUBLIC_URL;
-const API_PREFIX = USE_PROXY ? 'api/events-info' : 'api';
-
-const getSanctumToken = async () => {
-  const tokenStr = await getAuthToken();
-  if (!tokenStr) {
-    throw new Error('Authentication token is required');
-  }
-  return tokenStr;
-};
+import {
+  EVENTS_APP_URL,
+  EVENTS_PUBLIC_URL,
+  EVENTS_USE_PROXY,
+  EVENTS_REQUEST_BASE,
+  EVENTS_API_PREFIX,
+  assertEventsProxyConfig,
+  eventsAuthHeaders,
+} from '@/utils/eventsConfig';
 
 const ensureConfig = async () => {
-  if (USE_PROXY) {
-    if (!APP_URL) {
-      throw new Error(
-        'EXPO_PUBLIC_APP_URL is not set but proxy mode is on. Set it in .env and restart Expo with: npx expo start -c'
-      );
-    }
-    return;
-  }
-  if (!PUBLIC_URL) {
-    throw new Error(
-      'EXPO_PUBLIC_EVENTS_INFO_SECTION_URL is not set. Add it to .env and restart Expo with: npx expo start -c'
-    );
-  }
-  if (!API_KEY) {
-    throw new Error(
-      'EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY is not set. Add it to .env and restart Expo with: npx expo start -c'
-    );
-  }
+  assertEventsProxyConfig();
 };
 
-const authHeaders = async () => {
-  if (USE_PROXY) {
-    const token = await getSanctumToken();
-    return {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    };
-  }
+const authHeaders = () => eventsAuthHeaders(getAuthToken);
 
-  return {
-    Authorization: `Bearer ${API_KEY}`,
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-};
-
-const buildUrl = (endpoint) => `${REQUEST_BASE}/${API_PREFIX}/${endpoint}`;
+const buildUrl = (endpoint) => `${EVENTS_REQUEST_BASE}/${EVENTS_API_PREFIX}/${endpoint}`;
 
 const get = async (endpoint) => {
   await ensureConfig();
@@ -92,9 +41,9 @@ const postMultipart = async (endpoint, formData) => {
 };
 
 export const InfoSessionAPI = {
-  BASE_URL: PUBLIC_URL,
-  APP_URL,
-  USE_PROXY,
+  BASE_URL: EVENTS_PUBLIC_URL,
+  APP_URL: EVENTS_APP_URL,
+  USE_PROXY: EVENTS_USE_PROXY,
   getInfoSessions: () => get('lionsgate/infosessions'),
   getSessionData: (sessionId) => get(`session-data?id=${sessionId}`),
   validateInvitation: (payload) => put('validate-invitation', payload),

@@ -102,10 +102,14 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       projectId ? { projectId } : undefined
     );
     const token = tokenData.data;
-    console.log('Expo Push Token:', token);
+    if (__DEV__) {
+      console.log('Expo Push Token registered:', !!token);
+    }
     return token;
   } catch (err) {
-    console.error('Error getting push token:', err);
+    if (__DEV__) {
+      console.error('Error getting push token:', err);
+    }
     return null;
   }
 }

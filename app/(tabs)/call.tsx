@@ -43,20 +43,8 @@ function formatDuration(sec: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function buildCallHtml(opts: {
-  channelName: string;
-  userId: string | number;
-  ablyToken: string;
-  isCaller: boolean;
-}): string {
-  // Embed config as a JSON string for safety.
-  const cfg = JSON.stringify({
-    channelName: String(opts.channelName),
-    userId: String(opts.userId),
-    ablyToken: String(opts.ablyToken),
-    isCaller: !!opts.isCaller,
-  });
-
+/** Static call HTML — Ably/session config is injected via injectedJavaScriptBeforeContentLoaded. */
+function buildCallHtml(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -93,7 +81,20 @@ function buildCallHtml(opts: {
   <script src="https://cdn.jsdelivr.net/npm/ably@2/browser/static/ably.min.js"></script>
   <script>
   (function() {
-    var CONFIG = ${cfg};
+    var CONFIG = window.__CALL_CONFIG__;
+    if (!CONFIG || !CONFIG.ablyToken) {
+      try {
+        var el = document.getElementById('status');
+        if (el) el.textContent = 'Missing call config';
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'error',
+            message: 'Call config was not injected before page load.',
+          }));
+        }
+      } catch (_) {}
+      return;
+    }
     var localStream = null;
     var pc = null;
     var signaling = null;
@@ -671,38 +672,38 @@ export default function CallScreen() {
     );
   }
 
-  const html = buildCallHtml({
-    channelName: activeCall.channelName,
-    userId: user?.id ?? "anon",
-    ablyToken,
+  const html = buildCallHtml();
+  const callConfigInject = `window.__CALL_CONFIG__ = ${JSON.stringify({
+    channelName: String(activeCall.channelName),
+    userId: String(user?.id ?? "anon"),
+    ablyToken: String(ablyToken),
     isCaller: !!activeCall.isCaller,
-  });
+  })}; true;`;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
       <WebView
         ref={webViewRef}
-        originWhitelist={["*"]}
+        originWhitelist={["https://localhost"]}
         // baseUrl=https://localhost gives the WebView a secure origin so
         // navigator.mediaDevices.getUserMedia is available.
         source={{ html, baseUrl: "https://localhost" }}
+        injectedJavaScriptBeforeContentLoaded={callConfigInject}
         style={{ flex: 1, backgroundColor: "#0a0a0a" }}
         javaScriptEnabled
         domStorageEnabled
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
         mediaCapturePermissionGrantType="grant"
-        // Android: allow autoplay + give the WebView access to mic & camera.
         allowsProtectedMedia
-        allowFileAccess
-        allowUniversalAccessFromFileURLs
-        mixedContentMode="always"
-        thirdPartyCookiesEnabled
+        mixedContentMode="never"
         onMessage={onMessage}
-        // Surface inner WebView console logs in Metro so we can debug
-        // WebRTC issues from the phone.
-        onError={(e) => console.warn("[CallWebView onError]", e?.nativeEvent)}
-        onHttpError={(e) => console.warn("[CallWebView onHttpError]", e?.nativeEvent)}
+        onError={(e) => {
+          if (__DEV__) console.warn("[CallWebView onError]", e?.nativeEvent);
+        }}
+        onHttpError={(e) => {
+          if (__DEV__) console.warn("[CallWebView onHttpError]", e?.nativeEvent);
+        }}
       />
 
       {/* Top overlay: status + duration */}

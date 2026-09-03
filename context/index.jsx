@@ -8,6 +8,20 @@ import { getAuthToken, removeAuthToken, setAuthToken } from "@/utils/authTokenSt
 
 const THEME_STORAGE_KEY = 'app_theme_preference';
 
+/** Fields persisted to AsyncStorage for cold-start UI gates. Full profile stays in memory. */
+function toAuthUserStub(nextUser) {
+    if (!nextUser || typeof nextUser !== 'object') return null;
+    const stub = {
+        id: nextUser.id,
+        name: nextUser.name,
+        image: nextUser.image,
+        access_scan: nextUser.access_scan,
+    };
+    if (nextUser.role !== undefined) stub.role = nextUser.role;
+    if (nextUser.roles !== undefined) stub.roles = nextUser.roles;
+    return stub;
+}
+
 const appContext = createContext();
 
 const AppProvider = ({ children }) => {
@@ -56,12 +70,12 @@ const AppProvider = ({ children }) => {
             throw new Error(`Invalid token: cannot be "${tokenStr}"`);
         }
         
-        // Update state
+        // Update state with full profile; persist a minimal stub only.
         setToken(tokenStr);
         setUser(nextUser);
         
         await setAuthToken(tokenStr);
-        await AsyncStorage.setItem('auth_user', JSON.stringify(nextUser ?? null));
+        await AsyncStorage.setItem('auth_user', JSON.stringify(toAuthUserStub(nextUser)));
     };
 
     const signOut = async () => {
