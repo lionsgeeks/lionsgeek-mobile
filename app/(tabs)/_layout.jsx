@@ -100,7 +100,6 @@ export default function TabLayout() {
     { route: 'events', name: 'Events', label: 'Events', icon: 'ticket' },
     { route: 'profile', name: 'Profile', label: 'Profile', icon: 'person.fill' },
     // { route: 'leaderboard', name: 'Leaderboard', label: 'Rank', icon: 'trophy.fill' },
-    // { route: "test", name: "notifications", icon: "bell.fill" },
   ];
 
   const hiddenScreens = [
@@ -108,7 +107,6 @@ export default function TabLayout() {
     { route: "training", name: "Training", icon: "school" },
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
     { route: "notifications", name: "Notifications", icon: "bell.fill", showTab: false },
-    { route: "test", name: "Test", icon: "bell.fill", showTab: false },
     { route: "infoSession", name: "Info Session", icon: "school", showTab: false },
     // Stack screens (non-tab routes living under (tabs)/)
     { route: "chat", name: "Chat", icon: "chatbubbles.fill", showTab: false },
