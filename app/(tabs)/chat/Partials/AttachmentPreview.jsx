@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, Image, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
+import { useAppContext } from '@/context';
+import { isGatedChatAttachmentUrl, resolveAttachmentUrl } from './resolveAttachmentUrl';
 
 export default function AttachmentPreview({ attachment, onClose }) {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const { token } = useAppContext();
     
     if (!attachment) return null;
 
@@ -14,6 +17,10 @@ export default function AttachmentPreview({ attachment, onClose }) {
 
     const currentAttachment = attachments[currentIndex];
     const hasMultiple = attachments.length > 1;
+    const imageUrl = resolveAttachmentUrl(currentAttachment.path);
+    const authHeaders = isGatedChatAttachmentUrl(imageUrl) && token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
 
     const goToPrevious = () => {
         setCurrentIndex((prev) => (prev === 0 ? attachments.length - 1 : prev - 1));
@@ -24,20 +31,22 @@ export default function AttachmentPreview({ attachment, onClose }) {
     };
 
     const handleDownload = async () => {
-        const url = currentAttachment.path.startsWith('/storage/') || currentAttachment.path.startsWith('http')
-            ? currentAttachment.path
-            : `${API.APP_URL}/storage/${currentAttachment.path}`;
         try {
-            await Linking.openURL(url);
+            if (isGatedChatAttachmentUrl(imageUrl) && token) {
+                const FileSystem = await import('expo-file-system/legacy');
+                const safeName = (currentAttachment.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
+                const dest = `${FileSystem.cacheDirectory}${Date.now()}_${safeName}`;
+                const result = await FileSystem.downloadAsync(imageUrl, dest, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: '*/*' },
+                });
+                await Linking.openURL(result.uri);
+                return;
+            }
+            await Linking.openURL(imageUrl);
         } catch (error) {
             console.error('Error opening URL:', error);
         }
     };
-
-    const imageUrl = currentAttachment.path.startsWith('/storage/') || currentAttachment.path.startsWith('http')
-        ? currentAttachment.path
-        : `${API.APP_URL}/storage/${currentAttachment.path}`;
-
     return (
         <View className="absolute inset-0 z-[200] bg-black/90 items-center justify-center">
             <View className="relative w-full h-full items-center justify-center p-4">
@@ -73,7 +82,7 @@ export default function AttachmentPreview({ attachment, onClose }) {
                 <View className="max-w-[90vw] max-h-[90vh] items-center justify-center">
                     {isImage && currentAttachment.path && (
                         <Image
-                            source={{ uri: imageUrl }}
+                            source={{ uri: imageUrl, headers: authHeaders }}
                             className="max-w-full max-h-[90vh] rounded-lg"
                             resizeMode="contain"
                         />

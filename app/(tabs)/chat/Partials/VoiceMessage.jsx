@@ -3,7 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 
-export default function VoiceMessage({ audioUrl, duration, isCurrentUser, onPlayStateChange }) {
+export default function VoiceMessage({ audioUrl, duration, isCurrentUser, onPlayStateChange, headers }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const soundRef = useRef(null);
@@ -23,7 +23,8 @@ export default function VoiceMessage({ audioUrl, duration, isCurrentUser, onPlay
     const togglePlayback = async () => {
         try {
             if (!soundRef.current) {
-                const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
+                const source = headers ? { uri: audioUrl, headers } : { uri: audioUrl };
+                const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true });
                 soundRef.current = sound;
 
                 sound.setOnPlaybackStatusUpdate((status) => {

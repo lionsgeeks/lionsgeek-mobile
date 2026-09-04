@@ -10,6 +10,7 @@ import PreviewPanel from './PreviewPanel';
 import ChatToolbox from './ChatToolbox';
 import TypingIndicator from './TypingIndicator';
 import RecordingIndicator from './RecordingIndicator';
+import { isGatedChatAttachmentUrl, resolveAttachmentUrl } from './resolveAttachmentUrl';
 
 // Main ChatBox component - refactored b components so9or
 export default function ChatBox({ conversation, onBack, isExpanded, onExpand, suppressMessageListLoadingSkeleton }) {
@@ -364,10 +365,19 @@ export default function ChatBox({ conversation, onBack, isExpanded, onExpand, su
     };
 
     const handleDownloadAttachment = async (attachmentPath, attachmentName) => {
-        const url = attachmentPath.startsWith('/storage/') || attachmentPath.startsWith('http')
-            ? attachmentPath
-            : `${API.APP_URL}/storage/${attachmentPath}`;
+        if (!attachmentPath) return;
+        const url = resolveAttachmentUrl(attachmentPath);
         try {
+            if (isGatedChatAttachmentUrl(url) && token) {
+                const FileSystem = await import('expo-file-system/legacy');
+                const safeName = (attachmentName || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
+                const dest = `${FileSystem.cacheDirectory}${Date.now()}_${safeName}`;
+                const result = await FileSystem.downloadAsync(url, dest, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: '*/*' },
+                });
+                await Linking.openURL(result.uri);
+                return;
+            }
             await Linking.openURL(url);
         } catch (error) {
             console.error('Error opening URL:', error);
@@ -376,7 +386,7 @@ export default function ChatBox({ conversation, onBack, isExpanded, onExpand, su
 
     const getAttachmentsForPreview = () => {
         return messages.filter(m => m.attachment_path && ['image', 'video'].includes(m.attachment_type))
-            .map(m => ({ type: m.attachment_type, path: m.attachment_path, name: m.attachment_name }));
+            .map(m => ({ type: m.attachment_type, path: m.attachment_url || m.attachment_path, name: m.attachment_name }));
     };
 
     const handlePreviewAttachment = (att) => {
