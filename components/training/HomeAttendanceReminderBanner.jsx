@@ -30,8 +30,8 @@ export default function HomeAttendanceReminderBanner() {
     try {
       const data = await fetchSlotStatus(token, formationId);
       setSlotStatus(data);
-    } catch (error) {
-      console.error('[HOME] slot-status error:', error);
+    } catch {
+      // Attendance may be unavailable (e.g. network not configured); hide banner quietly.
     }
   }, [token, formationId, user]);
 

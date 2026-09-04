@@ -6,34 +6,19 @@ import {
   RefreshControl,
   Pressable,
   Alert,
-  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { format, isValid, parseISO } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
+import { getAccentFillColor, getAccentIconColor } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 import API from '@/api';
-
-const ACCENT = '#ffcc00';
-const BG_TOP = '#12110f';
-const BG_BOTTOM = '#0f0e0c';
-const CARD = '#1c1b17';
-const CARD_BORDER = '#2d2c28';
-
-const cardShadow =
-  Platform.OS === 'ios'
-    ? {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-      }
-    : { elevation: 5 };
+import ReservationDetailHeader from './ReservationDetailHeader';
+import { ReservationHistoryStatusBadge } from './reservationTheme';
 
 function formatDayLabel(dayRaw) {
   if (!dayRaw) return '';
@@ -49,17 +34,7 @@ function bookingStatusLine(item) {
   return 'Approved';
 }
 
-function statusChipStyle(statusLabel) {
-  if (statusLabel === 'Cancelled') {
-    return { bg: 'bg-rose-950/50', border: 'border-rose-500/35', text: 'text-rose-300' };
-  }
-  if (statusLabel === 'Pending approval') {
-    return { bg: 'bg-amber-950/40', border: 'border-[#ffcc00]/30', text: 'text-[#ffcc00]' };
-  }
-  return { bg: 'bg-emerald-950/45', border: 'border-emerald-500/30', text: 'text-emerald-300' };
-}
-
-function ReservationHistoryRow({ item, mode, onPress }) {
+function ReservationHistoryRow({ item, mode, onPress, isDark, accentIcon }) {
   const subtitleParts = [];
   if (item.day) subtitleParts.push(formatDayLabel(item.day));
   if (item.start && item.end) subtitleParts.push(`${item.start} – ${item.end}`);
@@ -72,70 +47,54 @@ function ReservationHistoryRow({ item, mode, onPress }) {
   if (studioOrDesk) subtitleParts.push(studioOrDesk);
 
   const status = bookingStatusLine(item);
-  const chip = statusChipStyle(status);
 
   return (
     <Pressable
       onPress={onPress}
-      className="mx-4 mb-4 overflow-hidden rounded-2xl active:opacity-92"
-      style={[cardShadow, { backgroundColor: CARD, borderWidth: 1, borderColor: CARD_BORDER }]}
+      className="mx-4 mb-3 bg-light dark:bg-dark border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden active:opacity-90"
     >
-      <LinearGradient
-        colors={['rgba(255,255,255,0.04)', 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{ height: 1 }}
-      />
-      <View className="flex-row items-start px-5 pb-5 pt-5">
-        <View className="mr-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06]">
+      <View className="flex-row items-start p-4">
+        <View className="mr-3 w-10 h-10 rounded-full bg-beta/15 dark:bg-alpha/15 items-center justify-center">
           <Ionicons
             name={mode === 'studio' ? 'business-outline' : 'desktop-outline'}
-            size={24}
-            color={ACCENT}
+            size={20}
+            color={accentIcon}
           />
         </View>
-        <View className="min-w-0 flex-1 pr-2">
-          <Text className="text-[16px] font-bold leading-6 tracking-tight text-white" numberOfLines={2}>
+        <View className="flex-1 min-w-0 pr-2">
+          <Text className="text-base font-bold text-beta dark:text-light" numberOfLines={2}>
             {item.title || (mode === 'studio' ? 'Studio booking' : 'Coworking reservation')}
           </Text>
           {item.description && mode === 'studio' ? (
-            <Text className="mt-1.5 text-[13px] leading-5 text-white/50" numberOfLines={2}>
+            <Text className="text-xs text-beta/60 dark:text-light/60 mt-1" numberOfLines={2}>
               {item.description}
             </Text>
           ) : null}
-          <Text className="mt-2 text-[13px] leading-5 text-white/45" numberOfLines={2}>
+          <Text className="text-xs text-beta/70 dark:text-light/70 mt-2" numberOfLines={2}>
             {subtitleParts.filter(Boolean).join(' · ')}
           </Text>
-          <View className="mt-3 flex-row flex-wrap items-center gap-2">
-            <View className={`self-start rounded-full border px-2.5 py-1 ${chip.bg} ${chip.border}`}>
-              <Text className={`text-[10px] font-bold uppercase tracking-[0.14em] ${chip.text}`}>{status}</Text>
-            </View>
+          <View className="mt-2">
+            <ReservationHistoryStatusBadge label={status} />
           </View>
         </View>
-        <View className="pt-1">
-          {mode === 'studio' ? (
-            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.35)" />
-          ) : (
-            <Ionicons name="information-circle-outline" size={22} color="rgba(255,255,255,0.35)" />
-          )}
-        </View>
+        <Ionicons
+          name={mode === 'studio' ? 'chevron-forward' : 'information-circle-outline'}
+          size={18}
+          color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+        />
       </View>
     </Pressable>
-  );
-}
-
-function ScreenCanvas({ children }) {
-  return (
-    <LinearGradient colors={[BG_TOP, BG_BOTTOM]} locations={[0, 1]} style={{ flex: 1 }}>
-      {children}
-    </LinearGradient>
   );
 }
 
 export default function ReservationHistoryContent({ mode }) {
   const { token } = useAppContext();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const accentFill = getAccentFillColor(isDark);
+  const accentIcon = getAccentIconColor(isDark);
+  const scrollBottomPadding = useScrollTabPadding(24);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +102,11 @@ export default function ReservationHistoryContent({ mode }) {
   const [error, setError] = useState(null);
 
   const endpoint = mode === 'studio' ? 'mobile/reservations' : 'mobile/reservationsCowork';
+  const title = mode === 'studio' ? 'Studios history' : 'Coworking history';
+  const subtitle =
+    mode === 'studio'
+      ? 'Your studio reservations · newest first'
+      : 'Your desk & cowork bookings · newest first';
 
   const load = useCallback(
     async (isRefresh) => {
@@ -202,18 +166,13 @@ export default function ReservationHistoryContent({ mode }) {
   const listHeader = (
     <View>
       {error ? (
-        <View className="mx-4 mb-3 rounded-2xl border border-rose-500/25 bg-rose-950/35 px-4 py-3">
-          <Text className="text-center text-sm text-rose-200/95">{error}</Text>
+        <View className="mx-4 mb-3 rounded-2xl border border-error/20 bg-error/10 px-4 py-3">
+          <Text className="text-center text-sm text-error">{error}</Text>
         </View>
       ) : null}
-      <View className="border-b border-white/10 px-4 pb-4 pt-1">
-        <Text className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
-          {mode === 'studio' ? 'Studios' : 'Coworking'}
-        </Text>
-        <Text className="mt-1.5 text-[13px] leading-5 text-white/45">
-          {mode === 'studio'
-            ? 'Your studio reservations · newest first'
-            : 'Your desk & cowork bookings · newest first'}
+      <View className="px-4 pb-3 pt-1 border-b border-beta/10 dark:border-light/10 mb-2">
+        <Text className="text-xs text-beta/50 dark:text-light/50">
+          {items.length} booking{items.length === 1 ? '' : 's'}
         </Text>
       </View>
     </View>
@@ -221,20 +180,17 @@ export default function ReservationHistoryContent({ mode }) {
 
   const skeletonBlock = (
     <View className="pt-2">
-      {Array.from({ length: 6 }).map((_, idx) => (
+      {Array.from({ length: 5 }).map((_, idx) => (
         <View
           key={idx}
-          className="mx-4 mb-4 overflow-hidden rounded-2xl px-5 py-5"
-          style={[{ backgroundColor: CARD, borderWidth: 1, borderColor: CARD_BORDER }, cardShadow]}
+          className="mx-4 mb-3 rounded-2xl border border-beta/10 dark:border-light/10 p-4"
         >
           <View className="flex-row items-center">
-            <Skeleton width={48} height={48} borderRadius={16} isDark />
+            <Skeleton width={40} height={40} borderRadius={20} isDark={isDark} />
             <View className="ml-3 flex-1">
-              <Skeleton width="55%" height={14} borderRadius={8} isDark />
+              <Skeleton width="55%" height={14} borderRadius={8} isDark={isDark} />
               <View className="h-2" />
-              <Skeleton width="85%" height={12} borderRadius={8} isDark />
-              <View className="h-3" />
-              <Skeleton width={90} height={22} borderRadius={999} isDark />
+              <Skeleton width="85%" height={12} borderRadius={8} isDark={isDark} />
             </View>
           </View>
         </View>
@@ -245,51 +201,45 @@ export default function ReservationHistoryContent({ mode }) {
   if (!token) {
     return (
       <AppLayout showNavbar={false} className="flex-1">
-        <ScreenCanvas>
-          <StatusBar style="light" />
+        <View className="flex-1 bg-light dark:bg-dark">
+          <ReservationDetailHeader title={title} subtitle={subtitle} />
           <View className="flex-1 items-center justify-center px-6">
-            <View className="rounded-3xl border border-white/10 bg-white/[0.04] px-8 py-10">
-              <Ionicons name="lock-closed-outline" size={40} color="rgba(255,204,0,0.55)" />
-              <Text className="mt-4 text-center text-base font-semibold text-white">Sign in to continue</Text>
-              <Text className="mt-2 max-w-[280px] text-center text-sm leading-5 text-white/50">
-                {mode === 'studio'
-                  ? 'Studios history shows only your studio reservations after login.'
-                  : 'Coworking history is available after login.'}
-              </Text>
+            <View className="w-16 h-16 rounded-2xl bg-beta/10 dark:bg-alpha/10 items-center justify-center mb-4">
+              <Ionicons name="lock-closed-outline" size={32} color={accentIcon} />
             </View>
+            <Text className="text-base font-semibold text-beta dark:text-light text-center">Sign in to continue</Text>
+            <Text className="text-sm text-beta/55 dark:text-light/55 text-center mt-2">
+              Reservation history is available after login.
+            </Text>
           </View>
-        </ScreenCanvas>
+        </View>
       </AppLayout>
     );
   }
 
   const emptyState = (
-    <View className="pt-2">
-      <View
-        className="mx-4 items-center rounded-2xl border border-dashed py-16 px-6"
-        style={{ borderColor: CARD_BORDER, backgroundColor: 'rgba(28,27,23,0.55)' }}
-      >
-        <View className="rounded-full border border-white/10 bg-white/[0.05] p-4">
+    <View className="px-4 pt-2">
+      <View className="items-center rounded-2xl border border-dashed border-beta/15 dark:border-light/15 py-16 px-6">
+        <View className="w-16 h-16 rounded-2xl bg-beta/10 dark:bg-alpha/10 items-center justify-center">
           <Ionicons
             name={mode === 'studio' ? 'calendar-outline' : 'desktop-outline'}
-            size={36}
-            color={ACCENT}
+            size={32}
+            color={accentIcon}
           />
         </View>
-        <Text className="mt-5 text-center text-[16px] font-semibold text-white">
+        <Text className="mt-4 text-base font-semibold text-beta dark:text-light text-center">
           {mode === 'studio' ? 'Your studios history is empty.' : 'No coworking history yet.'}
         </Text>
-        <Text className="mt-2 max-w-[280px] text-center text-sm leading-5 text-white/50">
+        <Text className="mt-2 text-sm text-beta/55 dark:text-light/55 text-center">
           {mode === 'studio'
             ? 'Only your own studio reservations are listed here.'
             : 'Only coworking slots you booked appear here.'}
         </Text>
         <Pressable
           onPress={() => router.push('/(tabs)/reservations')}
-          className="mt-7 rounded-2xl px-8 py-3.5"
-          style={{ backgroundColor: ACCENT }}
+          className="mt-6 rounded-xl bg-beta dark:bg-alpha px-6 py-3 active:opacity-80"
         >
-          <Text className="text-center text-sm font-bold text-black">Open bookings</Text>
+          <Text className="text-sm font-bold text-light dark:text-beta">Open bookings</Text>
         </Pressable>
       </View>
     </View>
@@ -297,26 +247,34 @@ export default function ReservationHistoryContent({ mode }) {
 
   return (
     <AppLayout showNavbar={false} className="flex-1">
-      <ScreenCanvas>
-        <StatusBar style="light" />
+      <View className="flex-1 bg-light dark:bg-dark">
+        <ReservationDetailHeader title={title} subtitle={subtitle} />
         <FlatList
           data={items}
           keyExtractor={(row) => String(row.id)}
-          className="flex-1 bg-transparent"
+          className="flex-1"
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accentFill} colors={[accentFill]} />
+          }
           ListHeaderComponent={listHeader}
           ListEmptyComponent={loading ? skeletonBlock : emptyState}
           contentContainerStyle={{
             flexGrow: 1,
             paddingTop: 8,
-            paddingBottom: Math.max(insets.bottom, 16) + 20,
+            paddingBottom: scrollBottomPadding,
           }}
           renderItem={({ item }) => (
-            <ReservationHistoryRow item={item} mode={mode} onPress={() => onRowPress(item)} />
+            <ReservationHistoryRow
+              item={item}
+              mode={mode}
+              onPress={() => onRowPress(item)}
+              isDark={isDark}
+              accentIcon={accentIcon}
+            />
           )}
         />
-      </ScreenCanvas>
+      </View>
     </AppLayout>
   );
 }

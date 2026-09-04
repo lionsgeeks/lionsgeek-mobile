@@ -107,7 +107,7 @@ export default function SavedPostsScreen() {
           <Text className="text-base font-semibold text-black dark:text-white text-center">
             Sign in to see saved posts
           </Text>
-          <Text className="text-sm text-black/55 dark:text-white/55 text-center mt-2">
+          <Text className="text-sm text-black/55 dark:text-dark_gray5 text-center mt-2">
             Your bookmarks sync to your account.
           </Text>
           <TouchableOpacity

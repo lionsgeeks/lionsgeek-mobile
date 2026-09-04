@@ -1,29 +1,38 @@
 import React from 'react';
 import { View, Text, Pressable, Image, ScrollView, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import API from '@/api';
+import { useAppContext } from '@/context';
+import { isGatedChatAttachmentUrl, resolveAttachmentUrl } from './resolveAttachmentUrl';
 
 // Panel dial preview f right side dial chatbox
 export default function PreviewPanel({ attachment, onClose, onPrevious, onNext, hasMultiple, currentIndex, totalCount }) {
+    const { token } = useAppContext();
     if (!attachment) return null;
 
     const isImage = attachment.type === 'image' || attachment.path?.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i);
     const isVideo = attachment.type === 'video' || attachment.path?.match(/\.(mp4|webm|mov|avi)$/i);
+    const mediaUrl = resolveAttachmentUrl(attachment.path);
+    const authHeaders = isGatedChatAttachmentUrl(mediaUrl) && token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
 
     const handleDownload = async () => {
-        const url = attachment.path.startsWith('/storage/') || attachment.path.startsWith('http') 
-            ? attachment.path 
-            : `${API.APP_URL}/storage/${attachment.path}`;
         try {
-            await Linking.openURL(url);
+            if (isGatedChatAttachmentUrl(mediaUrl) && token) {
+                const FileSystem = await import('expo-file-system/legacy');
+                const safeName = (attachment.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
+                const dest = `${FileSystem.cacheDirectory}${Date.now()}_${safeName}`;
+                const result = await FileSystem.downloadAsync(mediaUrl, dest, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: '*/*' },
+                });
+                await Linking.openURL(result.uri);
+                return;
+            }
+            await Linking.openURL(mediaUrl);
         } catch (error) {
             console.error('Error opening URL:', error);
         }
     };
-
-    const imageUrl = attachment.path.startsWith('/storage/') || attachment.path.startsWith('http')
-        ? attachment.path
-        : `${API.APP_URL}/storage/${attachment.path}`;
 
     return (
         <View className="w-full h-full bg-gray-900 dark:bg-black flex-col">
@@ -52,50 +61,32 @@ export default function PreviewPanel({ attachment, onClose, onPrevious, onNext, 
                     )}
                 </View>
                 <View className="flex-row items-center gap-2">
-                    <Pressable
-                        onPress={handleDownload}
-                        className="h-8 w-8 items-center justify-center"
-                    >
-                        <Ionicons name="download" size={16} color="#fff" />
+                    <Pressable onPress={handleDownload} className="h-8 w-8 items-center justify-center">
+                        <Ionicons name="download-outline" size={18} color="#fff" />
                     </Pressable>
-                    <Pressable
-                        onPress={onClose}
-                        className="h-8 w-8 items-center justify-center"
-                    >
-                        <Ionicons name="close" size={16} color="#fff" />
+                    <Pressable onPress={onClose} className="h-8 w-8 items-center justify-center">
+                        <Ionicons name="close" size={18} color="#fff" />
                     </Pressable>
                 </View>
             </View>
 
-            {/* Content - Full Height */}
-            <ScrollView className="flex-1" contentContainerClassName="flex-1 items-center justify-center p-4 bg-black">
-                {isImage && attachment.path && (
+            <ScrollView contentContainerClassName="flex-1 items-center justify-center p-4" className="flex-1 bg-black/90">
+                {isImage && attachment.path ? (
                     <Image
-                        source={{ uri: imageUrl }}
-                        className="w-full h-full"
+                        source={{ uri: mediaUrl, headers: authHeaders }}
+                        className="w-full h-[70vh]"
                         resizeMode="contain"
                     />
-                )}
-
-                {isVideo && attachment.path && (
-                    <View className="w-full h-full items-center justify-center">
-                        <Text className="text-white">Video preview not available in React Native</Text>
-                        <Text className="text-gray-400 text-sm mt-2">Use expo-av Video component for full video support</Text>
+                ) : null}
+                {isVideo && attachment.path ? (
+                    <Text className="text-white text-sm">Open video via download</Text>
+                ) : null}
+                {!isImage && !isVideo && attachment.path ? (
+                    <View className="items-center gap-3 p-8">
+                        <Ionicons name="document" size={64} color="#ffc801" />
+                        <Text className="text-white text-center">{attachment.name || 'Attachment'}</Text>
                     </View>
-                )}
-
-                {!isImage && !isVideo && attachment.path && (
-                    <View className="bg-gray-800 rounded-lg p-12 items-center gap-4 max-w-md">
-                        <Ionicons name="document" size={96} color="#ffc801" />
-                        <Text className="text-white text-center font-medium">{attachment.name || 'Attachment'}</Text>
-                        <Pressable
-                            onPress={handleDownload}
-                            className="bg-yellow-500 px-4 py-2 rounded-lg"
-                        >
-                            <Text className="text-black font-semibold">Download</Text>
-                        </Pressable>
-                    </View>
-                )}
+                ) : null}
             </ScrollView>
         </View>
     );

@@ -1,7 +1,6 @@
 import { Tabs, router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as SystemUI from 'expo-system-ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,11 +13,16 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import { goToOwnProfileTab } from '@/utils/profileNavigation';
+import { getAuthToken } from '@/utils/authTokenStorage';
 
 function ProfileTabBarButton(props) {
   return (
     <HapticTab
       {...props}
+      onPress={() => {
+        goToOwnProfileTab();
+      }}
       delayLongPress={400}
       onLongPress={() => {
         if (Platform.OS !== 'web') {
@@ -41,7 +45,7 @@ export default function TabLayout() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const nextStoredToken = await AsyncStorage.getItem('auth_token');
+        const nextStoredToken = await getAuthToken();
         setStoredToken(nextStoredToken);
 
         if (!nextStoredToken && !token) {
@@ -96,16 +100,13 @@ export default function TabLayout() {
     { route: 'events', name: 'Events', label: 'Events', icon: 'ticket' },
     { route: 'profile', name: 'Profile', label: 'Profile', icon: 'person.fill' },
     // { route: 'leaderboard', name: 'Leaderboard', label: 'Rank', icon: 'trophy.fill' },
-    // { route: "test", name: "notifications", icon: "bell.fill" },
   ];
 
   const hiddenScreens = [
     { route: "members", name: "Members", icon: "person.3.fill", showTab: isAdmin, roles: ['admin', 'coach'] },
-    { route: "projects", name: "Projects", icon: "hammer.fill", showTab: true, roles: [] },
     { route: "training", name: "Training", icon: "school" },
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
     { route: "notifications", name: "Notifications", icon: "bell.fill", showTab: false },
-    { route: "test", name: "Test", icon: "bell.fill", showTab: false },
     { route: "infoSession", name: "Info Session", icon: "school", showTab: false },
     // Stack screens (non-tab routes living under (tabs)/)
     { route: "chat", name: "Chat", icon: "chatbubbles.fill", showTab: false },
@@ -198,6 +199,10 @@ export default function TabLayout() {
                 <OriginalButton
                   {...buttonProps}
                   onPress={(e) => {
+                    if (route.name === 'profile') {
+                      goToOwnProfileTab();
+                      return;
+                    }
                     if (onHiddenRoute) {
                       const event = props.navigation.emit({
                         type: 'tabPress',
@@ -267,12 +272,6 @@ export default function TabLayout() {
             ...(screen.route === 'profile'
               ? {
                 tabBarButton: ProfileTabBarButton,
-                listeners: {
-                  tabPress: (e) => {
-                    e.preventDefault();
-                    router.replace('/(tabs)/profile');
-                  },
-                },
               }
               : {}),
             tabBarIcon: ({ color, focused }) => {

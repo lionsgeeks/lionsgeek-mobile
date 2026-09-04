@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 import { useAppContext } from '@/context';
 import Skeleton from '@/components/ui/Skeleton';
+import { isGatedChatAttachmentUrl, resolveAttachmentUrl } from './resolveAttachmentUrl';
 
 // Toolbox component dial attachments w posts
 export default function ChatToolbox({ conversationId, otherUserId, onPreviewAttachment, messages = [] }) {
@@ -21,7 +22,7 @@ export default function ChatToolbox({ conversationId, otherUserId, onPreviewAtta
                 .map(msg => ({
                     id: msg.id,
                     type: msg.attachment_type,
-                    path: msg.attachment_path,
+                    path: msg.attachment_url || msg.attachment_path,
                     name: msg.attachment_name,
                     created_at: msg.created_at,
                 }));
@@ -112,9 +113,10 @@ export default function ChatToolbox({ conversationId, otherUserId, onPreviewAtta
                     ) : (
                         <View className="flex-row flex-wrap gap-2">
                             {attachments.map((attachment) => {
-                                const imageUrl = attachment.path.startsWith('/storage/') || attachment.path.startsWith('http')
-                                    ? attachment.path
-                                    : `${API.APP_URL}/storage/${attachment.path}`;
+                                const imageUrl = resolveAttachmentUrl(attachment.path);
+                                const authHeaders = isGatedChatAttachmentUrl(imageUrl) && token
+                                    ? { Authorization: `Bearer ${token}` }
+                                    : undefined;
                                 
                                 return (
                                     <Pressable
@@ -124,7 +126,7 @@ export default function ChatToolbox({ conversationId, otherUserId, onPreviewAtta
                                     >
                                         {attachment.type === 'image' ? (
                                             <Image
-                                                source={{ uri: imageUrl }}
+                                                source={{ uri: imageUrl, headers: authHeaders }}
                                                 className="w-full h-full"
                                                 resizeMode="cover"
                                             />

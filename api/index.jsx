@@ -22,6 +22,23 @@ const ensureAppUrl = () => {
 const IMAGE_URL = APP_URL ? `${APP_URL}/storage/images` : '';
 const VIDEO_URL = APP_URL ? `${APP_URL}/storage/videos` : '';
 
+const logApiError = (error, method, url, endpoint, options = {}) => {
+    if (options.silent) return;
+    const status = error?.response?.status;
+    if (status === 503 && endpoint.includes('attendance/slot-status')) return;
+
+    const errorData = error?.response?.data;
+    const errorMessage = typeof errorData === 'object' && errorData !== null
+        ? (errorData.message ?? JSON.stringify(errorData, null, 2))
+        : (errorData || error?.message || 'Unknown error');
+    if (__DEV__) {
+        console.log(`API ERROR\nMethod: ${method}\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        if (status) {
+            console.log(`Status: ${status}`);
+        }
+    }
+};
+
 const getPublic = async (endpoint) => {
     try {
         const baseUrl = ensureAppUrl();
@@ -49,16 +66,12 @@ const getPublic = async (endpoint) => {
             try { return ensureAppUrl(); } catch { return ''; }
         })();
         const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
-        const errorData = error?.response?.data;
-        const errorMessage = typeof errorData === 'object'
-            ? JSON.stringify(errorData, null, 2)
-            : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: GET (public)\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        logApiError(error, 'GET (public)', url, endpoint);
         throw error;
     }
 };
 
-const get = async (endpoint, Token) => {
+const get = async (endpoint, Token, options = {}) => {
     try {
         const baseUrl = ensureAppUrl();
         // Token is REQUIRED for all API calls
@@ -95,14 +108,7 @@ const get = async (endpoint, Token) => {
             try { return ensureAppUrl(); } catch { return ''; }
         })();
         const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
-        const errorData = error?.response?.data;
-        const errorMessage = typeof errorData === 'object' 
-            ? JSON.stringify(errorData, null, 2)
-            : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: GET\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
-        if (error?.response?.status) {
-            console.log(`Status: ${error.response.status}`);
-        }
+        logApiError(error, 'GET', url, endpoint, options);
         throw error;
     }
 };
@@ -254,8 +260,8 @@ const remove = async (endpoint, Token) => {
 };
 
 // Mobile API helpers with token from context
-const getWithAuth = async (endpoint, token) => {
-    return get(endpoint, token);
+const getWithAuth = async (endpoint, token, options = {}) => {
+    return get(endpoint, token, options);
 };
 const postWithAuth = async (endpoint, data, token) => {
     return post(endpoint, data, token);

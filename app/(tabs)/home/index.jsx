@@ -8,6 +8,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import HomeAttendanceReminderBanner from '@/components/training/HomeAttendanceReminderBanner';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
 import { assignUniqueFeedKeys } from '@/components/helpers/helpers';
@@ -70,6 +71,7 @@ export default function HomeScreen() {
   const { user, token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const scrollBottomPadding = useScrollTabPadding(24);
   const [posts, setPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -314,7 +316,7 @@ export default function HomeScreen() {
         keyExtractor={(item) => String(item.feedKey ?? item.id)}
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: isDark ? '#0f0f0f' : '#e9e5df' }}
-        contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
+        contentContainerStyle={{ paddingBottom: scrollBottomPadding, flexGrow: 1 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffc801" />
         }

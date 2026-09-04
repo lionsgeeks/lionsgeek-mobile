@@ -57,7 +57,7 @@ export default function ChatThreadScreen() {
 
   if (!otherUserId) {
     return (
-      <AppLayout showNavbar={false}>
+      <AppLayout showNavbar={false} skipTopInset>
         <View className="flex-1 items-center justify-center bg-light dark:bg-dark px-6">
           <Text className="text-black/60 dark:text-white/60 text-center">Invalid chat link.</Text>
         </View>
@@ -67,7 +67,7 @@ export default function ChatThreadScreen() {
 
   if (loadError) {
     return (
-      <AppLayout showNavbar={false}>
+      <AppLayout showNavbar={false} skipTopInset>
         <View className="flex-1 items-center justify-center bg-light dark:bg-dark px-6">
           <Text className="text-black/80 dark:text-white/80 text-center mb-4">{loadError}</Text>
           <Pressable onPress={() => router.back()} hitSlop={12}>
@@ -80,14 +80,14 @@ export default function ChatThreadScreen() {
 
   if (!conversation) {
     return (
-      <AppLayout showNavbar={false}>
+      <AppLayout showNavbar={false} skipTopInset>
         <ChatThreadSkeleton onBack={() => router.back()} />
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout showNavbar={false}>
+    <AppLayout showNavbar={false} skipTopInset>
       <ChatBox
         conversation={conversation}
         onBack={() => router.back()}

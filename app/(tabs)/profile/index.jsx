@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +30,7 @@ import ProfileSkeleton from './partials/ProfileSkeleton';
 import ProfileTopBar from './partials/ProfileTopBar';
 import ProfileScrollBody from './partials/ProfileScrollBody';
 import ProfileCreateMenu from './partials/ProfileCreateMenu';
+import ProfileOptionsMenu from './partials/ProfileOptionsMenu';
 import AvatarOptionsModal from './partials/AvatarOptionsModal';
 import AvatarViewerModal from './partials/AvatarViewerModal';
 import PostFeedModal from './partials/PostFeedModal';
@@ -40,7 +41,7 @@ import {
     getLastExperience,
     normalizeSocialLinks,
     tryFetchFirstList,
-} from './partials/helpers';
+} from './partials/_helpers';
 import { isRepostPost } from './partials/RepostsGridTab';
 
 export default function ProfileScreen() {
@@ -65,6 +66,7 @@ export default function ProfileScreen() {
     const [showCreatePost, setShowCreatePost] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [showCreateMenu, setShowCreateMenu] = useState(false);
+    const [showProfileOptions, setShowProfileOptions] = useState(false);
     const [showCreateEducation, setShowCreateEducation] = useState(false);
     const [showCreateExperience, setShowCreateExperience] = useState(false);
     const [followModal, setFollowModal] = useState(null); // 'followers' | 'following' | null
@@ -81,7 +83,12 @@ export default function ProfileScreen() {
 
     const insets = useSafeAreaInsets();
 
-    const resolvedUserId = userId ?? id;
+    const rawUserId = userId ?? id;
+    const resolvedUserId = (() => {
+        const value = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
+        if (value == null || value === '' || value === 'undefined') return undefined;
+        return String(value).trim() || undefined;
+    })();
     const isOwnProfile = !resolvedUserId || resolvedUserId === currentUser?.id?.toString();
 
     useEffect(() => {
@@ -395,42 +402,6 @@ export default function ProfileScreen() {
         }
     }, [token]);
 
-    const hydrateResumeSections = useCallback(async (profileId) => {
-        if (!token || !profileId) return;
-
-        // Experiences
-        const experiences = await tryFetchFirstList({
-            token,
-            endpoints: [
-                `mobile/profile/${profileId}/experiences`,
-                `mobile/profile/${profileId}/experience`,
-                `mobile/users/${profileId}/experiences`,
-                `mobile/users/${profileId}/experience`,
-            ],
-        });
-
-        // Education
-        const education = await tryFetchFirstList({
-            token,
-            endpoints: [
-                `mobile/profile/${profileId}/education`,
-                `mobile/profile/${profileId}/educations`,
-                `mobile/users/${profileId}/education`,
-                `mobile/users/${profileId}/educations`,
-            ],
-        });
-
-        if ((experiences && experiences.length > 0) || (education && education.length > 0)) {
-            setProfile((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev };
-                if (experiences && experiences.length > 0) next.experiences = experiences;
-                if (education && education.length > 0) next.education = education;
-                return next;
-            });
-        }
-    }, [token]);
-
     // Initial load
     useEffect(() => {
         if (token || (isOwnProfile && currentUser)) loadProfile();
@@ -475,10 +446,6 @@ export default function ProfileScreen() {
             loadSavedPosts();
         }
     }, [activeTab, loadSavedPosts]);
-
-    useEffect(() => {
-        hydrateResumeSections(profile?.id);
-    }, [hydrateResumeSections, profile?.id]);
 
     const onRefresh = useCallback(async () => {
         if (!token) return;
@@ -615,7 +582,7 @@ export default function ProfileScreen() {
 
     if (loading) {
         return (
-            <AppLayout showNavbar={false}>
+            <AppLayout showNavbar={false} skipTopInset>
                 <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
                 <ProfileSkeleton isDark={isDark} topInset={insets.top} />
             </AppLayout>
@@ -624,10 +591,10 @@ export default function ProfileScreen() {
 
     if (!profile) {
         return (
-            <AppLayout showNavbar={false}>
+            <AppLayout showNavbar={false} skipTopInset>
                 <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
                     <Ionicons name="person-circle-outline" size={64} color={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} />
-                    <Text className="text-black/50 dark:text-white/50 mt-4 text-base">Profile not found</Text>
+                    <Text className="text-black/50 dark:text-dark_gray0 mt-4 text-base">Profile not found</Text>
                 </View>
             </AppLayout>
         );
@@ -660,6 +627,15 @@ export default function ProfileScreen() {
 
     const openCreateMenu = () => setShowCreateMenu(true);
     const closeCreateMenu = () => setShowCreateMenu(false);
+    const openProfileOptions = () => setShowProfileOptions(true);
+    const closeProfileOptions = () => setShowProfileOptions(false);
+
+    const handleProfileMessage = () => {
+        const targetId = profile?.id ?? resolvedUserId;
+        if (targetId) {
+            router.push(`/(tabs)/chat/${targetId}`);
+        }
+    };
 
     const handleCreateAction = (action) => {
         closeCreateMenu();
@@ -668,192 +644,203 @@ export default function ProfileScreen() {
         if (action === 'experience') setShowCreateExperience(true);
     };
 
-  return (
-    <AppLayout showNavbar={false}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+    return (
+        <AppLayout showNavbar={false} skipTopInset>
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-        <ProfileTopBar
-            profile={profile}
-            isOwnProfile={isOwnProfile}
-            userId={userId}
-            insets={insets}
-            isDark={isDark}
-        />
+            <ProfileTopBar
+                profile={profile}
+                isOwnProfile={isOwnProfile}
+                userId={userId}
+                insets={insets}
+                isDark={isDark}
+                onOpenOptions={openProfileOptions}
+            />
 
-        <ProfileScrollBody
-            profile={profile}
-            isOwnProfile={isOwnProfile}
-            isDark={isDark}
-            insets={insets}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            coverImageUrl={coverImageUrl}
-            profileImageUrl={profileImageUrl}
-            pickAndUploadCover={pickAndUploadCover}
-            coverUploading={coverUploading}
-            avatarUploading={avatarUploading}
-            setShowAvatarOptions={setShowAvatarOptions}
-            setShowAvatarViewer={setShowAvatarViewer}
-            originalPostsCount={originalPostsCount}
-            followersCount={followersCount}
-            setFollowModal={setFollowModal}
-            socialLinks={socialLinks}
-            lastExperienceLocation={lastExperienceLocation}
-            speciality={speciality}
-            handleFollowToggle={handleFollowToggle}
-            followLoading={followLoading}
-            isFollowing={isFollowing}
-            openCreateMenu={openCreateMenu}
-            setShowEditProfile={setShowEditProfile}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            originalPosts={originalPosts}
-            postsLoading={postsLoading}
-            setSelectedPostIndex={setSelectedPostIndex}
-            token={token}
-            setProfile={setProfile}
-            repostedPosts={repostedPosts}
-            repostsLoading={repostsLoading}
-            setSelectedRepostIndex={setSelectedRepostIndex}
-            savedPosts={savedPosts}
-            savedPostsLoading={savedPostsLoading}
-            setSelectedSavedPostIndex={setSelectedSavedPostIndex}
-        />
+            <ProfileScrollBody
+                profile={profile}
+                isOwnProfile={isOwnProfile}
+                isDark={isDark}
+                insets={insets}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                coverImageUrl={coverImageUrl}
+                profileImageUrl={profileImageUrl}
+                pickAndUploadCover={pickAndUploadCover}
+                coverUploading={coverUploading}
+                avatarUploading={avatarUploading}
+                setShowAvatarOptions={setShowAvatarOptions}
+                setShowAvatarViewer={setShowAvatarViewer}
+                originalPostsCount={originalPostsCount}
+                followersCount={followersCount}
+                setFollowModal={setFollowModal}
+                socialLinks={socialLinks}
+                lastExperienceLocation={lastExperienceLocation}
+                speciality={speciality}
+                handleFollowToggle={handleFollowToggle}
+                followLoading={followLoading}
+                isFollowing={isFollowing}
+                openCreateMenu={openCreateMenu}
+                setShowEditProfile={setShowEditProfile}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                originalPosts={originalPosts}
+                postsLoading={postsLoading}
+                setSelectedPostIndex={setSelectedPostIndex}
+                token={token}
+                setProfile={setProfile}
+                repostedPosts={repostedPosts}
+                repostsLoading={repostsLoading}
+                setSelectedRepostIndex={setSelectedRepostIndex}
+                savedPosts={savedPosts}
+                savedPostsLoading={savedPostsLoading}
+                setSelectedSavedPostIndex={setSelectedSavedPostIndex}
+                onMessagePress={handleProfileMessage}
+                onOpenOptions={openProfileOptions}
+            />
 
-        <ProfileCreateMenu
-            visible={showCreateMenu}
-            onClose={closeCreateMenu}
-            onAction={handleCreateAction}
-            insets={insets}
-            isDark={isDark}
-        />
+            <ProfileOptionsMenu
+                visible={showProfileOptions}
+                onClose={closeProfileOptions}
+                profile={profile}
+                insets={insets}
+                isDark={isDark}
+            />
 
-        {showCreatePost && (
-            <Modal
-                visible={showCreatePost}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowCreatePost(false)}
-            >
-                <View className="flex-1 bg-light dark:bg-dark pt-4">
-                    <View className="flex-row items-center justify-between px-4 mb-4">
-                        <Text className="text-lg font-bold text-black dark:text-white">New Post</Text>
-                        <TouchableOpacity onPress={() => setShowCreatePost(false)}>
-                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
-                        </TouchableOpacity>
+            <ProfileCreateMenu
+                visible={showCreateMenu}
+                onClose={closeCreateMenu}
+                onAction={handleCreateAction}
+                insets={insets}
+                isDark={isDark}
+            />
+
+            {showCreatePost && (
+                <Modal
+                    visible={showCreatePost}
+                    animationType="slide"
+                    presentationStyle="pageSheet"
+                    onRequestClose={() => setShowCreatePost(false)}
+                >
+                    <View className="flex-1 bg-light dark:bg-dark pt-4">
+                        <View className="flex-row items-center justify-between px-4 mb-4">
+                            <Text className="text-lg font-bold text-black dark:text-white">New Post</Text>
+                            <TouchableOpacity onPress={() => setShowCreatePost(false)}>
+                                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+                            </TouchableOpacity>
+                        </View>
+                        <CreatePost onPostPress={() => setShowCreatePost(false)} />
                     </View>
-                    <CreatePost onPostPress={() => setShowCreatePost(false)} />
-                </View>
-            </Modal>
-        )}
+                </Modal>
+            )}
 
-        <EditProfileModal
-            visible={showEditProfile}
-            profile={profile}
-            token={token}
-            isDark={isDark}
-            onClose={() => setShowEditProfile(false)}
-            onSaved={(updated) => {
-                if (updated) setProfile((prev) => ({ ...prev, ...updated }));
-            }}
-        />
+            <EditProfileModal
+                visible={showEditProfile}
+                profile={profile}
+                token={token}
+                isDark={isDark}
+                onClose={() => setShowEditProfile(false)}
+                onSaved={(updated) => {
+                    if (updated) setProfile((prev) => ({ ...prev, ...updated }));
+                }}
+            />
 
-        <EducationFormModal
-            visible={showCreateEducation}
-            education={null}
-            token={token}
-            isDark={isDark}
-            onClose={() => setShowCreateEducation(false)}
-            onSaved={(saved) => {
-                setProfile((prev) => {
-                    if (!prev) return prev;
-                    const current = Array.isArray(prev.education) ? prev.education : (Array.isArray(prev.educations) ? prev.educations : []);
-                    return { ...prev, education: [saved, ...current] };
-                });
-            }}
-            onDeleted={() => { }}
-        />
+            <EducationFormModal
+                visible={showCreateEducation}
+                education={null}
+                token={token}
+                isDark={isDark}
+                onClose={() => setShowCreateEducation(false)}
+                onSaved={(saved) => {
+                    setProfile((prev) => {
+                        if (!prev) return prev;
+                        const current = Array.isArray(prev.education) ? prev.education : (Array.isArray(prev.educations) ? prev.educations : []);
+                        return { ...prev, education: [saved, ...current] };
+                    });
+                }}
+                onDeleted={() => { }}
+            />
 
-        <ExperienceFormModal
-            visible={showCreateExperience}
-            experience={null}
-            token={token}
-            isDark={isDark}
-            onClose={() => setShowCreateExperience(false)}
-            onSaved={(saved) => {
-                setProfile((prev) => {
-                    if (!prev) return prev;
-                    const current = Array.isArray(prev.experiences) ? prev.experiences : [];
-                    return { ...prev, experiences: [saved, ...current] };
-                });
-            }}
-            onDeleted={() => { }}
-        />
+            <ExperienceFormModal
+                visible={showCreateExperience}
+                experience={null}
+                token={token}
+                isDark={isDark}
+                onClose={() => setShowCreateExperience(false)}
+                onSaved={(saved) => {
+                    setProfile((prev) => {
+                        if (!prev) return prev;
+                        const current = Array.isArray(prev.experiences) ? prev.experiences : [];
+                        return { ...prev, experiences: [saved, ...current] };
+                    });
+                }}
+                onDeleted={() => { }}
+            />
 
-        <FollowListModal
-            visible={followModal === 'followers' || followModal === 'following'}
-            type={followModal ?? 'followers'}
-            profileId={profile?.id}
-            token={token}
-            currentUserId={currentUser?.id}
-            insets={insets}
-            isDark={isDark}
-            onClose={() => setFollowModal(null)}
-        />
+            <FollowListModal
+                visible={followModal === 'followers' || followModal === 'following'}
+                type={followModal ?? 'followers'}
+                profileId={profile?.id}
+                token={token}
+                currentUserId={currentUser?.id}
+                insets={insets}
+                isDark={isDark}
+                onClose={() => setFollowModal(null)}
+            />
 
-        <AvatarOptionsModal
-            visible={showAvatarOptions}
-            onClose={() => setShowAvatarOptions(false)}
-            onView={() => {
-                setShowAvatarOptions(false);
-                setShowAvatarViewer(true);
-            }}
-            onChange={async () => {
-                setShowAvatarOptions(false);
-                await pickAndUploadAvatar();
-            }}
-            avatarUploading={avatarUploading}
-            insets={insets}
-            isDark={isDark}
-        />
+            <AvatarOptionsModal
+                visible={showAvatarOptions}
+                onClose={() => setShowAvatarOptions(false)}
+                onView={() => {
+                    setShowAvatarOptions(false);
+                    setShowAvatarViewer(true);
+                }}
+                onChange={async () => {
+                    setShowAvatarOptions(false);
+                    await pickAndUploadAvatar();
+                }}
+                avatarUploading={avatarUploading}
+                insets={insets}
+                isDark={isDark}
+            />
 
-        <AvatarViewerModal
-            visible={showAvatarViewer}
-            onClose={() => setShowAvatarViewer(false)}
-            profileImageUrl={profileImageUrl}
-            insets={insets}
-        />
+            <AvatarViewerModal
+                visible={showAvatarViewer}
+                onClose={() => setShowAvatarViewer(false)}
+                profileImageUrl={profileImageUrl}
+                insets={insets}
+            />
 
-        <PostFeedModal
-            visible={selectedPostIndex >= 0}
-            onClose={() => setSelectedPostIndex(-1)}
-            title={profile?.name || 'Posts'}
-            posts={originalPosts}
-            selectedIndex={selectedPostIndex}
-            feedListRef={feedListRef}
-            insets={insets}
-            isDark={isDark}
-        />
+            <PostFeedModal
+                visible={selectedPostIndex >= 0}
+                onClose={() => setSelectedPostIndex(-1)}
+                title={profile?.name || 'Posts'}
+                posts={originalPosts}
+                selectedIndex={selectedPostIndex}
+                feedListRef={feedListRef}
+                insets={insets}
+                isDark={isDark}
+            />
 
-        <RepostsFeedModal
-            visible={selectedRepostIndex >= 0}
-            onClose={() => setSelectedRepostIndex(-1)}
-            title={profile?.name || 'Reposts'}
-            posts={repostedPosts}
-            selectedIndex={selectedRepostIndex}
-            listRef={repostFeedListRef}
-            insets={insets}
-            isDark={isDark}
-        />
+            <RepostsFeedModal
+                visible={selectedRepostIndex >= 0}
+                onClose={() => setSelectedRepostIndex(-1)}
+                title={profile?.name || 'Reposts'}
+                posts={repostedPosts}
+                selectedIndex={selectedRepostIndex}
+                listRef={repostFeedListRef}
+                insets={insets}
+                isDark={isDark}
+            />
 
-        <SavedPostsFeedModal
-            visible={selectedSavedPostIndex >= 0}
-            onClose={() => setSelectedSavedPostIndex(-1)}
-            posts={savedPosts}
-            selectedIndex={selectedSavedPostIndex}
-            insets={insets}
-            isDark={isDark}
-        />
-    </AppLayout>
-  );
+            <SavedPostsFeedModal
+                visible={selectedSavedPostIndex >= 0}
+                onClose={() => setSelectedSavedPostIndex(-1)}
+                posts={savedPosts}
+                selectedIndex={selectedSavedPostIndex}
+                insets={insets}
+                isDark={isDark}
+            />
+        </AppLayout>
+    );
 }

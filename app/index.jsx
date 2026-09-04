@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenStorage';
 
 export default function Entry() {
   useEffect(() => {
@@ -8,7 +9,7 @@ export default function Entry() {
       try {
         // Check if user has seen onboarding
         const onboardingSeen = await AsyncStorage.getItem('onboarding_seen');
-        const token = await AsyncStorage.getItem('auth_token');
+        const token = await getAuthToken();
         
         if (onboardingSeen !== '1') {
           router.replace('/onboarding');

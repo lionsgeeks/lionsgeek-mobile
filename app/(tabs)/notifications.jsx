@@ -44,7 +44,7 @@ export default function NotificationsScreen() {
 
     const connect = async () => {
       try {
-        const res = await API.getWithAuth('notifications/ably-token', token);
+        const res = await API.getWithAuth('mobile/notifications/ably-token', token);
         const ablyToken = res?.data?.token;
         const channelName = res?.data?.channelName;
         if (!ablyToken || !channelName) return;
@@ -73,11 +73,11 @@ export default function NotificationsScreen() {
       closed = true;
       try {
         if (channel) channel.unsubscribe();
-      } catch {}
+      } catch { }
       try {
         if (ably && !closed) ably.close();
         if (ably) ably.close();
-      } catch {}
+      } catch { }
     };
   }, [token]);
 
@@ -123,16 +123,14 @@ export default function NotificationsScreen() {
   };
 
   const formatNotificationForMobile = (notif) => {
-    console.log('[NOTIFICATIONS] Formatting notification:', JSON.stringify(notif, null, 2));
-    
     const icon = getNotificationIcon(notif.type);
     const color = getNotificationColor(notif.type);
-    
+
     // Build title and text based on notification type
     let title = null;
     // Handle both 'message' and 'message_notification' fields
     let text = notif.message || notif.message_notification || '';
-    
+
     switch (notif.type) {
       case 'discipline_change':
         title = 'Discipline Change';
@@ -181,7 +179,7 @@ export default function NotificationsScreen() {
     // Format avatar URL - match profile.jsx approach
     let avatar = null;
     const senderImage = notif.sender_image || notif.senderImage || notif.user?.avatar || notif.user?.image;
-    
+
     if (senderImage) {
       // If it's already a full URL, return it
       if (typeof senderImage === 'string' && (senderImage.startsWith('http://') || senderImage.startsWith('https://'))) {
@@ -222,30 +220,22 @@ export default function NotificationsScreen() {
 
   const fetchNotifications = async () => {
     if (!token) return;
-    
+
     try {
       setLoading(true);
       // Fetch all notifications from API
-      const response = await API.getWithAuth('notifications', token);
-      
-      console.log('[NOTIFICATIONS] Full API response:', JSON.stringify(response?.data, null, 2));
-      
+      const response = await API.getWithAuth('mobile/notifications', token);
+
       if (response?.data?.notifications) {
-        console.log('[NOTIFICATIONS] Raw notifications count:', response.data.notifications.length);
-        console.log('[NOTIFICATIONS] Raw notifications:', JSON.stringify(response.data.notifications, null, 2));
-        
         const formattedNotifications = response.data.notifications.map(formatNotificationForMobile);
-        console.log('[NOTIFICATIONS] Formatted notifications count:', formattedNotifications.length);
-        console.log('[NOTIFICATIONS] Formatted notifications:', JSON.stringify(formattedNotifications, null, 2));
-        
         setNotifications(formattedNotifications);
       } else {
-        console.warn('[NOTIFICATIONS] No notifications in response. Response data:', response?.data);
         setNotifications([]);
       }
     } catch (error) {
-      console.error('[NOTIFICATIONS] Error fetching notifications:', error);
-      console.error('[NOTIFICATIONS] Error details:', error?.response?.data || error?.message);
+      if (__DEV__) {
+        console.error('[NOTIFICATIONS] Error fetching notifications:', error?.response?.data || error?.message);
+      }
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -334,17 +324,17 @@ export default function NotificationsScreen() {
 
   const markNotificationAsRead = async (notification) => {
     if (!token || notification.read) return;
-    
+
     try {
       // Extract type and id from notification ID (format: 'type-id' or 'type-numeric-id')
       const notificationId = notification.id || '';
       const parts = notificationId.split('-');
-      
+
       if (parts.length < 2) {
         console.warn('[NOTIFICATIONS] Invalid notification ID format:', notificationId);
         return;
       }
-      
+
       // Map notification ID prefix to API type format
       const typeMap = {
         'discipline': 'discipline_change',
@@ -362,36 +352,36 @@ export default function NotificationsScreen() {
         'project-message': 'project-message',
         'announcement': 'announcement',
       };
-      
+
       const prefix = parts.slice(0, -1).join('-'); // Get all parts except the last one
       const type = typeMap[prefix] || prefix;
       const id = parts[parts.length - 1]; // Last part is the numeric ID
-      
+
       if (type && id) {
-        await API.postWithAuth(`api/notifications/${type}/${id}/read`, {}, token);
-        
+        await API.postWithAuth(`mobile/notifications/${type}/${id}/read`, {}, token);
+
         // Update local state
-        setNotifications(prev => 
-          prev.map(n => 
+        setNotifications(prev =>
+          prev.map(n =>
             n.id === notification.id ? { ...n, read: true } : n
           )
         );
       }
     } catch (error) {
-      console.error('[NOTIFICATIONS] Error marking as read:', error);
+      if (__DEV__) console.error('[NOTIFICATIONS] Error marking as read:', error);
     }
   };
 
   const markAllAsRead = async () => {
     if (!token) return;
-    
+
     try {
-      await API.postWithAuth('notifications/mark-all-read', {}, token);
-      
+      await API.postWithAuth('mobile/notifications/mark-all-read', {}, token);
+
       // Update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     } catch (error) {
-      console.error('[NOTIFICATIONS] Error marking all as read:', error);
+      if (__DEV__) console.error('[NOTIFICATIONS] Error marking all as read:', error);
     }
   };
 
@@ -399,14 +389,14 @@ export default function NotificationsScreen() {
   const getAvatar = (notification) => {
     try {
       const avatar = notification.user?.avatar || notification.senderImage;
-      
+
       if (!avatar) return null;
-      
+
       // If it's already a full URL, return it
       if (typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://'))) {
         return avatar;
       }
-      
+
       if (typeof avatar === 'string') {
         // Check if it already includes storage path
         if (avatar.includes('storage/')) {
@@ -417,8 +407,8 @@ export default function NotificationsScreen() {
           return `${API.APP_URL}/storage/img/profile/${avatar}`;
         }
       }
-    } catch (error) {
-      console.log('[NOTIFICATIONS] Error getting avatar URL:', error);
+    } catch {
+      // Ignore avatar URL resolution errors.
     }
     return null;
   };
@@ -432,21 +422,20 @@ export default function NotificationsScreen() {
     if (notification.type === 'announcement') {
       return;
     }
-    
+
     // Navigate based on notification type and link
     const targetLink = notification.mobileLink || notification.link;
     if (targetLink) {
       // Handle different link formats
       if (targetLink.startsWith('/admin/')) {
         // Admin links - might not be accessible in mobile, just show notification
-        console.log('Admin link:', targetLink);
       } else if (targetLink.startsWith('/posts/')) {
         router.push(`/(tabs)${targetLink}`);
       } else if (targetLink.startsWith('/students/')) {
         // Student profile or project links
         const parts = targetLink.split('/');
         if (parts.includes('project')) {
-          router.push('/(tabs)/projects');
+          router.push('/(tabs)/projects-hub');
         }
       } else if (targetLink.startsWith('/feed')) {
         // Feed link
@@ -456,14 +445,14 @@ export default function NotificationsScreen() {
       } else if (notification.type === 'reservation' || notification.type === 'appointment') {
         router.push('/(tabs)/reservations');
       } else if (notification.type === 'project_submission' || notification.type === 'project_status') {
-        router.push('/(tabs)/projects');
+        router.push('/(tabs)/projects-hub');
       }
     } else {
       // Fallback navigation based on type
       if (notification.type === 'reservation' || notification.type === 'appointment') {
         router.push('/(tabs)/reservations');
       } else if (notification.type === 'project_submission' || notification.type === 'project_status') {
-        router.push('/(tabs)/projects');
+        router.push('/(tabs)/projects-hub');
       } else if (notification.type === 'post_interaction' || notification.type === 'follow') {
         router.push('/(tabs)/home');
       } else if (notification.type === 'post_report' && notification?.post_id) {
@@ -479,22 +468,17 @@ export default function NotificationsScreen() {
     }
 
     try {
-      console.log('🧪 Testing push notification...');
       const response = await API.postWithAuth('mobile/test-push', {
         title: '🧪 Test Push Notification',
         body: 'This is a test push notification! If you see this on your phone, push notifications are working! 🎉',
       }, token);
 
-      console.log('✅ Test push response:', JSON.stringify(response?.data, null, 2));
-      
       if (response?.data?.success) {
         alert('✅ Test notification sent! Check your phone (make sure app is in background/closed).');
       } else {
-        alert('❌ Failed to send test notification. Check console logs for details.');
+        alert('❌ Failed to send test notification.');
       }
     } catch (error) {
-      console.error('❌ Test push error:', error);
-      console.error('Error details:', error?.response?.data || error?.message);
       alert('❌ Error: ' + (error?.response?.data?.message || error?.message || 'Unknown error'));
     }
   };
@@ -505,7 +489,7 @@ export default function NotificationsScreen() {
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
         {/* Header */}
-        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-4 px-6">
+        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-3 pb-4 px-6">
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center">
               <TouchableOpacity onPress={() => router.back()} className="mr-3">
@@ -526,14 +510,14 @@ export default function NotificationsScreen() {
                 <Ionicons name="settings-outline" size={18} color={isDark ? '#fff' : '#000'} />
               </TouchableOpacity>
               {/* Test Push Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={testPushNotification}
                 className="bg-green-500/20 dark:bg-green-500/30 rounded-full px-3 py-2 mr-2"
               >
                 <Ionicons name="notifications" size={16} color="#10b981" />
               </TouchableOpacity>
               {unreadCount > 0 && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={markAllAsRead}
                   className="bg-alpha/20 dark:bg-alpha/30 rounded-full px-4 py-2"
                 >
@@ -545,8 +529,8 @@ export default function NotificationsScreen() {
         </View>
 
         {/* Notifications List */}
-        <ScrollView 
-          className="flex-1" 
+        <ScrollView
+          className="flex-1"
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffc801" />
@@ -597,7 +581,7 @@ export default function NotificationsScreen() {
                 <Text className="text-center text-black dark:text-white mt-4 text-base font-semibold">
                   Nothing to show here
                 </Text>
-                <Text className="text-center text-black/55 dark:text-white/55 mt-2 text-sm leading-5">
+                <Text className="text-center text-black/55 dark:text-dark_gray5 mt-2 text-sm leading-5">
                   Every notification is hidden by your preferences. Turn categories back on or open settings to
                   change what appears in this inbox.
                 </Text>
@@ -613,135 +597,131 @@ export default function NotificationsScreen() {
                 {/* Today Section (Unread) */}
                 {visibleNotifications.filter((n) => !n.read).length > 0 && (
                   <View className="mb-4">
-                    <Text className="text-sm font-bold text-black/50 dark:text-white/50 uppercase mb-3">Today</Text>
+                    <Text className="text-sm font-bold text-black/50 dark:text-dark_gray0 uppercase mb-3">Today</Text>
                     {visibleNotifications.filter((n) => !n.read).map((notification) => (
-                    <TouchableOpacity
-                      key={notification.id}
-                      onPress={() => handleNotificationPress(notification)}
-                      className={`mb-3 p-4 rounded-2xl border active:opacity-80 bg-alpha/10 dark:bg-alpha/20 border-alpha/30`}
-                    >
-                      <View className="flex-row items-start">
-                        <View className="relative mr-4">
-                          {getAvatar(notification) ? (
-                            <Image
-                              source={{ uri: getAvatar(notification) }}
-                              className="w-14 h-14 rounded-full border-2 border-alpha/50"
-                              placeholder={require('@/assets/images/icon.png')}
-                              contentFit="cover"
-                              transition={200}
-                              style={{ width: 56, height: 56, borderRadius: 28 }}
-                              onError={(error) => {
-                                console.log('[NOTIFICATIONS] Error loading avatar:', getAvatar(notification), error);
-                              }}
-                            />
-                          ) : (
-                            <View
-                              className={`w-14 h-14 rounded-full items-center justify-center border-2 ${
-                                notification.type === 'announcement'
+                      <TouchableOpacity
+                        key={notification.id}
+                        onPress={() => handleNotificationPress(notification)}
+                        className={`mb-3 p-4 rounded-2xl border active:opacity-80 bg-alpha/10 dark:bg-alpha/20 border-alpha/30`}
+                      >
+                        <View className="flex-row items-start">
+                          <View className="relative mr-4">
+                            {getAvatar(notification) ? (
+                              <Image
+                                source={{ uri: getAvatar(notification) }}
+                                className="w-14 h-14 rounded-full border-2 border-alpha/50"
+                                placeholder={require('@/assets/images/icon.png')}
+                                contentFit="cover"
+                                transition={200}
+                                style={{ width: 56, height: 56, borderRadius: 28 }}
+                                onError={() => { }}
+                              />
+                            ) : (
+                              <View
+                                className={`w-14 h-14 rounded-full items-center justify-center border-2 ${notification.type === 'announcement'
                                   ? 'bg-alpha/20 dark:bg-alpha/30 border-alpha/40'
                                   : 'bg-beta/20 dark:bg-beta/40 border-beta/30'
-                              }`}
-                            >
-                              <Ionicons
-                                name={notification.icon || 'notifications'}
-                                size={24}
-                                color={notification.color || Colors.dark_gray}
-                              />
-                            </View>
-                          )}
-                        </View>
-                        <View className="flex-1">
-                          {notification.title && (
-                            <Text className="text-base font-bold text-black dark:text-white mb-1">
-                              {notification.title}
-                            </Text>
-                          )}
-                          <Text className="text-sm text-black/80 dark:text-white/80 leading-5">
-                            {notification.user?.name && notification.type !== 'discipline_change' && notification.type !== 'access_request_response' && notification.type !== 'project_status' && notification.type !== 'announcement' && (
-                              <Text className="font-semibold">{notification.user.name} </Text>
+                                  }`}
+                              >
+                                <Ionicons
+                                  name={notification.icon || 'notifications'}
+                                  size={24}
+                                  color={notification.color || Colors.dark_gray}
+                                />
+                              </View>
                             )}
-                            {notification.text}
-                          </Text>
-                          <View className="flex-row items-center mt-2">
-                            <Ionicons 
-                              name="time-outline" 
-                              size={12} 
-                              color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
-                            />
-                            <Text className="text-xs text-black/50 dark:text-white/50 ml-1">
-                              {notification.time}
+                          </View>
+                          <View className="flex-1">
+                            {notification.title && (
+                              <Text className="text-base font-bold text-black dark:text-white mb-1">
+                                {notification.title}
+                              </Text>
+                            )}
+                            <Text className="text-sm text-black/80 dark:text-white/80 leading-5">
+                              {notification.user?.name && notification.type !== 'discipline_change' && notification.type !== 'access_request_response' && notification.type !== 'project_status' && notification.type !== 'announcement' && (
+                                <Text className="font-semibold">{notification.user.name} </Text>
+                              )}
+                              {notification.text}
                             </Text>
+                            <View className="flex-row items-center mt-2">
+                              <Ionicons
+                                name="time-outline"
+                                size={12}
+                                color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                              />
+                              <Text className="text-xs text-black/50 dark:text-dark_gray0 ml-1">
+                                {notification.time}
+                              </Text>
+                            </View>
+                          </View>
+                          <View className="ml-2">
+                            <View className="w-2 h-2 rounded-full bg-alpha" />
                           </View>
                         </View>
-                        <View className="ml-2">
-                          <View className="w-2 h-2 rounded-full bg-alpha" />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
 
                 {/* Earlier Section (Read) */}
                 {visibleNotifications.filter((n) => n.read).length > 0 && (
                   <View className="mt-4">
-                    <Text className="text-sm font-bold text-black/50 dark:text-white/50 uppercase mb-3">Earlier</Text>
+                    <Text className="text-sm font-bold text-black/50 dark:text-dark_gray0 uppercase mb-3">Earlier</Text>
                     {visibleNotifications.filter((n) => n.read).map((notification) => (
                       <TouchableOpacity
                         key={notification.id}
                         onPress={() => handleNotificationPress(notification)}
                         className="mb-3 p-4 rounded-2xl border bg-light dark:bg-dark border-light/20 dark:border-dark/20 active:opacity-70"
                       >
-                      <View className="flex-row items-start">
-                        <View className="relative mr-4">
-                          {getAvatar(notification) ? (
-                            <Image
-                              source={{ uri: getAvatar(notification) }}
-                              className="w-14 h-14 rounded-full opacity-70"
-                              defaultSource={require('@/assets/images/icon.png')}
-                            />
-                          ) : (
-                            <View
-                              className={`w-14 h-14 rounded-full items-center justify-center opacity-50 ${
-                                notification.type === 'announcement'
+                        <View className="flex-row items-start">
+                          <View className="relative mr-4">
+                            {getAvatar(notification) ? (
+                              <Image
+                                source={{ uri: getAvatar(notification) }}
+                                className="w-14 h-14 rounded-full opacity-70"
+                                defaultSource={require('@/assets/images/icon.png')}
+                              />
+                            ) : (
+                              <View
+                                className={`w-14 h-14 rounded-full items-center justify-center opacity-50 ${notification.type === 'announcement'
                                   ? 'bg-alpha/15 dark:bg-alpha/25'
                                   : 'bg-beta/10 dark:bg-beta/20'
-                              }`}
-                            >
-                              <Ionicons
-                                name={notification.icon || 'notifications'}
-                                size={24}
-                                color={isDark ? 'rgba(255,255,255,0.5)' : Colors.beta}
-                              />
-                            </View>
-                          )}
-                        </View>
-                        <View className="flex-1">
-                          {notification.title && (
-                            <Text className="text-base font-bold text-black/80 dark:text-white/80 mb-1">
-                              {notification.title}
-                            </Text>
-                          )}
-                          <Text className="text-sm text-black/60 dark:text-white/60 leading-5">
-                            {notification.user?.name && notification.type !== 'discipline_change' && notification.type !== 'access_request_response' && notification.type !== 'project_status' && notification.type !== 'announcement' && (
-                              <Text className="font-semibold">{notification.user.name} </Text>
+                                  }`}
+                              >
+                                <Ionicons
+                                  name={notification.icon || 'notifications'}
+                                  size={24}
+                                  color={isDark ? 'rgba(255,255,255,0.5)' : Colors.beta}
+                                />
+                              </View>
                             )}
-                            {notification.text}
-                          </Text>
-                          <View className="flex-row items-center mt-2">
-                            <Ionicons 
-                              name="time-outline" 
-                              size={12} 
-                              color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} 
-                            />
-                            <Text className="text-xs text-black/40 dark:text-white/40 ml-1">
-                              {notification.time}
+                          </View>
+                          <View className="flex-1">
+                            {notification.title && (
+                              <Text className="text-base font-bold text-black/80 dark:text-white/80 mb-1">
+                                {notification.title}
+                              </Text>
+                            )}
+                            <Text className="text-sm text-black/60 dark:text-white/60 leading-5">
+                              {notification.user?.name && notification.type !== 'discipline_change' && notification.type !== 'access_request_response' && notification.type !== 'project_status' && notification.type !== 'announcement' && (
+                                <Text className="font-semibold">{notification.user.name} </Text>
+                              )}
+                              {notification.text}
                             </Text>
+                            <View className="flex-row items-center mt-2">
+                              <Ionicons
+                                name="time-outline"
+                                size={12}
+                                color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'}
+                              />
+                              <Text className="text-xs text-black/40 dark:text-white/40 ml-1">
+                                {notification.time}
+                              </Text>
+                            </View>
                           </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </>

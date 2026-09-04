@@ -18,6 +18,7 @@ import { useAppContext } from '@/context';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
 import API from '@/api';
+import { getTrainingHubRoute, isStudentUser } from '@/components/training/attendanceCheckIn';
 
 const ACCENT = '#ffcc00';
 const BG_TOP = '#12110f';
@@ -28,11 +29,11 @@ const STAT_LABEL = 'rgba(255,255,255,0.45)';
 const cardShadow =
   Platform.OS === 'ios'
     ? {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-      }
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+    }
     : { elevation: 5 };
 
 /** Labels for the three attendance slots (matches API morning / lunch / evening). */
@@ -101,7 +102,7 @@ function TableHeaderRow() {
       style={{ borderBottomColor: CARD_BORDER, backgroundColor: 'rgba(0,0,0,0.25)' }}
     >
       <View style={{ flex: 2, paddingRight: 8 }}>
-        <Text className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">Day</Text>
+        <Text className="text-[11px] font-bold uppercase tracking-[0.12em] text-dark_gray5">Day</Text>
       </View>
       {SLOT_COLUMNS.map(({ key, label }) => (
         <View key={key} style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
@@ -313,6 +314,13 @@ export default function AttendanceHistoryScreen() {
       return;
     }
 
+    if (isStudentUser(user)) {
+      setResolvedFormationId(null);
+      setTrainingOptions([]);
+      setResolveDone(true);
+      return;
+    }
+
     try {
       const res = await API.getWithAuth('mobile/trainings', token);
       const list = res?.data?.trainings ?? [];
@@ -395,7 +403,7 @@ export default function AttendanceHistoryScreen() {
           {trainingName ? `Current course: ${trainingName}` : 'Current course'}
         </Text>
         {trainingCategory ? (
-          <Text className="mt-2 text-[13px] leading-4 text-white/55" numberOfLines={2}>
+          <Text className="mt-2 text-[13px] leading-4 text-dark_gray5" numberOfLines={2}>
             {trainingCategory}
           </Text>
         ) : null}
@@ -412,7 +420,7 @@ export default function AttendanceHistoryScreen() {
             <View className="rounded-3xl border border-white/10 bg-white/[0.04] px-8 py-10">
               <Ionicons name="clipboard-outline" size={36} color="rgba(255,204,0,0.55)" />
               <Text className="mt-4 text-center text-base font-semibold text-white">Sign in to continue</Text>
-              <Text className="mt-2 max-w-[260px] text-center text-sm text-white/50">Your attendance ledger syncs to your account.</Text>
+              <Text className="mt-2 max-w-[260px] text-center text-sm text-dark_gray0">Your attendance ledger syncs to your account.</Text>
               <Pressable
                 onPress={() => router.push('/auth/login')}
                 className="mt-6 self-center rounded-2xl px-8 py-3.5"
@@ -436,11 +444,11 @@ export default function AttendanceHistoryScreen() {
             <View className="rounded-3xl border border-white/10 bg-white/[0.04] px-8 py-10">
               <Ionicons name="school-outline" size={40} color="rgba(255,255,255,0.35)" />
               <Text className="mt-4 text-center text-base font-semibold text-white">No program linked</Text>
-              <Text className="mt-2 max-w-[280px] text-center text-sm text-white/50">
+              <Text className="mt-2 max-w-[280px] text-center text-sm text-dark_gray0">
                 Once you are assigned to a cohort, your ledger will appear here.
               </Text>
               <Pressable
-                onPress={() => router.push('/(tabs)/training')}
+                onPress={() => router.push(getTrainingHubRoute(user))}
                 className="mt-6 self-center rounded-2xl border border-amber-400/35 px-6 py-3.5"
               >
                 <Text className="text-sm font-bold text-[#ffcc00]">Open training</Text>
@@ -458,7 +466,7 @@ export default function AttendanceHistoryScreen() {
         <ScreenCanvas>
           <StatusBar style="light" />
           <View className="flex-1 px-4 pt-2">
-            <Text className="px-1 text-[13px] leading-5 text-white/55">Choose a program to open its ledger.</Text>
+            <Text className="px-1 text-[13px] leading-5 text-dark_gray5">Choose a program to open its ledger.</Text>
             <View className="mt-4 gap-3">
               {trainingOptions.map((t) => (
                 <Pressable
@@ -537,7 +545,7 @@ export default function AttendanceHistoryScreen() {
                 <Ionicons name="layers-outline" size={32} color={ACCENT} />
               </View>
               <Text className="mt-5 text-center text-[16px] font-semibold text-white">No attendance yet</Text>
-              <Text className="mt-2 max-w-[280px] text-center text-sm leading-5 text-white/50">
+              <Text className="mt-2 max-w-[280px] text-center text-sm leading-5 text-dark_gray0">
                 Saved attendance will appear here as soon as your coach records a day.
               </Text>
             </View>

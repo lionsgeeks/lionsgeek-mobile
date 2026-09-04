@@ -77,16 +77,19 @@ export function resolvePostMediaUrl(postOrValue) {
   return `${API.APP_URL}/storage/img/posts/${value}`;
 }
 
-// Normalizes a user's roles to lowercase strings (handles array or single string).
+function normalizeRoleEntry(role) {
+  if (role == null || role === '') return null;
+  const value = (typeof role === 'string' ? role : String(role)).trim().toLowerCase();
+  return value.replace(/^['"]+|['"]+$/g, '') || null;
+}
+
+// Normalizes a user's roles to lowercase strings (handles roles/role, array or single string).
 export function getUserRolesNormalized(user) {
-  if (!user?.roles) return [];
-  if (Array.isArray(user.roles)) {
-    return user.roles.map((r) =>
-      typeof r === 'string' ? r.toLowerCase() : String(r).toLowerCase()
-    );
-  }
-  const single = user.roles;
-  return [typeof single === 'string' ? single.toLowerCase() : String(single).toLowerCase()];
+  const source = user?.roles ?? user?.role;
+  if (!source) return [];
+
+  const list = Array.isArray(source) ? source : [source];
+  return [...new Set(list.map(normalizeRoleEntry).filter(Boolean))];
 }
 
 // True when the viewer may see other users' email addresses (admin only).

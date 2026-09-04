@@ -47,9 +47,8 @@ export default function MessageList({
                     )}
                     <View className="max-w-[78%] gap-2">
                         <View
-                            className={`h-14 rounded-2xl ${
-                                i % 2 === 0 ? 'bg-alpha/25 rounded-br-sm' : 'bg-black/[0.06] dark:bg-white/[0.08] rounded-bl-sm'
-                            }`}
+                            className={`h-14 rounded-2xl ${i % 2 === 0 ? 'bg-alpha/25 rounded-br-sm' : 'bg-black/[0.06] dark:bg-white/[0.08] rounded-bl-sm'
+                                }`}
                         />
                         <View className={`h-3 w-16 rounded ${i % 2 === 0 ? 'self-end' : 'self-start'} bg-black/10 dark:bg-white/10`} />
                     </View>
@@ -80,7 +79,7 @@ export default function MessageList({
                             <Ionicons name="reader-outline" size={48} color={isDark ? '#ffc801' : '#b38a00'} />
                         </View>
                         <Text className="text-base font-bold text-black dark:text-white text-center">Blank page</Text>
-                        <Text className="text-sm text-black/50 dark:text-white/50 text-center mt-2 leading-5">
+                        <Text className="text-sm text-black/50 dark:text-dark_gray0 text-center mt-2 leading-5">
                             This thread has no lines yet. Send the first note — it will sit on the left rail like a margin
                             sketch.
                         </Text>
@@ -93,7 +92,7 @@ export default function MessageList({
                         const showDateSeparator =
                             index === 0 ||
                             new Date(message.created_at).toDateString() !==
-                                new Date(messages[index - 1].created_at).toDateString();
+                            new Date(messages[index - 1].created_at).toDateString();
 
                         return (
                             <MessageItem

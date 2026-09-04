@@ -30,7 +30,7 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { token } = useAppContext();
+  const { token, signOut } = useAppContext();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
@@ -63,10 +63,13 @@ export default function ResetPasswordScreen() {
         },
         token,
       );
-      Alert.alert('Password updated', 'Your password has been changed successfully.', [
+      Alert.alert('Password updated', 'Your password has been changed. Please log in again.', [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: async () => {
+            await signOut();
+            router.replace('/auth/login');
+          },
         },
       ]);
     } catch (e) {
@@ -79,7 +82,7 @@ export default function ResetPasswordScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [token, canSave, currentPassword, password, passwordConfirmation, router]);
+  }, [token, canSave, currentPassword, password, passwordConfirmation, router, signOut]);
 
   if (!token) {
     return (

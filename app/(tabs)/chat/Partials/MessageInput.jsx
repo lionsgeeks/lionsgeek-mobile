@@ -57,25 +57,25 @@ export default function MessageInput({
     // Handle typing events on input change - triggers typing indicator
     const handleInputChange = (value) => {
         setNewMessage(value);
-        
+
         if (!onTypingStart || !onTypingStop) return;
 
         // Only trigger if user is actually typing (has content)
         if (value.trim().length > 0) {
             const now = Date.now();
-            
+
             // Debounce typing start - only trigger every 1 second max
             if (!hasTypedRef.current || (now - lastTypingTimeRef.current) > 1000) {
                 onTypingStart();
                 hasTypedRef.current = true;
                 lastTypingTimeRef.current = now;
             }
-            
+
             // Clear existing timeout
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
-            
+
             // Stop typing after 2 seconds of inactivity
             typingTimeoutRef.current = setTimeout(() => {
                 onTypingStop();
@@ -100,7 +100,7 @@ export default function MessageInput({
                 clearTimeout(typingTimeoutRef.current);
             }
         }
-        
+
         return () => {
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
@@ -148,7 +148,7 @@ export default function MessageInput({
     // Show attachment options menu
     const showAttachmentMenu = () => {
         const options = [];
-        
+
         if (ImagePicker) {
             options.push(
                 {
@@ -163,7 +163,7 @@ export default function MessageInput({
                 }
             );
         }
-        
+
         options.push(
             {
                 text: 'Files',
@@ -175,7 +175,7 @@ export default function MessageInput({
                 style: 'cancel',
             }
         );
-        
+
         Alert.alert(
             'Choose Attachment',
             'Select how you want to attach a file',
@@ -190,7 +190,7 @@ export default function MessageInput({
             Alert.alert('Not Available', 'Camera feature requires expo-image-picker. Please run: npm install');
             return;
         }
-        
+
         try {
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -220,7 +220,7 @@ export default function MessageInput({
             Alert.alert('Not Available', 'Photo library feature requires expo-image-picker. Please run: npm install');
             return;
         }
-        
+
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -345,7 +345,7 @@ export default function MessageInput({
                         </View>
                         <View className="flex-1 min-w-0">
                             <Text className="text-sm font-bold text-black dark:text-white">Voice message</Text>
-                            <Text className="text-[11px] text-black/50 dark:text-white/50 mt-0.5">Ready to send</Text>
+                            <Text className="text-[11px] text-black/50 dark:text-dark_gray0 mt-0.5">Ready to send</Text>
                             {audioDuration ? (
                                 <Text className="text-xs text-alpha font-semibold tabular-nums mt-1">
                                     {formatAudioDuration(audioDuration)}
@@ -438,11 +438,10 @@ export default function MessageInput({
                         <Pressable
                             onPress={handleSendMessage}
                             disabled={sending || (!newMessage.trim() && !attachment && !audioBlob)}
-                            className={`w-11 h-11 rounded-2xl items-center justify-center border ${
-                                sending || (!newMessage.trim() && !attachment && !audioBlob)
-                                    ? 'bg-neutral-200 dark:bg-zinc-800 opacity-55 border-transparent'
-                                    : 'bg-alpha active:opacity-90 border-black/10'
-                            }`}
+                            className={`w-11 h-11 rounded-2xl items-center justify-center border ${sending || (!newMessage.trim() && !attachment && !audioBlob)
+                                ? 'bg-neutral-200 dark:bg-zinc-800 opacity-55 border-transparent'
+                                : 'bg-alpha active:opacity-90 border-black/10'
+                                }`}
                         >
                             {sending ? (
                                 <Skeleton width={16} height={16} borderRadius={8} isDark={isDark} />

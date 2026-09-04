@@ -85,9 +85,8 @@ export default function ChatHeader({ conversation, onBack }) {
                             </View>
                         )}
                         <View
-                            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-light dark:border-dark ${
-                                isOnline ? 'bg-alpha' : 'bg-neutral-400 dark:bg-zinc-600'
-                            }`}
+                            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-light dark:border-dark ${isOnline ? 'bg-alpha' : 'bg-neutral-400 dark:bg-zinc-600'
+                                }`}
                         />
                     </Pressable>
                     <Pressable
@@ -97,7 +96,7 @@ export default function ChatHeader({ conversation, onBack }) {
                         <Text className="text-base font-extrabold text-black dark:text-white tracking-tight" numberOfLines={1}>
                             {conversation.other_user?.name || 'User'}
                         </Text>
-                        <Text className="text-[11px] mt-0.5 uppercase tracking-[0.14em] text-black/50 dark:text-white/50" numberOfLines={1}>
+                        <Text className="text-[11px] mt-0.5 uppercase tracking-[0.14em] text-black/50 dark:text-dark_gray0" numberOfLines={1}>
                             {statusLine || 'Offline'}
                         </Text>
                     </Pressable>

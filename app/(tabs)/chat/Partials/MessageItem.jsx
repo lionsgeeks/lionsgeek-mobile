@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { format, isToday, isYesterday } from 'date-fns';
 import API from '@/api';
 import VoiceMessage from './VoiceMessage';
+import { useAppContext } from '@/context';
+import { isGatedChatAttachmentUrl, resolveAttachmentUrl } from './resolveAttachmentUrl';
 
 function tryParsePostShare(body) {
     if (!body || typeof body !== 'string') return null;
@@ -55,7 +57,12 @@ export default function MessageItem({
     formatSeenTime,
 }) {
     const router = useRouter();
+    const { token } = useAppContext();
     const postShare = tryParsePostShare(message?.body);
+    const attachmentMediaUrl = resolveAttachmentUrl(message.attachment_url || message.attachment_path);
+    const authHeaders = isGatedChatAttachmentUrl(attachmentMediaUrl) && token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
 
     // Format file size
     const formatFileSize = (bytes) => {
@@ -63,32 +70,30 @@ export default function MessageItem({
         const units = ['B', 'KB', 'MB', 'GB'];
         let size = bytes;
         let unitIndex = 0;
-        
+
         while (size >= 1024 && unitIndex < units.length - 1) {
             size /= 1024;
             unitIndex++;
         }
-        
+
         return `${size.toFixed(1)} ${units[unitIndex]}`;
     };
 
-    const imageUrl = message.attachment_path?.startsWith('/storage/') || message.attachment_path?.startsWith('http')
-        ? message.attachment_path
-        : `${API.APP_URL}/storage/${message.attachment_path}`;
+    const imageUrl = attachmentMediaUrl;
 
     const bubbleRadius = isCurrentUser
         ? {
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              borderBottomLeftRadius: 18,
-              borderBottomRightRadius: 4,
-          }
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderBottomLeftRadius: 18,
+            borderBottomRightRadius: 4,
+        }
         : {
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              borderBottomLeftRadius: 4,
-              borderBottomRightRadius: 18,
-          };
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderBottomLeftRadius: 4,
+            borderBottomRightRadius: 18,
+        };
 
     return (
         <>
@@ -99,8 +104,8 @@ export default function MessageItem({
                         {isToday(new Date(message.created_at))
                             ? 'Today'
                             : isYesterday(new Date(message.created_at))
-                              ? 'Yesterday'
-                              : format(new Date(message.created_at), 'MMM d, yyyy')}
+                                ? 'Yesterday'
+                                : format(new Date(message.created_at), 'MMM d, yyyy')}
                     </Text>
                     <View className="flex-1 h-px bg-black/10 dark:bg-white/10" />
                 </View>
@@ -137,7 +142,7 @@ export default function MessageItem({
                                     resizeMode="cover"
                                 />
                             ) : (
-                                <View className="w-full h-32 items-center justify-center bg-black/10 dark:bg-white/5">
+                                <View className="w-full h-32 items-center justify-center bg-black/10 dark:bg-dark_gray">
                                     <Ionicons name="image-outline" size={28} color={isCurrentUser ? '#111' : '#888'} />
                                 </View>
                             )}
@@ -168,11 +173,11 @@ export default function MessageItem({
 
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Pressable
-                            onPress={() => onPreviewAttachment({ type: 'image', path: message.attachment_path, name: message.attachment_name })}
+                            onPress={() => onPreviewAttachment({ type: 'image', path: message.attachment_url || message.attachment_path, name: message.attachment_name })}
                             className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08]"
                         >
                             <Image
-                                source={{ uri: imageUrl }}
+                                source={{ uri: imageUrl, headers: authHeaders }}
                                 className="w-full max-h-72 min-h-[140px]"
                                 resizeMode="cover"
                             />
@@ -186,7 +191,7 @@ export default function MessageItem({
 
                     {message.attachment_type === 'video' && message.attachment_path && (
                         <Pressable
-                            onPress={() => onPreviewAttachment({ type: 'video', path: message.attachment_path, name: message.attachment_name })}
+                            onPress={() => onPreviewAttachment({ type: 'video', path: message.attachment_url || message.attachment_path, name: message.attachment_name })}
                             className="mt-2 w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-zinc-900"
                         >
                             <View className="w-full h-52 items-center justify-center">
@@ -204,7 +209,7 @@ export default function MessageItem({
 
                     {message.attachment_type === 'file' && message.attachment_path && (
                         <Pressable
-                            onPress={() => onDownloadAttachment(message.attachment_path, message.attachment_name)}
+                            onPress={() => onDownloadAttachment(message.attachment_url || message.attachment_path, message.attachment_name)}
                             className={`mt-2 w-full flex-row items-center gap-3 p-3 rounded-lg border ${isCurrentUser ? 'bg-white/10 border-white/20' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600'}`}
                         >
                             <Ionicons name="document" size={20} color={isCurrentUser ? '#ffc801' : '#666'} />
@@ -224,16 +229,16 @@ export default function MessageItem({
 
                     {message.attachment_type === 'audio' && message.attachment_path && (
                         <View
-                            className={`mt-2 rounded-2xl overflow-hidden border ${
-                                isCurrentUser
-                                    ? 'border-white/20 bg-black/10'
-                                    : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
-                            }`}
+                            className={`mt-2 rounded-2xl overflow-hidden border ${isCurrentUser
+                                ? 'border-white/20 bg-black/10'
+                                : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.03] dark:bg-white/[0.05]'
+                                }`}
                         >
                             <VoiceMessage
                                 audioUrl={imageUrl}
                                 duration={audioDuration[message.id] || message.audio_duration}
                                 isCurrentUser={isCurrentUser}
+                                headers={authHeaders}
                             />
                         </View>
                     )}

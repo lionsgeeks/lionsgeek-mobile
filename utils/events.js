@@ -191,7 +191,7 @@ export function resolveEventsError(err) {
   const status = err?.response?.status;
   if (status === 401) {
     return __DEV__
-      ? 'Events API authentication failed (401). Check EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY in .env and restart Expo.'
+      ? 'Events API authentication failed (401). Sign in again so the app can send your Sanctum token.'
       : 'Events service is temporarily unavailable. Please try again later.';
   }
   if (status) {
@@ -201,7 +201,7 @@ export function resolveEventsError(err) {
   const message = String(err?.message || '');
   if (message.includes('is not set')) {
     return __DEV__
-      ? 'Events API not configured. Set EXPO_PUBLIC_EVENTS_INFO_SECTION_URL and _KEY in .env, then restart Expo.'
+      ? 'Events API not configured. Set EXPO_PUBLIC_APP_URL and EXPO_PUBLIC_EVENTS_INFO_USE_PROXY in .env, then restart Expo.'
       : 'Events service is not available right now. Please try again later.';
   }
   if (message.toLowerCase().includes('network')) {

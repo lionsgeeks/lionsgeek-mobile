@@ -83,21 +83,21 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
 
                 if (response && response.data) {
                     const users = response.data.results || [];
-                    
+
                     // Get following IDs to filter users
                     const followingResponse = await API.getWithAuth('mobile/chat/following-ids', token);
-                    
+
                     let followingIds = [];
                     if (followingResponse && followingResponse.data) {
                         followingIds = followingResponse.data.following_ids || [];
                     }
-                    
+
                     // Filter users: exclude current user and only show users we follow
-                    const filteredUsers = users.filter(user => 
-                        user.id !== currentUser.id && 
+                    const filteredUsers = users.filter(user =>
+                        user.id !== currentUser.id &&
                         followingIds.includes(user.id)
                     );
-                    
+
                     setSearchResults(filteredUsers);
                 }
             } catch (error) {
@@ -193,7 +193,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
 
                     {searchQuery.trim() && searchResults.length > 0 && (
                         <View className="mt-3 rounded-2xl border border-alpha/40 bg-alpha/10 dark:bg-alpha/5 overflow-hidden">
-                            <Text className="text-[10px] font-bold tracking-widest text-black/50 dark:text-white/50 px-3 pt-3 pb-1">
+                            <Text className="text-[10px] font-bold tracking-widest text-black/50 dark:text-dark_gray0 px-3 pt-3 pb-1">
                                 OPEN NEW THREAD
                             </Text>
                             <ScrollView className="max-h-56" nestedScrollEnabled>
@@ -201,7 +201,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
                                     <Pressable
                                         key={u.id}
                                         onPress={() => handleUserSelect(u.id)}
-                                        className="flex-row items-center gap-3 px-3 py-3 border-t border-black/5 dark:border-white/10 active:bg-black/5 dark:active:bg-white/5"
+                                        className="flex-row items-center gap-3 px-3 py-3 border-t border-black/5 dark:border-white/10 active:bg-black/5 dark:active:bg-dark_gray"
                                     >
                                         {u.image || u.avatar ? (
                                             <Image
@@ -239,7 +239,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
 
                     {searchQuery.trim() && !isSearchingUsers && searchResults.length === 0 && filteredConversations.length === 0 && (
                         <View className="mt-3 rounded-2xl border border-dashed border-black/15 dark:border-white/15 px-4 py-4">
-                            <Text className="text-sm text-center text-black/55 dark:text-white/55">
+                            <Text className="text-sm text-center text-black/55 dark:text-dark_gray5">
                                 No matches. Follow someone first, then search their name to open a thread.
                             </Text>
                         </View>
@@ -260,7 +260,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
                                 <Text className="text-lg font-bold text-black dark:text-white text-center">
                                     {searchQuery ? 'Empty shelf' : 'No threads yet'}
                                 </Text>
-                                <Text className="text-sm text-black/50 dark:text-white/50 text-center mt-2 leading-5">
+                                <Text className="text-sm text-black/50 dark:text-dark_gray0 text-center mt-2 leading-5">
                                     {searchQuery
                                         ? 'Nothing on the stack matches that search. Try another keyword.'
                                         : 'Your correspondence appears here as stacked cards—start from search above.'}
@@ -379,7 +379,7 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick, on
                 return false;
             }
         })();
-        
+
         if (attachment_type === 'image') return prefix + '📷 Image';
         if (attachment_type === 'video') return prefix + '🎥 Video';
         if (attachment_type === 'audio') return prefix + '🎤 Voice message';
@@ -395,13 +395,12 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick, on
 
     return (
         <View
-            className={`rounded-2xl overflow-hidden border shadow-sm ${
-                isSelected
-                    ? 'border-alpha bg-alpha/12 dark:bg-alpha/10 shadow-alpha/20'
-                    : unread
-                        ? 'border-alpha/55 bg-alpha/[0.07] dark:bg-alpha/10 shadow-black/10'
-                        : 'border-black/[0.07] dark:border-white/[0.09] bg-white dark:bg-zinc-900/90 shadow-black/5'
-            }`}
+            className={`rounded-2xl overflow-hidden border shadow-sm ${isSelected
+                ? 'border-alpha bg-alpha/12 dark:bg-alpha/10 shadow-alpha/20'
+                : unread
+                    ? 'border-alpha/55 bg-alpha/[0.07] dark:bg-alpha/10 shadow-black/10'
+                    : 'border-black/[0.07] dark:border-white/[0.09] bg-white dark:bg-zinc-900/90 shadow-black/5'
+                }`}
         >
             <View className="flex-row">
                 <View className={`w-1 ${unread ? 'bg-alpha' : 'bg-black/10 dark:bg-white/15'}`} />
@@ -443,9 +442,8 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick, on
                             </Text>
                             {timeShort ? (
                                 <Text
-                                    className={`text-[10px] uppercase tracking-wider shrink-0 ${
-                                        unread ? 'text-alpha font-bold' : 'text-black/40 dark:text-white/40'
-                                    }`}
+                                    className={`text-[10px] uppercase tracking-wider shrink-0 ${unread ? 'text-alpha font-bold' : 'text-black/40 dark:text-white/40'
+                                        }`}
                                 >
                                     {timeShort}
                                 </Text>

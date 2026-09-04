@@ -17,6 +17,7 @@ import {
   resolveEventsError,
   sortEventsByDate,
 } from '@/utils/events';
+import { useScrollTabPadding } from '@/hooks/useScrollTabPadding';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -27,6 +28,7 @@ export default function EventsTab() {
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
   const placeholderColor = getPlaceholderTextColor(isDark);
+  const scrollBottomPadding = useScrollTabPadding(24);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,7 +192,7 @@ export default function EventsTab() {
           </Text>
         </View>
       }
-      contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 16 }}
+      contentContainerStyle={{ paddingBottom: scrollBottomPadding, paddingHorizontal: 16 }}
       keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl

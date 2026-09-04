@@ -2,7 +2,7 @@
   "expo": {
     "name": "LionsGeek",
     "slug": "lionsgeek",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lionsgeek",
@@ -13,8 +13,9 @@
       "bundleIdentifier": "com.lionsgeek.lionsgeek-mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "LionsGeek needs your camera to confirm it's you when you mark attendance.",
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice calls.",
+        "NSCameraUsageDescription": "LionsGeek uses your camera to take profile and story photos, scan QR codes for event and training attendance, and capture images to share in chat.",
+        "NSMicrophoneUsageDescription": "LionsGeek uses your microphone for voice calls and when recording video stories.",
+        "NSPhotoLibraryUsageDescription": "LionsGeek uses your photo library so you can choose photos for your profile picture and cover, attach images to community posts and stories, and share photos in chat. For example, when you create a post, you can select a photo from your library to upload with your message.",
         "UIBackgroundModes": [
           "audio",
           "remote-notification"
@@ -73,14 +74,23 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-media-library",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LionsGeek uses your photo library so you can choose photos for your profile picture and cover, attach images to community posts and stories, and share photos in chat. For example, when you create a post, you can select a photo from your library to upload with your message.",
+          "cameraPermission": "LionsGeek uses your camera to take profile and story photos, scan QR codes for event and training attendance, and capture images to share in chat.",
+          "microphonePermission": "LionsGeek uses your microphone for voice calls and when recording video stories."
+        }
+      ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow LionsGeek to use your camera to verify your identity when marking attendance."
+          "cameraPermission": "LionsGeek uses your camera to take profile and story photos, scan QR codes for event and training attendance, and capture images to share in chat.",
+          "microphonePermission": "LionsGeek uses your microphone for voice calls and when recording video stories."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

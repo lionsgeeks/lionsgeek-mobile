@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import MoreHubScreen from './more/Partials/MoreHubScreen';
+import MoreHubScreen from './more/_partials/MoreHubScreen';
 
 export default function LearningProgressScreen() {
   return (
@@ -13,11 +13,12 @@ export default function LearningProgressScreen() {
         'Attendance insights via QR check-ins.',
         'Goals and reminders surface in Notifications.',
       ]}
-      primaryAction={{ label: 'Training hub', onPress: () => router.push('/(tabs)/training') }}
-      secondaryAction={{
-        label: 'Attendance history',
-        onPress: () => router.push('/(tabs)/training/attendance'),
+      primaryAction={{
+        label: 'View Attendance',
+        onPress: () => router.push('/(tabs)/attendance-history'),
       }}
+    
+ 
     />
   );
 }

@@ -94,14 +94,12 @@ export default function SearchScreen() {
     { value: 'hashtags', label: 'Hashtags', icon: 'pricetag-outline' },
   ];
 
-  console.log();
-
 
   return (
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
         {/* Header */}
-        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-12 pb-4 px-6">
+        <View className="bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 pt-3 pb-4 px-6">
           <View className="flex-row items-center mb-4">
             <TouchableOpacity onPress={() => router.back()} className="mr-3">
               <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
@@ -258,7 +256,7 @@ export default function SearchScreen() {
                 <Text className="text-center text-black/60 dark:text-white/60 mt-4">
                   Start typing to search
                 </Text>
-                <Text className="text-center text-sm text-black/50 dark:text-white/50 mt-2">
+                <Text className="text-center text-sm text-black/50 dark:text-dark_gray0 mt-2">
                   Search for students, or filter by type
                 </Text>
               </View>
@@ -299,7 +297,7 @@ export default function SearchScreen() {
                           ) : null}
                           <View className="flex-row items-center mt-1">
                             {item.promo && (
-                              <Text className="text-xs text-black/50 dark:text-white/50 mr-2">
+                              <Text className="text-xs text-black/50 dark:text-dark_gray0 mr-2">
                                 Promo {item.promo}
                               </Text>
                             )}

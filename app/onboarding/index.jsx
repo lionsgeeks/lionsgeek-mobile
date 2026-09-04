@@ -5,6 +5,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { router } from 'expo-router';
 import { Home as LogoIcon } from '@/components/logo';
 import API from '@/api';
+import { getAuthToken } from '@/utils/authTokenStorage';
 
 const { width } = Dimensions.get('window');
 
@@ -40,7 +41,7 @@ export default function Onboarding() {
   useEffect(() => {
     const redirectIfLoggedIn = async () => {
       try {
-        const token = await AsyncStorage.getItem('auth_token');
+        const token = await getAuthToken();
         const tokenStr = typeof token === 'string' ? token.trim() : '';
 
         const hasValidToken =
@@ -65,7 +66,7 @@ export default function Onboarding() {
   const complete = async () => {
     await AsyncStorage.setItem('onboarding_seen', '1');
     // If logged in go to loading to verify, otherwise to login
-    const token = await AsyncStorage.getItem('auth_token');
+    const token = await getAuthToken();
     const tokenStr = typeof token === 'string' ? token.trim() : '';
     const hasValidToken =
       !!tokenStr && tokenStr !== 'false' && tokenStr !== 'null' && tokenStr !== 'undefined';

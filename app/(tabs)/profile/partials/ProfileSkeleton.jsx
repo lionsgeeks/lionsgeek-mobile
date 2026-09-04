@@ -5,7 +5,7 @@ export default function ProfileSkeleton({ isDark, topInset = 0 }) {
   return (
     <View className="flex-1 bg-light dark:bg-dark">
       {/* Skeleton top bar placeholder */}
-      <View style={{ height: topInset + 46 }} className="bg-light dark:bg-dark border-b border-black/5 dark:border-white/5" />
+      <View style={{ height: topInset + 46 }} className="bg-light dark:bg-dark border-b border-black/5 dark:border-dark_gray" />
       {/* Cover */}
       <View className="h-44 bg-alpha/10 dark:bg-alpha/5" />
 

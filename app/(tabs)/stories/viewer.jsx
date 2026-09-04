@@ -32,7 +32,7 @@ import StoryReplyInput from './Partials/StoryReplyInput';
 import SaveToHighlightSheet from './Partials/SaveToHighlightSheet';
 import OverlayRenderer from './Partials/OverlayRenderer';
 import useStoryMusic from './Partials/useStoryMusic';
-import { useStoryCaptureReport } from './Partials/useStoryCaptureReport';
+import { useStoryCaptureReport } from './Partials/_useStoryCaptureReport';
 
 const { width: WINDOW_W, height: WINDOW_H } = Dimensions.get('window');
 const TOP_INSET = (Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24) + 6;

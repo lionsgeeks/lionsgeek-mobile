@@ -9,6 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
 import { getUserRolesNormalized, userHasAdminRole } from '@/components/helpers/helpers';
+import { isStudentUser } from '@/components/training/attendanceCheckIn';
 
 export default function TrainingDetails() {
   const { id } = useLocalSearchParams();
@@ -78,6 +79,22 @@ export default function TrainingDetails() {
       </View>
     </AppLayout>
   );
+
+  if (isStudentUser(currentUser) && !isEnrolledInTraining) {
+    return (
+      <AppLayout>
+        <View className="flex-1 justify-center items-center px-6">
+          <Ionicons name="lock-closed-outline" size={48} color={isDark ? Colors.light + '66' : Colors.beta + '66'} />
+          <Text className={`text-center text-lg font-semibold ${isDark ? 'text-light' : 'text-beta'} mt-4`}>
+            Access restricted
+          </Text>
+          <Text className={`text-center text-sm ${isDark ? 'text-light/70' : 'text-beta/70'} mt-2`}>
+            You can only view your own training program.
+          </Text>
+        </View>
+      </AppLayout>
+    );
+  }
 
   const getImageUri = (img) => {
     if (!img) return null;
