@@ -230,8 +230,18 @@ export default function TabLayout() {
     };
 
     // Custom tabBar ignores per-screen tabBarStyle, so hide it here for
-    // immersive routes (stories, chat, settings, …). Keep it on More.
-    if (onHiddenRoute && activeRouteName !== 'more') {
+    // immersive routes (stories, settings, open chat threads, …).
+    // Keep it on More and the Messages list (chat/index).
+    const chatNestedState = activeRouteName === 'chat'
+      ? props.state.routes[props.state.index]?.state
+      : null;
+    const chatNestedRoute = chatNestedState?.routes?.[chatNestedState.index ?? 0]?.name;
+    const isChatThread = activeRouteName === 'chat' && chatNestedRoute === '[otherUserId]';
+    const keepTabBar =
+      activeRouteName === 'more'
+      || (activeRouteName === 'chat' && !isChatThread);
+
+    if (onHiddenRoute && !keepTabBar) {
       return null;
     }
 

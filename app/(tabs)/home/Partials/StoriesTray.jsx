@@ -12,10 +12,9 @@ import API from '@/api';
  * Horizontally-scrolling Stories tray for the home feed.
  *
  * - Fetches /api/mobile/stories on mount + on `refreshKey` change.
- * - Pre-pends a "Your story" tile that either:
- *     - opens the viewer for your own stories, OR
- *     - opens the create flow if you have none.
- * - Long-press your own tile also opens the create flow as a shortcut.
+ * - Pre-pends a "Your story" tile:
+ *     - avatar tap → view your stories (or create if you have none)
+ *     - "+" badge tap → always open create
  */
 export default function StoriesTray({ refreshKey = 0 }) {
   const { user, token } = useAppContext();
@@ -60,7 +59,10 @@ export default function StoriesTray({ refreshKey = 0 }) {
     if (!groups.length) return;
     router.push({
       pathname: '/(tabs)/stories/viewer',
-      params: { startUserId: String(startUserId) },
+      params: {
+        startUserId: String(startUserId),
+        openId: String(Date.now()),
+      },
     });
   };
 
@@ -109,7 +111,7 @@ export default function StoriesTray({ refreshKey = 0 }) {
           hasUnseen={myGroup ? !!myGroup.has_unseen : false}
           isCloseFriends={!!myGroup?.has_close_friends}
           onPress={() => (myGroup ? openViewer(user?.id) : openCreate())}
-          onLongPress={openCreate}
+          onAddPress={openCreate}
         />
 
         {loading ? (

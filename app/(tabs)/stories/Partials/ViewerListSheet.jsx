@@ -53,7 +53,7 @@ export default function ViewerListSheet({ visible, storyId, onClose, onPause, on
     } else {
       translateY.value = withTiming(SHEET_H, { duration: 220, easing: Easing.in(Easing.cubic) });
     }
-  }, [visible, onPause]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch viewers when opened with a story id
   useEffect(() => {
@@ -85,9 +85,9 @@ export default function ViewerListSheet({ visible, storyId, onClose, onPause, on
   }, [visible, storyId, token]);
 
   const dismiss = useCallback(() => {
-    onResume && onResume();
+    // Parent owns pause/resume; only signal close so lock can clear first.
     onClose && onClose();
-  }, [onResume, onClose]);
+  }, [onClose]);
 
   // Drag-down to dismiss
   const panGesture = Gesture.Pan()

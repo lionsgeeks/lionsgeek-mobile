@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 /**
@@ -16,14 +16,34 @@ export default function StoryVideo({
   onEnd,
   onError,
   playerRef: externalPlayerRef,
+  /** Android: textureView lets React overlays paint above the video. */
+  surfaceType = undefined,
 }) {
   const internalRef = useRef(null);
+  const readySentRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  const onEndRef = useRef(onEnd);
+  const onErrorRef = useRef(onError);
+  onReadyRef.current = onReady;
+  onEndRef.current = onEnd;
+  onErrorRef.current = onError;
+
   const player = useVideoPlayer(uri || null, (p) => {
     p.loop = isLooping;
     p.muted = muted;
     if (typeof volume === 'number') p.volume = volume;
     if (shouldPlay && uri) p.play();
   });
+
+  const markReady = useCallback(() => {
+    if (readySentRef.current) return;
+    readySentRef.current = true;
+    onReadyRef.current?.();
+  }, []);
+
+  useEffect(() => {
+    readySentRef.current = false;
+  }, [uri]);
 
   useEffect(() => {
     internalRef.current = player;
@@ -46,49 +66,32 @@ export default function StoryVideo({
 
   useEffect(() => {
     if (!uri) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        await player.replaceAsync(uri);
-        if (cancelled) return;
-        player.loop = isLooping;
-        player.muted = muted;
-        if (shouldPlay) player.play();
-        else player.pause();
-      } catch (_) {
-        onReady?.();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [uri]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!uri) return;
     if (shouldPlay) player.play();
     else player.pause();
   }, [shouldPlay, player, uri]);
 
   useEffect(() => {
     const endSub = player.addListener('playToEnd', () => {
-      if (!isLooping) onEnd?.();
+      if (!isLooping) onEndRef.current?.();
     });
     const statusSub = player.addListener('statusChange', ({ status, error }) => {
+      if (status === 'readyToPlay') markReady();
       if (status === 'error' || error) {
-        onReady?.();
-        onError?.();
+        markReady();
+        onErrorRef.current?.();
       }
     });
     return () => {
       endSub.remove();
       statusSub.remove();
     };
-  }, [player, onEnd, onReady, onError, isLooping]);
+  }, [player, isLooping, markReady]);
 
   useEffect(() => {
     return () => {
       try { player.pause(); } catch (_) {}
+      try { player.muted = true; } catch (_) {}
+      try { player.volume = 0; } catch (_) {}
     };
   }, [player]);
 
@@ -100,7 +103,8 @@ export default function StoryVideo({
       style={style}
       contentFit="cover"
       nativeControls={false}
-      onFirstFrameRender={() => onReady?.()}
+      surfaceType={surfaceType}
+      onFirstFrameRender={markReady}
     />
   );
 }

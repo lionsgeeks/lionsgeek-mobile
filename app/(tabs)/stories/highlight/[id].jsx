@@ -19,7 +19,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import StoryVideo from '../Partials/StoryVideo';
@@ -53,6 +53,7 @@ export default function HighlightViewerScreen() {
   const [muted, setMuted] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [musicPaused, setMusicPaused] = useState(false);
+  const [viewerActive, setViewerActive] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
 
@@ -60,6 +61,7 @@ export default function HighlightViewerScreen() {
   const progress = useSharedValue(0);
   const isPausedRef = useRef(false);
   const animatingExitRef = useRef(false);
+  const closingRef = useRef(false);
   const advancingRef = useRef(false);
   const translateY = useSharedValue(0);
 
@@ -68,7 +70,27 @@ export default function HighlightViewerScreen() {
   const isOwner = !!(highlight && user && highlight.user_id === user.id);
   const musicOverlay = (currentStory?.overlays || []).find((o) => o.type === 'music') || null;
 
-  useStoryMusic(musicOverlay, { isPaused: musicPaused || muted });
+  useFocusEffect(
+    useCallback(() => {
+      animatingExitRef.current = false;
+      closingRef.current = false;
+      isPausedRef.current = false;
+      setMusicPaused(false);
+      setViewerActive(true);
+      translateY.value = 0;
+      return () => {
+        setViewerActive(false);
+        setMusicPaused(true);
+        isPausedRef.current = true;
+        try { videoRef.current?.pause?.(); } catch (_) {}
+      };
+    }, [translateY]),
+  );
+
+  useStoryMusic(musicOverlay, {
+    isPaused: musicPaused || muted || !viewerActive,
+    enabled: viewerActive,
+  });
 
   // Load highlight
   useEffect(() => {
@@ -158,14 +180,40 @@ export default function HighlightViewerScreen() {
   }, []);
   const goNext = useCallback(() => advance(), [advance]);
 
-  const doClose = useCallback(() => {
-    if (animatingExitRef.current) return;
-    animatingExitRef.current = true;
-    cancelAnimation(progress);
-    translateY.value = withTiming(WINDOW_H, { duration: 220 }, (finished) => {
-      if (finished) runOnJS(router.back)();
-    });
+  const leaveHighlight = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    animatingExitRef.current = false;
+    isPausedRef.current = true;
+    setMusicPaused(true);
+    setViewerActive(false);
+    try { videoRef.current?.pause?.(); } catch (_) {}
+    try {
+      if (typeof router.canDismiss === 'function' && router.canDismiss()) {
+        router.dismiss();
+      } else {
+        router.replace('/(tabs)/home');
+      }
+    } catch (_) {
+      try { router.replace('/(tabs)/home'); } catch (__) {}
+    }
   }, [router]);
+
+  const doClose = useCallback(() => {
+    isPausedRef.current = true;
+    setMusicPaused(true);
+    setViewerActive(false);
+    cancelAnimation(progress);
+    try { videoRef.current?.pause?.(); } catch (_) {}
+    if (animatingExitRef.current || closingRef.current) {
+      leaveHighlight();
+      return;
+    }
+    animatingExitRef.current = true;
+    translateY.value = withTiming(WINDOW_H, { duration: 220 }, (finished) => {
+      if (finished) runOnJS(leaveHighlight)();
+    });
+  }, [leaveHighlight, progress, translateY]);
 
   const tapGesture = Gesture.Tap()
     .maxDuration(220)
@@ -366,7 +414,7 @@ export default function HighlightViewerScreen() {
           This highlight is empty.
         </Text>
         <Pressable
-          onPress={() => router.back()}
+          onPress={leaveHighlight}
           style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: '#ffc801' }}
         >
           <Text style={{ color: '#000', fontWeight: '800' }}>Close</Text>

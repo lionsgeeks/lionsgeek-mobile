@@ -14,7 +14,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, router as expoRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -54,14 +54,14 @@ const TEXT_STORY_GRADIENTS = [
 ];
 const STORY_FILTERS = [
   { id: 'none', label: 'Original', color: null, opacity: 0 },
-  { id: 'gold', label: 'Gold', color: '#ffc801', opacity: 0.22 },
-  { id: 'warm', label: 'Warm', color: '#ff8c3c', opacity: 0.24 },
-  { id: 'cool', label: 'Cool', color: '#4c8cff', opacity: 0.20 },
-  { id: 'soft', label: 'Soft', color: '#ffffff', opacity: 0.16 },
-  { id: 'night', label: 'Night', color: '#0a1028', opacity: 0.32 },
-  { id: 'rose', label: 'Rose', color: '#fb7185', opacity: 0.22 },
-  { id: 'forest', label: 'Forest', color: '#166534', opacity: 0.28 },
-  { id: 'vintage', label: 'Vintage', color: '#d6b48a', opacity: 0.26 },
+  { id: 'gold', label: 'Gold', color: '#ffc801', opacity: 0.34 },
+  { id: 'warm', label: 'Warm', color: '#ff8c3c', opacity: 0.36 },
+  { id: 'cool', label: 'Cool', color: '#4c8cff', opacity: 0.32 },
+  { id: 'soft', label: 'Soft', color: '#ffffff', opacity: 0.26 },
+  { id: 'night', label: 'Night', color: '#0a1028', opacity: 0.42 },
+  { id: 'rose', label: 'Rose', color: '#fb7185', opacity: 0.34 },
+  { id: 'forest', label: 'Forest', color: '#166534', opacity: 0.38 },
+  { id: 'vintage', label: 'Vintage', color: '#d6b48a', opacity: 0.36 },
 ];
 
 function pickerMediaTypes() {
@@ -117,6 +117,8 @@ export default function CreateStoryScreen() {
   const [musicOpen, setMusicOpen] = useState(false);
   const [interactiveOpen, setInteractiveOpen] = useState(false);
   const [drawingMode, setDrawingMode] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   /** When set, picking a user replaces this mention overlay instead of adding a new one. */
   const [mentionEditingId, setMentionEditingId] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -576,6 +578,31 @@ export default function CreateStoryScreen() {
     setSelectedOverlayId(null);
   }, []);
 
+  // Always land on the home tab after create.
+  // back() only pops create and leaves the hidden stories tab focused.
+  const leaveCreateToHome = useCallback(() => {
+    setMedia(null);
+    setOverlays([]);
+    setSelectedOverlayId(null);
+    setSequenceQueue([]);
+    setCollageAssets(null);
+    setTransformMode(false);
+    setFiltersOpen(false);
+    setToolsExpanded(false);
+
+    try {
+      if (expoRouter.canDismiss?.()) {
+        expoRouter.dismiss();
+      }
+    } catch (_) {}
+
+    try {
+      expoRouter.replace('/(tabs)/home');
+    } catch (_) {
+      try { expoRouter.navigate('/(tabs)/home'); } catch (__) {}
+    }
+  }, []);
+
   const submit = useCallback(async (audienceChoice = 'public') => {
     if (!media || !token || uploading || uploadingRef.current) return;
     const isText = media.type === 'text';
@@ -691,7 +718,10 @@ export default function CreateStoryScreen() {
           })) : undefined,
         }, token);
       }
-      router.replace('/(tabs)/home');
+      // Close create and land on home.
+      // Do NOT use dismissTo(home) here — home isn't in this stack, so Expo
+      // Router treats it as a push and can leave you stuck on create.
+      leaveCreateToHome();
     } catch (e) {
       const msg = e?.response?.data?.message || e?.message || 'Upload failed';
       Alert.alert('Could not post story', msg, [
@@ -703,9 +733,9 @@ export default function CreateStoryScreen() {
       setUploading(false);
       setPostingAudience(null);
     }
-  }, [media, token, router, overlays, uploading, sequenceQueue, mediaTransform, blurOn, gradientIdx]);
+  }, [media, token, overlays, uploading, sequenceQueue, mediaTransform, blurOn, gradientIdx, leaveCreateToHome]);
 
-  const close = () => router.back();
+  const close = () => leaveCreateToHome();
   const discard = () => {
     setMedia(null);
     setOverlays([]);
@@ -716,6 +746,8 @@ export default function CreateStoryScreen() {
     setTransformMode(false);
     setMediaTransform({ x: 0.5, y: 0.5, scale: 1, rotation: 0 });
     setBlurOn(false);
+    setFiltersOpen(false);
+    setToolsExpanded(false);
   };
 
   // ────────────────────────────────────────────────────────────────────
@@ -725,14 +757,120 @@ export default function CreateStoryScreen() {
     const statusTop = Math.max(insets.top || 0, Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24);
     const footerBottom = Math.max(insets.bottom, 12) + 8;
     const avatarUrl = resolveAvatarUrl(user?.avatar || user?.image || user?.profile_picture);
+    const musicMix = overlays.find((o) => o.type === 'music');
+    const origVol = typeof musicMix?.original_volume === 'number' ? musicMix.original_volume : (musicMix ? 0 : 1);
+    const photoUri = media.type === 'image' ? toUploadUri(media.uri) : null;
+    const filterOverlay = overlays.find((o) => o.type === 'filter');
+
+    const mediaEffects = (
+      <>
+        {blurOn ? (
+          <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFillObject} />
+        ) : null}
+        {filterOverlay?.color ? (
+          <View
+            pointerEvents="none"
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: filterOverlay.color,
+              opacity: typeof filterOverlay.opacity === 'number' ? filterOverlay.opacity : 0.3,
+            }}
+          />
+        ) : null}
+      </>
+    );
+
+    let mediaNode = <View style={{ flex: 1, backgroundColor: '#111' }} />;
+    if (photoUri) {
+      const photo = (
+        <View style={{ flex: 1, backgroundColor: '#111' }} collapsable={false}>
+          <ExpoImage
+            source={{ uri: photoUri }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={0}
+          />
+          {mediaEffects}
+        </View>
+      );
+      mediaNode = transformMode && !drawingMode ? (
+        <MediaTransformLayer
+          enabled
+          transform={mediaTransform}
+          onChange={setMediaTransform}
+        >
+          {photo}
+        </MediaTransformLayer>
+      ) : (
+        photo
+      );
+    } else if (media.type === 'video') {
+      const video = (
+        <View style={{ flex: 1, backgroundColor: '#000' }} collapsable={false}>
+          <StoryVideo
+            uri={media.uri}
+            style={{ width: '100%', height: '100%' }}
+            shouldPlay
+            isLooping
+            muted={origVol <= 0.01}
+            volume={origVol}
+            playerRef={videoRef}
+            surfaceType="textureView"
+          />
+          {mediaEffects}
+        </View>
+      );
+      mediaNode = transformMode && !drawingMode ? (
+        <MediaTransformLayer
+          enabled
+          transform={mediaTransform}
+          onChange={setMediaTransform}
+        >
+          {video}
+        </MediaTransformLayer>
+      ) : (
+        video
+      );
+    } else if (media.type === 'boomerang') {
+      mediaNode = (
+        <View style={{ flex: 1, backgroundColor: '#111' }}>
+          <BoomerangPreview
+            frames={media.frames || [media.uri]}
+            style={StyleSheet.absoluteFillObject}
+          />
+          {mediaEffects}
+        </View>
+      );
+    } else if (media.type === 'text') {
+      mediaNode = (
+        <LinearGradient
+          colors={TEXT_STORY_GRADIENTS[gradientIdx] || ['#1c1c1c', '#111111']}
+          style={{ flex: 1 }}
+        >
+          {mediaEffects}
+        </LinearGradient>
+      );
+    } else if (media.type === 'collage') {
+      mediaNode = (
+        <View style={{ flex: 1, backgroundColor: '#111' }}>
+          <CollageOverlay
+            overlay={{ template: media.template, cells: (media.cells || []).map((c) => ({ image_uri: c.uri })) }}
+            containerSize={canvasSize.width ? canvasSize : { width: WINDOW_W, height: WINDOW_H }}
+          />
+          {mediaEffects}
+        </View>
+      );
+    }
 
     return (
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
         <StatusBar style="light" />
 
-        {/* Canvas = media + creative layer (measured for normalized coords) */}
+        {/* Media canvas — keep native image/video here only */}
         <View
-          style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }}
+          style={{ flex: 1, backgroundColor: '#000' }}
+          collapsable={false}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             if (width !== canvasSize.width || height !== canvasSize.height) {
@@ -740,174 +878,177 @@ export default function CreateStoryScreen() {
             }
           }}
         >
-          {(() => {
-            const musicMix = overlays.find((o) => o.type === 'music');
-            const origVol = typeof musicMix?.original_volume === 'number' ? musicMix.original_volume : (musicMix ? 0 : 1);
-            const mediaInner = media.type === 'video' ? (
-              <StoryVideo
-                uri={media.uri}
-                style={{ width: '100%', height: '100%' }}
-                shouldPlay
-                isLooping
-                muted={origVol <= 0.01}
-                volume={origVol}
-                playerRef={videoRef}
+          {mediaNode}
+          <View pointerEvents="box-none" style={styles.creativeOverlay}>
+            <OverlayRenderer overlays={overlays.filter((o) => o.type === 'drawing')} />
+            {!drawingMode && !transformMode ? (
+              <EditableOverlayLayer
+                overlays={overlays}
+                containerSize={canvasSize}
+                selectedId={selectedOverlayId}
+                onSelect={setSelectedOverlayId}
+                onDeselect={() => setSelectedOverlayId(null)}
+                onUpdate={patchOverlay}
+                onDelete={deleteOverlay}
+                onEditText={editTextOverlay}
+                onEditMention={editMentionOverlay}
               />
-            ) : media.type === 'text' ? (
-              <LinearGradient
-                colors={TEXT_STORY_GRADIENTS[gradientIdx] || ['#1c1c1c', '#111111']}
-                style={{ width: '100%', height: '100%' }}
-              />
-            ) : media.type === 'collage' ? (
-              <CollageOverlay
-                overlay={{ template: media.template, cells: (media.cells || []).map((c) => ({ image_uri: c.uri })) }}
-                containerSize={canvasSize.width ? canvasSize : { width: WINDOW_W, height: WINDOW_H }}
-              />
-            ) : media.type === 'boomerang' ? (
-              <BoomerangPreview
-                frames={media.frames || [media.uri]}
-                style={{ width: '100%', height: '100%' }}
-              />
-            ) : (
-              <ExpoImage
-                source={{ uri: media.uri }}
-                style={{ width: '100%', height: '100%', backgroundColor: '#111' }}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={0}
-              />
-            );
-            return (
-              <MediaTransformLayer
-                enabled={transformMode && !drawingMode}
-                transform={mediaTransform}
-                onChange={setMediaTransform}
-              >
-                {mediaInner}
-              </MediaTransformLayer>
-            );
-          })()}
-          {blurOn ? (
-            <BlurView intensity={18} tint="dark" style={{ position: 'absolute', inset: 0 }} />
-          ) : null}
-
-          {/* Drawings render as a non-interactive layer underneath the
-              editable elements (text / stickers / mentions). */}
-          <OverlayRenderer
-            overlays={overlays.filter((o) => o.type === 'drawing' || o.type === 'filter')}
-          />
-
-          {!drawingMode && !transformMode ? (
-            <EditableOverlayLayer
-              overlays={overlays}
+            ) : null}
+            <DrawingCanvas
+              visible={drawingMode}
               containerSize={canvasSize}
-              selectedId={selectedOverlayId}
-              onSelect={setSelectedOverlayId}
-              onDeselect={() => setSelectedOverlayId(null)}
-              onUpdate={patchOverlay}
-              onDelete={deleteOverlay}
-              onEditText={editTextOverlay}
-              onEditMention={editMentionOverlay}
+              existingDrawings={overlays.filter((o) => o.type === 'drawing')}
+              onCancel={() => setDrawingMode(false)}
+              onCommit={commitDrawingStrokes}
             />
-          ) : null}
-
-          {/* When in drawing mode, this full-canvas layer takes over input. */}
-          <DrawingCanvas
-            visible={drawingMode}
-            containerSize={canvasSize}
-            existingDrawings={overlays.filter((o) => o.type === 'drawing')}
-            onCancel={() => setDrawingMode(false)}
-            onCommit={commitDrawingStrokes}
-          />
+          </View>
         </View>
 
-        {/* Editor chrome — sits above native image/video views */}
+        {/*
+          Controls as ROOT siblings of the canvas.
+          Android native media surfaces ignore zIndex of overlays nested inside them.
+        */}
         {!drawingMode ? (
-          <View
-            pointerEvents="box-none"
-            collapsable={false}
-            style={[StyleSheet.absoluteFillObject, { zIndex: 40, elevation: 40 }]}
-          >
-            <View style={{ position: 'absolute', top: statusTop + 4, left: 14, zIndex: 50, elevation: 50 }}>
-              <EditorToolButton onPress={discard} disabled={uploading} accessibilityLabel="Discard story">
-                <Ionicons name="close" size={28} color="#fff" />
-              </EditorToolButton>
-            </View>
+          <>
+            <Pressable
+              onPress={discard}
+              disabled={uploading}
+              accessibilityLabel="Cancel story"
+              hitSlop={10}
+              style={[styles.cancelBtn, { top: statusTop + 10, opacity: uploading ? 0.5 : 1 }]}
+            >
+              <Ionicons name="close" size={26} color="#fff" />
+            </Pressable>
 
             <View
-              pointerEvents="auto"
-              style={{
-                position: 'absolute',
-                top: statusTop + 8,
-                left: Math.max(8, (winW || WINDOW_W) - 80),
-                width: 68,
-                zIndex: 90,
-                elevation: 90,
-                borderRadius: 22,
-                backgroundColor: 'rgba(17,17,17,0.9)',
-                borderWidth: 1.5,
-                borderColor: '#ffc801',
-                paddingVertical: 8,
-                alignItems: 'center',
-                gap: 6,
-              }}
+              style={[
+                styles.sideRail,
+                {
+                  top: statusTop + 10,
+                  bottom: footerBottom + 96,
+                },
+              ]}
             >
-                <EditorToolButton variant="bar" onPress={() => setTextModal({ open: true, editing: null })} accessibilityLabel="Add text">
-                  <Text style={[styles.toolAa, styles.toolAaBar]}>Aa</Text>
-                </EditorToolButton>
-                <EditorToolButton variant="bar" onPress={() => setEmojiOpen(true)} accessibilityLabel="Add sticker">
-                  <Ionicons name="happy-outline" size={28} color="#fff" />
-                </EditorToolButton>
-                <EditorToolButton variant="bar" onPress={addImageSticker} accessibilityLabel="Add photo sticker">
-                  <Ionicons name="image-outline" size={26} color="#fff" />
-                </EditorToolButton>
-                {(media.type === 'image' || media.type === 'boomerang') ? (
-                  <EditorToolButton variant="bar" onPress={addCutoutSticker} accessibilityLabel="Crop to sticker">
-                    <Ionicons name="scan-outline" size={26} color="#fff" />
-                  </EditorToolButton>
-                ) : null}
-                <EditorToolButton variant="bar" onPress={() => setDrawingMode(true)} accessibilityLabel="Draw">
-                  <Ionicons name="brush-outline" size={26} color="#fff" />
-                </EditorToolButton>
-                <EditorToolButton variant="bar" onPress={() => setMusicOpen(true)} accessibilityLabel="Add music" active={hasMusicOverlay}>
-                  <Ionicons name="musical-notes-outline" size={26} color={hasMusicOverlay ? '#111' : '#fff'} />
-                </EditorToolButton>
-                <EditorToolButton variant="bar" onPress={openMentionPicker} accessibilityLabel="Mention someone">
-                  <Text style={[styles.toolMention, styles.toolMentionBar]}>@</Text>
-                </EditorToolButton>
-                <EditorToolButton variant="bar" onPress={() => setInteractiveOpen(true)} accessibilityLabel="Add poll or sticker">
-                  <Ionicons name="options-outline" size={26} color="#fff" />
-                </EditorToolButton>
-                {media.type !== 'text' && media.type !== 'collage' ? (
-                  <EditorToolButton variant="bar" onPress={() => setTransformMode((v) => !v)} accessibilityLabel="Move media" active={transformMode}>
-                    <Ionicons name="move-outline" size={26} color={transformMode ? '#111' : '#fff'} />
-                  </EditorToolButton>
-                ) : null}
-                <EditorToolButton variant="bar" onPress={() => setBlurOn((v) => !v)} accessibilityLabel="Blur wash" active={blurOn}>
-                  <Ionicons name="water-outline" size={26} color={blurOn ? '#111' : '#fff'} />
-                </EditorToolButton>
-                {media.type === 'text' ? (
-                  <EditorToolButton
-                    variant="bar"
-                    onPress={() => {
-                      setGradientIdx((i) => (i + 1) % TEXT_STORY_GRADIENTS.length);
-                      const next = TEXT_STORY_COLORS[(TEXT_STORY_COLORS.indexOf(media.bgColor || TEXT_STORY_COLORS[0]) + 1) % TEXT_STORY_COLORS.length];
-                      setMedia((m) => (m ? { ...m, bgColor: next } : m));
-                    }}
-                    accessibilityLabel="Change background"
+              <SideAction
+                label="Text"
+                onPress={() => { setFiltersOpen(false); setTextModal({ open: true, editing: null }); }}
+                accessibilityLabel="Add text"
+              >
+                <Text style={styles.sideAa}>Aa</Text>
+              </SideAction>
+              <SideAction
+                label="Stickers"
+                onPress={() => { setFiltersOpen(false); setEmojiOpen(true); }}
+                accessibilityLabel="Add sticker"
+              >
+                <Ionicons name="happy-outline" size={22} color="#fff" />
+              </SideAction>
+              <SideAction
+                label="Audio"
+                onPress={() => { setFiltersOpen(false); setMusicOpen(true); }}
+                accessibilityLabel="Add music"
+                active={hasMusicOverlay}
+              >
+                <Ionicons name="musical-notes" size={20} color="#fff" />
+              </SideAction>
+              <SideAction
+                label="Effects"
+                onPress={() => setFiltersOpen((v) => !v)}
+                accessibilityLabel="Filters and effects"
+                active={filtersOpen || currentFilterId !== 'none'}
+              >
+                <Ionicons name="sparkles" size={20} color="#fff" />
+              </SideAction>
+
+              {toolsExpanded ? (
+                <>
+                  <SideAction
+                    label="Saved"
+                    onPress={() => { setFiltersOpen(false); setInteractiveOpen(true); }}
+                    accessibilityLabel="Add poll or sticker"
                   >
-                    <Ionicons name="color-palette-outline" size={26} color="#fff" />
-                  </EditorToolButton>
-                ) : null}
-                {overlays.length > 0 ? (
-                  <EditorToolButton variant="bar" onPress={undoLastOverlay} accessibilityLabel="Undo last">
-                    <Ionicons name="arrow-undo" size={26} color="#fff" />
-                  </EditorToolButton>
-                ) : null}
+                    <Ionicons name="bookmark-outline" size={20} color="#fff" />
+                  </SideAction>
+                  <SideAction
+                    label="Mention"
+                    onPress={() => { setFiltersOpen(false); openMentionPicker(); }}
+                    accessibilityLabel="Mention someone"
+                  >
+                    <Text style={styles.sideAt}>@</Text>
+                  </SideAction>
+                  <SideAction
+                    label="Draw"
+                    onPress={() => { setFiltersOpen(false); setDrawingMode(true); }}
+                    accessibilityLabel="Draw"
+                  >
+                    <Ionicons name="brush-outline" size={20} color="#fff" />
+                  </SideAction>
+                  <SideAction
+                    label="Photo"
+                    onPress={() => { setFiltersOpen(false); addImageSticker(); }}
+                    accessibilityLabel="Add photo sticker"
+                  >
+                    <Ionicons name="image-outline" size={20} color="#fff" />
+                  </SideAction>
+                  {(media.type === 'image' || media.type === 'boomerang') ? (
+                    <SideAction
+                      label="Crop"
+                      onPress={() => { setFiltersOpen(false); addCutoutSticker(); }}
+                      accessibilityLabel="Crop to sticker"
+                    >
+                      <Ionicons name="scan-outline" size={20} color="#fff" />
+                    </SideAction>
+                  ) : null}
+                  {media.type !== 'text' && media.type !== 'collage' ? (
+                    <SideAction
+                      label="Move"
+                      onPress={() => setTransformMode((v) => !v)}
+                      accessibilityLabel="Move media"
+                      active={transformMode}
+                    >
+                      <Ionicons name="move-outline" size={20} color="#fff" />
+                    </SideAction>
+                  ) : null}
+                  <SideAction
+                    label="Blur"
+                    onPress={() => setBlurOn((v) => !v)}
+                    accessibilityLabel="Blur wash"
+                    active={blurOn}
+                  >
+                    <Ionicons name="water-outline" size={20} color="#fff" />
+                  </SideAction>
+                  {media.type === 'text' ? (
+                    <SideAction
+                      label="Color"
+                      onPress={() => {
+                        setGradientIdx((i) => (i + 1) % TEXT_STORY_GRADIENTS.length);
+                        const next = TEXT_STORY_COLORS[(TEXT_STORY_COLORS.indexOf(media.bgColor || TEXT_STORY_COLORS[0]) + 1) % TEXT_STORY_COLORS.length];
+                        setMedia((m) => (m ? { ...m, bgColor: next } : m));
+                      }}
+                      accessibilityLabel="Change background"
+                    >
+                      <Ionicons name="color-palette-outline" size={20} color="#fff" />
+                    </SideAction>
+                  ) : null}
+                  {overlays.length > 0 ? (
+                    <SideAction label="Undo" onPress={undoLastOverlay} accessibilityLabel="Undo last">
+                      <Ionicons name="arrow-undo" size={20} color="#fff" />
+                    </SideAction>
+                  ) : null}
+                </>
+              ) : null}
+
+              <SideAction
+                onPress={() => setToolsExpanded((v) => !v)}
+                accessibilityLabel={toolsExpanded ? 'Show fewer tools' : 'Show more tools'}
+                compact
+              >
+                <Ionicons name={toolsExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#fff" />
+              </SideAction>
             </View>
 
-            {hasMusicOverlay ? (
-              <View style={{ position: 'absolute', left: 14, right: 86, bottom: footerBottom + 136, flexDirection: 'row', gap: 8, zIndex: 50 }}>
+            {hasMusicOverlay && !filtersOpen ? (
+              <View style={[styles.mixRow, { bottom: footerBottom + 118 }]}>
                 {[['original_volume', 'Original'], ['music_volume', 'Audio']].map(([key, label]) => {
                   const music = overlays.find((o) => o.type === 'music');
                   const val = typeof music?.[key] === 'number' ? music[key] : (key === 'original_volume' ? 0 : 0.85);
@@ -916,9 +1057,9 @@ export default function CreateStoryScreen() {
                       key={key}
                       onPress={() => {
                         const next = val < 0.34 ? 0.5 : val < 0.84 ? 1 : 0;
-                        setOverlays((prev) => prev.map((o) => o.type === 'music' ? { ...o, [key]: next } : o));
+                        setOverlays((prev) => prev.map((o) => (o.type === 'music' ? { ...o, [key]: next } : o)));
                       }}
-                      style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}
+                      style={styles.mixChip}
                     >
                       <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{label} {Math.round(val * 100)}%</Text>
                     </Pressable>
@@ -927,37 +1068,63 @@ export default function CreateStoryScreen() {
               </View>
             ) : null}
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ position: 'absolute', left: 0, right: 0, bottom: footerBottom + 58, height: 70, zIndex: 50 }}
-              contentContainerStyle={{ paddingHorizontal: 14, gap: 10, alignItems: 'center' }}
-            >
-              {STORY_FILTERS.map((f) => {
-                const active = currentFilterId === f.id;
-                return (
-                  <Pressable
-                    key={f.id}
-                    onPress={() => applyFilter(f)}
-                    accessibilityLabel={`Filter ${f.label}`}
-                    style={{ alignItems: 'center', width: 64 }}
-                  >
-                    <View style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      backgroundColor: f.color || 'rgba(255,255,255,0.2)',
-                      borderWidth: active ? 3 : 1,
-                      borderColor: active ? '#ffc801' : 'rgba(255,255,255,0.35)',
-                    }} />
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', marginTop: 4 }}>{f.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {filtersOpen ? (
+              <View style={[styles.filtersPanel, { bottom: footerBottom + 100 }]}>
+                <Text style={styles.filtersTitle}>Effects</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 14, gap: 12, alignItems: 'center', paddingBottom: 4 }}
+                >
+                  {STORY_FILTERS.map((f) => {
+                    const active = currentFilterId === f.id;
+                    return (
+                      <Pressable
+                        key={f.id}
+                        onPress={() => applyFilter(f)}
+                        accessibilityLabel={`Filter ${f.label}`}
+                        style={{ alignItems: 'center', width: 68 }}
+                      >
+                        <View style={[styles.filterThumb, active && styles.filterThumbActive]}>
+                          {media?.uri && media.type !== 'text' ? (
+                            <Image
+                              source={{ uri: media.uri }}
+                              style={StyleSheet.absoluteFillObject}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#333' }]} />
+                          )}
+                          {f.color ? (
+                            <View
+                              pointerEvents="none"
+                              style={[StyleSheet.absoluteFillObject, { backgroundColor: f.color, opacity: Math.min(0.55, (f.opacity || 0.2) + 0.15) }]}
+                            />
+                          ) : null}
+                        </View>
+                        <Text style={[styles.filterLabel, active && styles.filterLabelActive]} numberOfLines={1}>
+                          {f.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
 
-            {/* Bottom: post actions */}
-            <View pointerEvents="box-none" style={[styles.postBar, { bottom: footerBottom }]}>
+            {!filtersOpen ? (
+              <TextInput
+                value={caption}
+                onChangeText={setCaption}
+                placeholder="Add a caption..."
+                placeholderTextColor="rgba(255,255,255,0.85)"
+                style={[styles.captionInput, { position: 'absolute', left: 16, right: 70, bottom: footerBottom + 72, zIndex: 60, elevation: 60 }]}
+                multiline
+                maxLength={220}
+              />
+            ) : null}
+
+            <View style={[styles.postBar, { bottom: footerBottom }]}>
               <Pressable
                 onPress={() => submit('public')}
                 disabled={uploading}
@@ -1000,56 +1167,48 @@ export default function CreateStoryScreen() {
                 delayLongPress={350}
                 disabled={uploading}
                 accessibilityLabel="Post to close friends"
-                  style={({ pressed }) => [
-                    styles.audiencePill,
-                    pressed && !uploading && styles.pillPressed,
-                    uploading && postingAudience !== 'close_friends' && styles.pillDisabled,
-                  ]}
-                >
-                  <View style={styles.pillRow}>
-                    {uploading && postingAudience === 'close_friends' ? (
-                      <ActivityIndicator size="small" color="#fff" style={styles.pillSpinner} />
-                    ) : (
-                      <View style={styles.closeFriendsIcon}>
-                        <Ionicons name="star" size={16} color="#000" />
-                      </View>
-                    )}
-                    <Text style={styles.audiencePillText} numberOfLines={1}>Close Friends</Text>
-                  </View>
-                </Pressable>
+                style={({ pressed }) => [
+                  styles.audiencePill,
+                  pressed && !uploading && styles.pillPressed,
+                  uploading && postingAudience !== 'close_friends' && styles.pillDisabled,
+                ]}
+              >
+                <View style={styles.pillRow}>
+                  {uploading && postingAudience === 'close_friends' ? (
+                    <ActivityIndicator size="small" color="#fff" style={styles.pillSpinner} />
+                  ) : (
+                    <View style={styles.closeFriendsIcon}>
+                      <Ionicons name="star" size={15} color="#fff" />
+                    </View>
+                  )}
+                  <Text style={styles.audiencePillText} numberOfLines={1}>Close Friends</Text>
+                </View>
+              </Pressable>
             </View>
-          </View>
+          </>
         ) : null}
 
-        {/* Text input modal */}
         <TextInputModal
           visible={textModal.open}
           initial={textModal.editing || null}
           onCancel={() => setTextModal({ open: false, editing: null })}
           onSubmit={addTextOverlay}
         />
-
-        {/* Emoji picker */}
         <EmojiPickerSheet
           visible={emojiOpen}
           onClose={() => setEmojiOpen(false)}
           onPick={addStickerOverlay}
         />
-
-        {/* User picker for @mentions */}
         <UserPickerSheet
           visible={mentionOpen}
           onClose={() => { setMentionOpen(false); setMentionEditingId(null); }}
           onPick={addMentionOverlay}
         />
-
-        {/* Music picker */}
         <MusicPickerSheet
           visible={musicOpen}
           onClose={() => setMusicOpen(false)}
           onPick={addMusicOverlay}
         />
-
         <InteractiveStickerSheet
           visible={interactiveOpen}
           onClose={() => setInteractiveOpen(false)}
@@ -1222,7 +1381,7 @@ export default function CreateStoryScreen() {
   );
 }
 
-/** Semi-transparent circular tool button. */
+/** Semi-transparent circular tool button (legacy). */
 function EditorToolButton({ children, onPress, disabled, active, accessibilityLabel, variant }) {
   const bar = variant === 'bar';
   return (
@@ -1243,7 +1402,152 @@ function EditorToolButton({ children, onPress, disabled, active, accessibilityLa
   );
 }
 
+/** Circular side action — icon only (label kept for a11y). */
+function SideAction({ label, children, onPress, active, accessibilityLabel, compact }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel || label}
+      hitSlop={4}
+      style={({ pressed }) => [
+        pressed && styles.toolButtonPressed,
+      ]}
+    >
+      <View style={[
+        compact ? styles.sideCircleCompact : styles.sideCircle,
+        active && styles.sideCircleActive,
+      ]}>
+        {children}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  creativeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cancelBtn: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 999,
+    elevation: 999,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  sideRail: {
+    position: 'absolute',
+    right: 10,
+    width: 48,
+    zIndex: 999,
+    elevation: 999,
+    alignItems: 'center',
+    gap: 10,
+  },
+  mixRow: {
+    position: 'absolute',
+    left: 12,
+    right: 70,
+    zIndex: 50,
+    elevation: 50,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sideAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sideLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sideCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    elevation: 10,
+  },
+  sideCircleCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    marginTop: 2,
+    alignSelf: 'center',
+    elevation: 10,
+  },
+  sideCircleActive: {
+    backgroundColor: 'rgba(255,200,1,0.95)',
+  },
+  sideAa: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 17,
+    letterSpacing: -0.4,
+  },
+  sideAt: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 20,
+  },
+  mixChip: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  filtersPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 50,
+    elevation: 50,
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  filtersTitle: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 13,
+    marginLeft: 16,
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  filterThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    overflow: 'hidden',
+    backgroundColor: '#222',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  filterThumbActive: {
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  filterLabel: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+  filterLabelActive: {
+    color: '#fff',
+  },
   toolButton: {
     width: 46,
     height: 46,
@@ -1283,9 +1587,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   toolButtonBar: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -1294,10 +1598,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffc801',
   },
   toolAaBar: {
-    fontSize: 22,
+    fontSize: 18,
   },
   toolMentionBar: {
-    fontSize: 24,
+    fontSize: 20,
   },
   toolAa: {
     color: '#fff',
@@ -1313,10 +1617,10 @@ const styles = StyleSheet.create({
   captionInput: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     paddingVertical: 0,
     maxHeight: 72,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
@@ -1324,12 +1628,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    width: '100%',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    zIndex: 999,
+    elevation: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 12,
     writingDirection: 'ltr',
   },
   audiencePill: {
@@ -1338,9 +1644,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 999,
     backgroundColor: '#262626',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    minHeight: 48,
+    minHeight: 52,
   },
   pillRow: {
     flexDirection: 'row',
@@ -1411,7 +1717,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#ffc801',
+    backgroundColor: '#22c55e',
     borderWidth: 2,
     borderColor: '#fff',
     alignItems: 'center',

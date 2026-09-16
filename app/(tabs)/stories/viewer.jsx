@@ -19,7 +19,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import StoryVideo from './Partials/StoryVideo';
@@ -86,6 +86,8 @@ export default function StoryViewerScreen() {
   const [replying, setReplying] = useState(false);
   // Reactive paused flag for the music hook (kept in sync with isPausedRef).
   const [musicPaused, setMusicPaused] = useState(false);
+  // False while blurred / closing — Expo Router may keep this screen mounted.
+  const [viewerActive, setViewerActive] = useState(true);
   // Local override for reaction & counts so the UI feels instant when the
   // user taps an emoji; the server response then confirms / corrects.
   const [reactionOverride, setReactionOverride] = useState({}); // { [storyId]: emoji }
@@ -98,14 +100,40 @@ export default function StoryViewerScreen() {
   const videoRef = useRef(null);
   const progress = useSharedValue(0); // 0..1 for the current story
   const isPausedRef = useRef(false);
+  // Blocks resume/advance while a sheet/modal is open (swipe-up viewers, etc.).
+  const interactionLockRef = useRef(false);
   const lastTickRef = useRef(0);
   const animatingExitRef = useRef(false);
+  const closingRef = useRef(false);
   const sentViewIds = useRef(new Set());
   const advancingRef = useRef(false);
   const [mediaFailed, setMediaFailed] = useState(false);
 
   // Animated translateY for swipe-down dismiss.
   const translateY = useSharedValue(0);
+
+  // Screen is often reused (same startUserId) — reset exit animation so
+  // second open isn't stuck off-screen (black).
+  useFocusEffect(
+    useCallback(() => {
+      animatingExitRef.current = false;
+      closingRef.current = false;
+      interactionLockRef.current = false;
+      isPausedRef.current = false;
+      setMusicPaused(false);
+      setViewerActive(true);
+      setViewerSheetOpen(false);
+      translateY.value = 0;
+      return () => {
+        // Stop all audio immediately on blur — screen may stay mounted in the stack.
+        setViewerActive(false);
+        setMusicPaused(true);
+        isPausedRef.current = true;
+        interactionLockRef.current = true;
+        try { videoRef.current?.pause?.(); } catch (_) {}
+      };
+    }, [translateY]),
+  );
 
   const currentGroup = groups[userIdx] || null;
   const currentStory = currentGroup?.stories?.[storyIdx] || null;
@@ -114,7 +142,10 @@ export default function StoryViewerScreen() {
 
   // Play the story's music sticker (if any). Looped to its trim window and
   // tied to the story's pause state. Hook handles null overlays gracefully.
-  useStoryMusic(musicOverlay, { isPaused: musicPaused || muted });
+  useStoryMusic(musicOverlay, {
+    isPaused: musicPaused || muted || !viewerActive,
+    enabled: viewerActive,
+  });
 
   const onCaptureReport = useCallback((storyId, kind, tok) => {
     API.reportStoryCaptureEvent(storyId, kind, tok).catch(() => {});
@@ -170,7 +201,10 @@ export default function StoryViewerScreen() {
   // ────────────────────────────────────────────────────────────────────
   // Progress animation
   // ────────────────────────────────────────────────────────────────────
+  const doCloseRef = useRef(() => {});
+
   const advance = useCallback(() => {
+    if (interactionLockRef.current) return;
     if (advancingRef.current) return;
     advancingRef.current = true;
     setStoryIdx((idx) => {
@@ -183,7 +217,10 @@ export default function StoryViewerScreen() {
         setUserIdx(nextUser);
         return firstUnseenIndex(groups[nextUser]);
       }
-      doClose();
+      // Never call navigation/close inside a setState updater.
+      queueMicrotask(() => {
+        try { doCloseRef.current?.(); } catch (_) {}
+      });
       return idx;
     });
   }, [groups, userIdx]);
@@ -242,9 +279,20 @@ export default function StoryViewerScreen() {
     if (videoRef.current) {
       try { videoRef.current.pause(); } catch (_) {}
     }
-  }, []);
+  }, [progress]);
+
+  const forcePause = useCallback(() => {
+    isPausedRef.current = true;
+    setMusicPaused(true);
+    cancelAnimation(progress);
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch (_) {}
+    }
+  }, [progress]);
 
   const resume = useCallback(() => {
+    // Never resume under a sheet/modal — long-press/pan end can race swipe-up.
+    if (interactionLockRef.current) return;
     if (!isPausedRef.current) return;
     isPausedRef.current = false;
     setMusicPaused(false);
@@ -260,7 +308,16 @@ export default function StoryViewerScreen() {
     if (videoRef.current) {
       try { videoRef.current.play(); } catch (_) {}
     }
-  }, [currentStory, advance]);
+  }, [currentStory, advance, progress]);
+
+  const lockInteraction = useCallback(() => {
+    interactionLockRef.current = true;
+    forcePause();
+  }, [forcePause]);
+
+  const unlockInteraction = useCallback(() => {
+    interactionLockRef.current = false;
+  }, []);
 
   // ────────────────────────────────────────────────────────────────────
   // Navigation helpers
@@ -287,25 +344,73 @@ export default function StoryViewerScreen() {
 
   const onSwipeUp = useCallback(() => {
     if (currentStory?.is_mine) {
+      // Lock BEFORE any gesture-end resume can fire (long-press races pan).
+      lockInteraction();
       setViewerSheetOpen(true);
       return;
     }
-    resume();
-  }, [currentStory, resume]);
+    try { resume(); } catch (_) {}
+  }, [currentStory, lockInteraction, resume]);
+
+  const finishClose = useCallback(() => {
+    // Stories stack has no index screen — router.back() often throws GO_BACK.
+    // Prefer dismiss (modal) then replace home. Guard against double-close.
+    if (closingRef.current) return;
+    closingRef.current = true;
+    animatingExitRef.current = false;
+    isPausedRef.current = true;
+    setMusicPaused(true);
+    setViewerActive(false);
+    try { videoRef.current?.pause?.(); } catch (_) {}
+    try {
+      if (typeof router.canDismiss === 'function' && router.canDismiss()) {
+        router.dismiss();
+      } else {
+        router.replace('/(tabs)/home');
+      }
+    } catch (_) {
+      try { router.replace('/(tabs)/home'); } catch (__) {}
+    }
+  }, [router]);
+
+  const unlockExit = useCallback(() => {
+    animatingExitRef.current = false;
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    isPausedRef.current = true;
+    setMusicPaused(true);
+    setViewerActive(false);
+    cancelAnimation(progress);
+    try { videoRef.current?.pause?.(); } catch (_) {}
+  }, [progress]);
 
   const doClose = useCallback(() => {
-    if (animatingExitRef.current) return;
+    // Kill audio/video immediately — don't wait for exit animation / unmount.
+    stopPlayback();
+    // If a previous exit got stuck, force navigate out instead of no-op.
+    if (animatingExitRef.current) {
+      finishClose();
+      return;
+    }
     animatingExitRef.current = true;
-    cancelAnimation(progress);
     translateY.value = withTiming(WINDOW_H, { duration: 220 }, (finished) => {
-      if (finished) runOnJS(router.back)();
+      if (finished) runOnJS(finishClose)();
+      else runOnJS(unlockExit)();
     });
-  }, [router]);
+  }, [finishClose, unlockExit, stopPlayback, translateY]);
+
+  useEffect(() => {
+    doCloseRef.current = doClose;
+  }, [doClose]);
 
   // ────────────────────────────────────────────────────────────────────
   // Gestures
   // ────────────────────────────────────────────────────────────────────
+  const gesturesEnabled = !viewerSheetOpen && !saveSheetOpen && !reportOpen && !shareOpen;
+
   const tapGesture = Gesture.Tap()
+    .enabled(gesturesEnabled)
     .maxDuration(220)
     .onEnd((e) => {
       if (e.x < TAP_ZONE_WIDTH) {
@@ -316,30 +421,36 @@ export default function StoryViewerScreen() {
     });
 
   const longPressGesture = Gesture.LongPress()
+    .enabled(gesturesEnabled)
     .minDuration(180)
     .onStart(() => { runOnJS(pause)(); })
-    .onEnd(() => { runOnJS(resume)(); })
-    .onTouchesUp(() => { runOnJS(resume)(); });
+    .onEnd(() => { runOnJS(resume)(); });
 
   const panGesture = Gesture.Pan()
+    .enabled(gesturesEnabled)
     .activeOffsetY([-20, 20])
+    .failOffsetX([-40, 40])
     .onStart(() => { runOnJS(pause)(); })
     .onUpdate((e) => {
+      // Only follow the finger when dismissing downward.
       if (e.translationY > 0) translateY.value = e.translationY;
     })
     .onEnd((e) => {
       if (e.translationY > SWIPE_DOWN_THRESHOLD || e.velocityY > 800) {
         runOnJS(doClose)();
-      } else if (e.translationY < -SWIPE_UP_THRESHOLD) {
+      } else if (e.translationY < -SWIPE_UP_THRESHOLD || e.velocityY < -800) {
         runOnJS(onSwipeUp)();
         translateY.value = withTiming(0, { duration: 200 });
+        // Stay paused if viewers sheet opened; resume only when not locked.
+        runOnJS(resume)();
       } else {
         translateY.value = withTiming(0, { duration: 200 });
         runOnJS(resume)();
       }
     });
 
-  const composed = Gesture.Simultaneous(panGesture, Gesture.Exclusive(longPressGesture, tapGesture));
+  // Exclusive: a swipe must not also fire long-press resume / tap advance.
+  const composed = Gesture.Exclusive(panGesture, longPressGesture, tapGesture);
 
   // ────────────────────────────────────────────────────────────────────
   // Animated styles
@@ -394,13 +505,14 @@ export default function StoryViewerScreen() {
 
   const onReplyFocus = useCallback(() => {
     setReplying(true);
-    pause();
-  }, [pause]);
+    lockInteraction();
+  }, [lockInteraction]);
 
   const onReplyBlur = useCallback(() => {
     setReplying(false);
+    unlockInteraction();
     resume();
-  }, [resume]);
+  }, [unlockInteraction, resume]);
 
   const handleMentionRepost = useCallback(async () => {
     if (!currentStory || !token || mentionRepostBusy || currentStory.is_mine) return;
@@ -494,13 +606,13 @@ export default function StoryViewerScreen() {
       currentGroup?.user?.name || 'Story',
       'Report, block, or send this story in chat.',
       [
-        { text: 'Report', onPress: () => setReportOpen(true) },
+        { text: 'Report', onPress: () => { lockInteraction(); setReportOpen(true); } },
         { text: 'Block', style: 'destructive', onPress: confirmBlock },
-        { text: 'Send in chat', onPress: () => setShareOpen(true) },
+        { text: 'Send in chat', onPress: () => { lockInteraction(); setShareOpen(true); } },
         { text: 'Cancel', style: 'cancel', onPress: resume },
       ],
     );
-  }, [currentStory, currentGroup, pause, confirmBlock, resume]);
+  }, [currentStory, currentGroup, pause, confirmBlock, resume, lockInteraction]);
 
   const handleReport = useCallback(async (reason) => {
     if (!currentStory || !token) return;
@@ -586,7 +698,7 @@ export default function StoryViewerScreen() {
           No stories to show right now.
         </Text>
         <Pressable
-          onPress={() => router.back()}
+          onPress={finishClose}
           style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: '#ffc801' }}
         >
           <Text style={{ color: '#000', fontWeight: '800' }}>Close</Text>
@@ -821,7 +933,10 @@ export default function StoryViewerScreen() {
               }}
             >
               <Pressable
-                onPress={() => setViewerSheetOpen(true)}
+                onPress={() => {
+                  lockInteraction();
+                  setViewerSheetOpen(true);
+                }}
                 hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel={`${currentStory.views_count ?? 0} viewers`}
@@ -842,7 +957,7 @@ export default function StoryViewerScreen() {
               </Pressable>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Pressable
-                  onPress={() => { pause(); setSaveSheetOpen(true); }}
+                  onPress={() => { lockInteraction(); setSaveSheetOpen(true); }}
                   hitSlop={10}
                   style={{
                     width: 40, height: 40, borderRadius: 20,
@@ -927,9 +1042,12 @@ export default function StoryViewerScreen() {
       <ViewerListSheet
         visible={viewerSheetOpen}
         storyId={isMine ? currentStory?.id : null}
-        onClose={() => setViewerSheetOpen(false)}
-        onPause={pause}
-        onResume={resume}
+        onClose={() => {
+          setViewerSheetOpen(false);
+          unlockInteraction();
+          resume();
+        }}
+        onPause={lockInteraction}
       />
 
       {/* Save-to-Highlight sheet (own stories) */}
@@ -937,13 +1055,25 @@ export default function StoryViewerScreen() {
         visible={saveSheetOpen}
         storyId={isMine ? currentStory?.id : null}
         ownerId={user?.id}
-        onClose={() => { setSaveSheetOpen(false); resume(); }}
-        onSaved={() => { setSaveSheetOpen(false); resume(); }}
+        onClose={() => {
+          setSaveSheetOpen(false);
+          unlockInteraction();
+          resume();
+        }}
+        onSaved={() => {
+          setSaveSheetOpen(false);
+          unlockInteraction();
+          resume();
+        }}
       />
 
       <ReportReasonModal
         visible={reportOpen}
-        onClose={() => { setReportOpen(false); resume(); }}
+        onClose={() => {
+          setReportOpen(false);
+          unlockInteraction();
+          resume();
+        }}
         onSubmit={handleReport}
         submitting={reportBusy}
         title="Report story"
@@ -953,7 +1083,11 @@ export default function StoryViewerScreen() {
       <UserPickerSheet
         visible={shareOpen}
         title="Send in chat"
-        onClose={() => { setShareOpen(false); resume(); }}
+        onClose={() => {
+          setShareOpen(false);
+          unlockInteraction();
+          resume();
+        }}
         onPick={handleSharePick}
       />
     </GestureHandlerRootView>

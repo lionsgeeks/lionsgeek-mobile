@@ -10,6 +10,7 @@ import {
   Platform,
   StatusBar as RNStatusBar,
   Alert,
+  StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +19,7 @@ import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 
+const GOLD = '#ffc801';
 const TOP_INSET = (Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24) + 6;
 
 /**
@@ -90,134 +92,221 @@ export default function CloseFriendsScreen() {
   }, [candidates, query]);
 
   const closeCount = candidates.filter((u) => u.is_close).length;
+  const bg = isDark ? '#0a0a0a' : '#f7f7f7';
+  const card = isDark ? '#161616' : '#ffffff';
+  const text = isDark ? '#fff' : '#111';
+  const muted = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
+  const hairline = isDark ? 'rgba(255,200,1,0.18)' : 'rgba(0,0,0,0.08)';
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDark ? '#000' : '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: bg }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
-      {/* Header */}
-      <View style={{
-        paddingTop: TOP_INSET,
-        paddingHorizontal: 14,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-        flexDirection: 'row', alignItems: 'center', gap: 8,
-      }}>
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={isDark ? '#fff' : '#000'} />
+      <View style={[styles.header, { paddingTop: TOP_INSET, borderBottomColor: hairline, backgroundColor: isDark ? '#111' : '#fff' }]}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={26} color={text} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 17, fontWeight: '800' }}>
+          <Text style={{ color: text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 }}>
             Close Friends
           </Text>
-          <Text style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)', fontSize: 11, marginTop: 2 }}>
+          <Text style={{ color: muted, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
             {closeCount} {closeCount === 1 ? 'person' : 'people'} on your list
           </Text>
         </View>
-        <View style={{
-          flexDirection: 'row', alignItems: 'center', gap: 5,
-          backgroundColor: 'rgba(34,197,94,0.18)',
-          paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-        }}>
-          <Ionicons name="star" size={12} color="#22c55e" />
-          <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: '700' }}>List</Text>
+        <View style={styles.badge}>
+          <Ionicons name="star" size={12} color="#111" />
+          <Text style={styles.badgeText}>{closeCount}</Text>
         </View>
       </View>
 
-      {/* Search */}
-      <View style={{
-        marginHorizontal: 14, marginVertical: 10,
-        flexDirection: 'row', alignItems: 'center', gap: 8,
-        paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 6,
-        borderRadius: 12,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-      }}>
-        <Ionicons name="search" size={16} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'} />
+      <View style={[styles.searchWrap, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#fff', borderColor: hairline }]}>
+        <Ionicons name="search" size={16} color={GOLD} />
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search"
-          placeholderTextColor={isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)'}
-          style={{
-            flex: 1,
-            color: isDark ? '#fff' : '#000',
-            fontSize: 14,
-            paddingVertical: 0,
-          }}
+          placeholder="Search friends"
+          placeholderTextColor={muted}
+          style={{ flex: 1, color: text, fontSize: 15, paddingVertical: 0, fontWeight: '600' }}
         />
+        {query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={muted} />
+          </Pressable>
+        ) : null}
       </View>
 
-      {/* Helper text */}
-      <Text style={{
-        paddingHorizontal: 18, paddingBottom: 8,
-        color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.55)',
-        fontSize: 12, lineHeight: 17,
-      }}>
-        People you add can see your stories marked "Close Friends". They won't get notified that they're on or off the list.
+      <Text style={[styles.helper, { color: muted }]}>
+        People you add can see stories you share to Close Friends. They won't be notified when you add or remove them.
       </Text>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={isDark ? '#fff' : '#000'} />
+        <View style={styles.centered}>
+          <ActivityIndicator color={GOLD} />
         </View>
       ) : filtered.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
-          <Ionicons name="people-outline" size={42} color={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'} />
-          <Text style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', marginTop: 12, textAlign: 'center' }}>
+        <View style={[styles.centered, { paddingHorizontal: 28 }]}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="people-outline" size={28} color="#111" />
+          </View>
+          <Text style={{ color: muted, marginTop: 14, textAlign: 'center', fontWeight: '600', lineHeight: 20 }}>
             {query
               ? 'No matches.'
               : 'Follow people first to add them to your close-friends list.'}
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-          {filtered.map((u) => (
-            <Pressable
-              key={u.id}
-              onPress={() => toggle(u)}
-              disabled={pendingIds.has(u.id)}
-              style={({ pressed }) => ({
-                flexDirection: 'row', alignItems: 'center',
-                paddingHorizontal: 18, paddingVertical: 10,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <View style={{
-                width: 44, height: 44, borderRadius: 22, overflow: 'hidden',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                {u.avatar ? (
-                  <Image source={{ uri: u.avatar }} style={{ width: '100%', height: '100%' }} />
-                ) : (
-                  <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: '700' }}>
-                    {(u.name || 'U').charAt(0).toUpperCase()}
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 36, gap: 8 }}>
+          {filtered.map((u) => {
+            const selected = !!u.is_close;
+            const pending = pendingIds.has(u.id);
+            return (
+              <Pressable
+                key={u.id}
+                onPress={() => toggle(u)}
+                disabled={pending}
+                style={({ pressed }) => [
+                  styles.row,
+                  {
+                    backgroundColor: card,
+                    borderColor: selected ? GOLD : hairline,
+                    opacity: pressed || pending ? 0.72 : 1,
+                  },
+                ]}
+              >
+                <View style={[styles.avatar, { borderColor: selected ? GOLD : 'transparent' }]}>
+                  {u.avatar ? (
+                    <Image source={{ uri: u.avatar }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#222' : '#eee' }]}>
+                      <Text style={{ color: text, fontWeight: '800', fontSize: 16 }}>
+                        {(u.name || 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ color: text, fontWeight: '800', fontSize: 15 }} numberOfLines={1}>
+                    {u.name}
                   </Text>
-                )}
-              </View>
-              <Text style={{
-                flex: 1, marginLeft: 12,
-                color: isDark ? '#fff' : '#000',
-                fontWeight: '700', fontSize: 15,
-              }} numberOfLines={1}>
-                {u.name}
-              </Text>
-              <View style={{
-                width: 26, height: 26, borderRadius: 13,
-                borderWidth: 2,
-                borderColor: u.is_close ? '#22c55e' : (isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'),
-                backgroundColor: u.is_close ? '#22c55e' : 'transparent',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                {u.is_close ? (
-                  <Ionicons name="checkmark" size={16} color="#fff" />
-                ) : null}
-              </View>
-            </Pressable>
-          ))}
+                  <Text style={{ color: muted, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
+                    {selected ? 'On your Close Friends list' : 'Tap to add'}
+                  </Text>
+                </View>
+                <View style={[styles.check, selected ? styles.checkOn : styles.checkOff]}>
+                  {pending ? (
+                    <ActivityIndicator size="small" color={selected ? '#111' : GOLD} />
+                  ) : selected ? (
+                    <Ionicons name="checkmark" size={16} color="#111" />
+                  ) : (
+                    <Ionicons name="add" size={16} color={GOLD} />
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: GOLD,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  badgeText: {
+    color: '#111',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  searchWrap: {
+    marginHorizontal: 14,
+    marginTop: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  helper: {
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: GOLD,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+    borderWidth: 2,
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  check: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  checkOn: {
+    backgroundColor: GOLD,
+    borderColor: GOLD,
+  },
+  checkOff: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,200,1,0.55)',
+  },
+});

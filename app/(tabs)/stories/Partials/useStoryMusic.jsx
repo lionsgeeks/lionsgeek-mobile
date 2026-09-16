@@ -10,18 +10,21 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
  *    changes, e.g. when navigating to the next story.
  *  - Mutes / unmutes (effectively pause/play) without unloading when
  *    `isPaused` toggles, so resuming feels instant.
- *  - Lowers and unloads everything on unmount or when the story has no
- *    music overlay.
+ *  - Fully unloads when `enabled` is false (viewer blurred / closing) or
+ *    when the story has no music overlay / on unmount.
  *
  * Usage:
  *   const overlay = currentStory?.overlays?.find(o => o.type === 'music');
- *   useStoryMusic(overlay, { isPaused });
+ *   useStoryMusic(overlay, { isPaused, enabled: isFocused });
  *
  * The story video's audio should be muted whenever a music overlay exists
  * (the caller is responsible for passing `muted` to its video player).
  */
-export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
+export default function useStoryMusic(musicOverlay, { isPaused = false, enabled = true } = {}) {
   const playerRef = useRef(null);
+  const pausedRef = useRef(!!isPaused || !enabled);
+  pausedRef.current = !!isPaused || !enabled;
+
   const overlayId = musicOverlay?.id;
   const previewUrl = musicOverlay?.preview_url;
   const startMs    = musicOverlay?.start_ms ?? 0;
@@ -42,7 +45,8 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
     })();
   }, []);
 
-  // Load / unload when the active music overlay changes.
+  // Load / unload when the active music overlay changes, or when the viewer
+  // is no longer active (blur / close — Expo Router may keep the screen mounted).
   useEffect(() => {
     let cancelled = false;
     let statusSub = null;
@@ -54,6 +58,7 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
       }
       if (playerRef.current) {
         try { playerRef.current.pause(); } catch (_) {}
+        try { playerRef.current.volume = 0; } catch (_) {}
         try { playerRef.current.release(); } catch (_) {}
         playerRef.current = null;
       }
@@ -61,30 +66,35 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
 
     (async () => {
       unload();
-      if (!previewUrl) return;
+      if (!enabled || !previewUrl) return;
 
       try {
         const player = createAudioPlayer({ uri: previewUrl });
         player.loop = false; // we loop the window manually
         player.volume = typeof musicOverlay.music_volume === 'number' ? musicOverlay.music_volume : 1.0;
         player.seekTo(startMs / 1000);
-        player.play();
 
-        if (cancelled) {
+        if (cancelled || pausedRef.current) {
           try { player.pause(); } catch (_) {}
           try { player.release(); } catch (_) {}
           return;
         }
+
+        player.play();
         playerRef.current = player;
 
         // Loop the preview inside the full song segment on the story.
+        // Never restart while the viewer is paused / closing.
         statusSub = player.addListener('playbackStatusUpdate', (status) => {
+          if (pausedRef.current || cancelled) return;
           if (!status?.isLoaded) return;
           const previewEnd = Math.min(startMs + 30000, endMs);
           const positionMs = (status.currentTime ?? 0) * 1000;
           if (status.didJustFinish || positionMs >= previewEnd - 50) {
-            player.seekTo(startMs / 1000);
-            player.play();
+            try {
+              player.seekTo(startMs / 1000);
+              if (!pausedRef.current && !cancelled) player.play();
+            } catch (_) {}
           }
         });
       } catch (_) {
@@ -98,19 +108,20 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
     };
     // Re-create when the *track* changes; the same track stays loaded
     // across simple pause toggles. Including startMs/endMs so retrimming
-    // via remote-update (rare) is honoured.
-  }, [overlayId, previewUrl, startMs, endMs, musicVolume]);
+    // via remote-update (rare) is honoured. `enabled` tears down on blur/close.
+  }, [overlayId, previewUrl, startMs, endMs, musicVolume, enabled]);
 
-  // Pause / resume — instant, doesn't tear down audio.
+  // Pause / resume — instant, doesn't tear down audio (unless enabled=false,
+  // which is handled by the load effect above).
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
     try {
-      if (isPaused) {
+      if (isPaused || !enabled) {
         player.pause();
       } else {
         player.play();
       }
     } catch (_) {}
-  }, [isPaused, previewUrl]);
+  }, [isPaused, enabled, previewUrl]);
 }
