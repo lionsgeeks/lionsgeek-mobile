@@ -30,13 +30,13 @@ export default function ProfileOptionsMenu({
     }
   };
 
-  const handleCall = async () => {
+  const handleCall = async (type = 'audio') => {
     onClose();
     if (!profileId) return;
     try {
-      await initiate(profileId);
-    } catch {
-      Alert.alert('Error', 'Could not start call. Please try again.');
+      await initiate(profileId, type);
+    } catch (e) {
+      Alert.alert('Error', e?.response?.data?.message || 'Could not start call. Please try again.');
     }
   };
 
@@ -165,16 +165,36 @@ export default function ProfileOptionsMenu({
             </Pressable>
 
             <Pressable
-              onPress={handleCall}
+              onPress={() => handleCall('audio')}
               className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
             >
               <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
                 <Ionicons name="call-outline" size={18} color="#ffc801" />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-semibold text-black dark:text-white">Voice call</Text>
+                <Text className="text-sm font-semibold text-black dark:text-white">Audio call</Text>
                 <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">
-                  Start a voice call
+                  Start an audio call
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+              />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleCall('video')}
+              className="flex-row items-center gap-3 px-3 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] mt-2"
+            >
+              <View className="w-9 h-9 rounded-xl bg-alpha/15 items-center justify-center">
+                <Ionicons name="videocam-outline" size={18} color="#ffc801" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-black dark:text-white">Video call</Text>
+                <Text className="text-xs text-black/45 dark:text-white/45 mt-0.5">
+                  Start a video call
                 </Text>
               </View>
               <Ionicons

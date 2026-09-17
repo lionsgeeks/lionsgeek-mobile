@@ -254,7 +254,16 @@ export function handleNotificationNavigation(data) {
         other_user_id,
         user_id,
         event_id,
+        call_id,
       } = data;
+
+      if (type === 'incoming_call' && call_id) {
+        router.push({
+          pathname: '/(tabs)/incoming-call',
+          params: { callId: String(call_id) },
+        });
+        return;
+      }
 
       const targetLink = mobile_link || link;
 

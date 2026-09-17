@@ -15,6 +15,7 @@ export default function IncomingCallScreen() {
   const [fetchedCall, setFetchedCall] = useState<{
     callId: number;
     channel_name: string;
+    type?: string;
     caller: { id: number; name?: string; avatar?: string | null };
   } | null>(null);
 
@@ -28,6 +29,7 @@ export default function IncomingCallScreen() {
             setFetchedCall({
               callId: data.call_id,
               channel_name: data.channel_name,
+              type: data.call_type || data.type || 'audio',
               caller: data.caller || {},
             });
           } else {
@@ -55,8 +57,8 @@ export default function IncomingCallScreen() {
   const displayCall = incomingCall || (fetchedCall ? {
     callId: fetchedCall.callId,
     channel_name: fetchedCall.channel_name,
+    type: fetchedCall.type || 'audio',
     caller: fetchedCall.caller,
-    caller_token: null,
   } : null);
 
   useCallRinger({
@@ -99,6 +101,10 @@ export default function IncomingCallScreen() {
             callId: data.call_id,
             channelName: data.channel_name,
             token: data.token,
+            appId: data.app_id,
+            type: data.type || fetchedCall.type || 'audio',
+            isCaller: false,
+            caller: fetchedCall.caller,
           });
           router.replace("/(tabs)/call");
         }
@@ -135,7 +141,9 @@ export default function IncomingCallScreen() {
 
   return (
     <View className="flex-1 bg-dark justify-center items-center px-8">
-      <Text className="text-white/70 text-lg mb-2">Incoming voice call</Text>
+      <Text className="text-white/70 text-lg mb-2">
+        {displayCall.type === 'video' ? 'Incoming video call' : 'Incoming audio call'}
+      </Text>
       <View style={{ width: 200, height: 200, marginBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View
           pointerEvents="none"

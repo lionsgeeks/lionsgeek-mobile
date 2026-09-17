@@ -3,8 +3,25 @@ import * as Ably from "ably";
 import API from "@/api";
 import { useRouter } from "expo-router";
 import { useAppContext } from "@/context";
+import { getAgoraAppId } from "@/hooks/useAgoraCall";
 
 const CallContext = createContext(null);
+
+function mapCallPayload(data, overrides = {}) {
+    const call = data?.call || {};
+    const type = data?.type || call?.type || overrides.type || 'audio';
+    return {
+        callId: data?.call_id || call?.id,
+        channelName: data?.channel_name || call?.channel_name,
+        token: data?.token,
+        appId: data?.app_id || getAgoraAppId(),
+        uid: data?.uid,
+        type,
+        caller: call?.caller || overrides.caller || null,
+        callee: call?.callee || overrides.callee || null,
+        ...overrides,
+    };
+}
 
 export function CallProvider({ children }) {
     const { user, token } = useAppContext();
@@ -24,6 +41,13 @@ export function CallProvider({ children }) {
     tokenRef.current = token;
 
     const channelName = user?.id ? `call:user:${user.id}` : null;
+
+    const leaveToHome = useCallback(() => {
+        setActiveCall(null);
+        setIncomingCall(null);
+        setPendingCallAsCaller(null);
+        try { router.replace("/(tabs)/home"); } catch (_) {}
+    }, [router]);
 
     useEffect(() => {
         if (!token || !user?.id || !channelName) {
@@ -65,8 +89,8 @@ export function CallProvider({ children }) {
                     setIncomingCall({
                         callId: data.call_id,
                         channel_name: data.channel_name,
+                        type: data.call_type || data.type || 'audio',
                         caller: data.caller || {},
-                        caller_token: data.caller_token,
                     });
                     router.replace("/(tabs)/incoming-call");
                 });
@@ -75,28 +99,31 @@ export function CallProvider({ children }) {
                     const data = msg.data;
                     const pending = pendingCallRef.current;
                     if (data?.call_id && pending?.callId === data.call_id) {
-                        console.log('[CallContext] call-accepted → opening /call');
                         setActiveCall({
-                            callId: data.call_id,
-                            channelName: pending.channelName,
-                            token: pending.token,
+                            ...pending,
                             isCaller: true,
+                            type: data.call_type || pending.type || 'audio',
                         });
                         setPendingCallAsCaller(null);
                         setTimeout(() => router.replace("/(tabs)/call"), 0);
                     }
                 });
 
-                channel.subscribe("call-rejected", () => {
+                const clearOutgoing = () => {
                     setPendingCallAsCaller(null);
-                });
+                    if (!activeCallRef.current) {
+                        try { router.replace("/(tabs)/home"); } catch (_) {}
+                    }
+                };
 
-                channel.subscribe("call-ended", () => {
-                    setActiveCall(null);
+                channel.subscribe("call-rejected", clearOutgoing);
+                channel.subscribe("call-cancelled", () => {
                     setIncomingCall(null);
                     setPendingCallAsCaller(null);
-                    router.replace("/(tabs)/home");
+                    if (!activeCallRef.current) leaveToHome();
                 });
+                channel.subscribe("call-missed", leaveToHome);
+                channel.subscribe("call-ended", leaveToHome);
             } catch (e) {
                 console.error("[CallContext] Ably init error:", e);
             }
@@ -110,20 +137,21 @@ export function CallProvider({ children }) {
                 channelRef.current = null;
             }
         };
-    }, [token, user?.id, channelName]);
+    }, [token, user?.id, channelName, router, leaveToHome]);
 
     const initiate = useCallback(
-        async (calleeId) => {
+        async (calleeId, type = 'audio') => {
             if (!token) throw new Error("Not authenticated");
-            const data = await API.initiateCall(calleeId, token);
+            const data = await API.initiateCall(calleeId, token, type);
             if (!data?.call_id) throw new Error(data?.message || "Failed to start call");
             const callee = data?.call?.callee || { id: calleeId, name: null, image: null };
             setPendingCallAsCaller({
-                callId: data.call_id,
-                channelName: data.channel_name,
-                token: data.token,
-                calleeId,
-                callee: { id: callee.id, name: callee.name, image: callee.image ?? callee.avatar },
+                ...mapCallPayload(data, {
+                    isCaller: true,
+                    calleeId,
+                    callee: { id: callee.id, name: callee.name, image: callee.image ?? callee.avatar },
+                    type: data.type || type,
+                }),
             });
             setTimeout(() => router.replace("/(tabs)/outgoing-call"), 0);
             return data;
@@ -139,7 +167,8 @@ export function CallProvider({ children }) {
                 return;
             }
             try {
-                await API.endCall(pending.callId, token);
+                if (API.cancelCall) await API.cancelCall(pending.callId, token);
+                else await API.endCall(pending.callId, token);
             } catch (e) {
                 console.error("[CallContext] Cancel call error:", e);
             }
@@ -151,11 +180,7 @@ export function CallProvider({ children }) {
 
     const accept = useCallback(
         async () => {
-            if (!incomingCall?.callId || !token) {
-                console.log('[CallContext] accept aborted – no incomingCall or token');
-                return null;
-            }
-            console.log('[CallContext] accept → API.acceptCall', incomingCall.callId);
+            if (!incomingCall?.callId || !token) return null;
             let data;
             try {
                 data = await API.acceptCall(incomingCall.callId, token);
@@ -164,26 +189,17 @@ export function CallProvider({ children }) {
                 setIncomingCall(null);
                 throw err;
             }
-            console.log('[CallContext] accept response', {
-                hasToken: !!data?.token,
-                hasChannel: !!data?.channel_name,
-                callId: data?.call_id,
-            });
 
             if (data?.token && data?.channel_name) {
-                setActiveCall({
-                    callId: data.call_id,
-                    channelName: data.channel_name,
-                    token: data.token,
+                setActiveCall(mapCallPayload(data, {
                     isCaller: false,
-                });
+                    type: data.type || incomingCall.type || 'audio',
+                    caller: incomingCall.caller,
+                }));
             }
             setIncomingCall(null);
             if (data?.token && data?.channel_name) {
-                setTimeout(() => {
-                    console.log('[CallContext] navigating to /call');
-                    router.replace('/(tabs)/call');
-                }, 0);
+                setTimeout(() => router.replace('/(tabs)/call'), 0);
             }
             return data;
         },

@@ -282,8 +282,8 @@ const postWithAuth = async (endpoint, data, token) => {
 // just `await API.initiateCall(...)` and use the result directly.
 // ---------------------------------------------------------------------------
 
-const initiateCall = async (calleeId, token) => {
-    const response = await post('mobile/calls/initiate', { callee_id: calleeId }, token);
+const initiateCall = async (calleeId, token, type = 'audio') => {
+    const response = await post('mobile/calls/initiate', { callee_id: calleeId, type }, token);
     return response?.data;
 };
 
@@ -297,13 +297,28 @@ const rejectCall = async (callId, token) => {
     return response?.data;
 };
 
+const cancelCall = async (callId, token) => {
+    const response = await post(`mobile/calls/${callId}/cancel`, {}, token);
+    return response?.data;
+};
+
 const endCall = async (callId, token) => {
     const response = await post(`mobile/calls/${callId}/end`, {}, token);
     return response?.data;
 };
 
+const getCallToken = async (callId, token) => {
+    const response = await post(`mobile/calls/${callId}/token`, {}, token);
+    return response?.data;
+};
+
 const getCall = async (callId, token) => {
     const response = await get(`mobile/calls/${callId}`, token);
+    return response?.data;
+};
+
+const getCallHistory = async (token, perPage = 20) => {
+    const response = await get(`mobile/calls/history?per_page=${perPage}`, token);
     return response?.data;
 };
 
@@ -592,8 +607,11 @@ export default {
     initiateCall,
     acceptCall,
     rejectCall,
+    cancelCall,
     endCall,
     getCall,
+    getCallToken,
+    getCallHistory,
     getCallAblyToken,
     listStories,
     createStory,

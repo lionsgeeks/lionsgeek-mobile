@@ -404,6 +404,14 @@ export default function More() {
           />
           <RowDivider />
           <SettingRow
+            icon="call-outline"
+            label="Call history"
+            sublabel="Audio and video calls"
+            onPress={() => router.push("/(tabs)/call-history")}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
             icon="albums-outline"
             label="Story archive"
             sublabel="Expired stories stay private here"

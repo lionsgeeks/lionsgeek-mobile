@@ -131,6 +131,7 @@ export default function TabLayout() {
     { route: "call", name: "Call", icon: "call", showTab: false },
     { route: "incoming-call", name: "Incoming call", icon: "call", showTab: false },
     { route: "outgoing-call", name: "Outgoing call", icon: "call", showTab: false },
+    { route: "call-history", name: "Call history", icon: "time", showTab: false },
   ]
 
 

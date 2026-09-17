@@ -15,12 +15,13 @@ export default function ChatHeader({ conversation, onBack }) {
     const fg = isDark ? '#fff' : '#000';
     const { initiate } = useCallContext();
     const [isStartingCall, setIsStartingCall] = useState(false);
+    const [startingType, setStartingType] = useState(null);
 
     const lastOnline = conversation.other_user?.last_online
         ? new Date(conversation.other_user.last_online)
         : null;
 
-    const handleCall = async () => {
+    const handleCall = async (type = 'audio') => {
         const calleeId = conversation.other_user?.id;
         if (!calleeId) {
             Alert.alert('Call', 'Cannot identify the user to call.');
@@ -28,8 +29,9 @@ export default function ChatHeader({ conversation, onBack }) {
         }
         if (isStartingCall) return;
         setIsStartingCall(true);
+        setStartingType(type);
         try {
-            await initiate(calleeId);
+            await initiate(calleeId, type);
         } catch (e) {
             const msg =
                 e?.response?.data?.message ||
@@ -38,6 +40,7 @@ export default function ChatHeader({ conversation, onBack }) {
             Alert.alert('Call', msg);
         } finally {
             setIsStartingCall(false);
+            setStartingType(null);
         }
     };
 
@@ -112,16 +115,29 @@ export default function ChatHeader({ conversation, onBack }) {
                     </Pressable>
                 </View>
                 <Pressable
-                    onPress={handleCall}
+                    onPress={() => handleCall('audio')}
                     disabled={isStartingCall}
-                    accessibilityLabel="Voice call"
+                    accessibilityLabel="Audio call"
                     className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
                     style={isStartingCall ? { opacity: 0.6 } : undefined}
                 >
-                    {isStartingCall ? (
+                    {isStartingCall && startingType === 'audio' ? (
                         <ActivityIndicator size="small" color={fg} />
                     ) : (
                         <Ionicons name="call-outline" size={20} color={fg} />
+                    )}
+                </Pressable>
+                <Pressable
+                    onPress={() => handleCall('video')}
+                    disabled={isStartingCall}
+                    accessibilityLabel="Video call"
+                    className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
+                    style={isStartingCall ? { opacity: 0.6 } : undefined}
+                >
+                    {isStartingCall && startingType === 'video' ? (
+                        <ActivityIndicator size="small" color={fg} />
+                    ) : (
+                        <Ionicons name="videocam-outline" size={20} color={fg} />
                     )}
                 </Pressable>
             </View>

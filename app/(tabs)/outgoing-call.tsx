@@ -78,7 +78,9 @@ export default function OutgoingCallScreen() {
 
   return (
     <View className="flex-1 bg-dark justify-center items-center px-8">
-      <Text className="text-white/70 text-lg mb-2">Calling...</Text>
+      <Text className="text-white/70 text-lg mb-2">
+        {pendingCallAsCaller?.type === 'video' ? 'Video calling...' : 'Calling...'}
+      </Text>
 
       <Animated.View
         style={{ transform: [{ scale: pulseAnim }] }}
