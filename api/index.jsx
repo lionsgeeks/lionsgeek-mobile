@@ -171,12 +171,7 @@ const post = async (endpoint, data, Token) => {
             try { return ensureAppUrl(); } catch { return ''; }
         })();
         const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
-        const status = error?.response?.status;
-        const errorData = error?.response?.data;
-        const errorMessage = typeof errorData === 'object'
-            ? JSON.stringify(errorData, null, 2)
-            : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: POST\nURL: ${url}\nEndpoint: ${endpoint}\nStatus: ${status ?? 'unknown'}\nError: ${errorMessage}`);
+        logApiError(error, 'POST', url, endpoint);
         throw error;
     }
 };
@@ -204,11 +199,7 @@ const put = async (endpoint, Token, data) => {
             try { return ensureAppUrl(); } catch { return ''; }
         })();
         const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
-        const errorData = error?.response?.data;
-        const errorMessage = typeof errorData === 'object'
-            ? JSON.stringify(errorData, null, 2)
-            : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: PUT\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        logApiError(error, 'PUT', url, endpoint);
         throw error;
     }
 };
@@ -250,11 +241,7 @@ const remove = async (endpoint, Token) => {
             try { return ensureAppUrl(); } catch { return ''; }
         })();
         const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
-        const errorData = error?.response?.data;
-        const errorMessage = typeof errorData === 'object'
-            ? JSON.stringify(errorData, null, 2)
-            : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: DELETE\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        logApiError(error, 'DELETE', url, endpoint);
         throw error;
     }
 };

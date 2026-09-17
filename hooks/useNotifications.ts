@@ -51,7 +51,8 @@ export default function useNotifications(): UseNotificationsReturn {
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
+      if (__DEV__) console.log('Notification response received');
+      setLastNotification(response?.notification ?? null);
     });
 
     return () => {

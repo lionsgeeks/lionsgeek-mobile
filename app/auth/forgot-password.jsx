@@ -14,18 +14,16 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
 
   const send = async () => {
-    console.log('[FORGOT] Sending reset link to', email);
+    if (__DEV__) console.log('[FORGOT] Sending reset link');
     if (!email) return setError('Please enter your email');
     setSending(true);
     setMessage('');
     setError('');
     try {
-      console.log('[FORGOT] Calling API.post mobile/forgot-password');
       const response = await API.post('mobile/forgot-password', { email });
-      console.log('[FORGOT] Response received', { status: response?.status, data: response?.data });
       setMessage(response?.data?.status || 'Check your email for a reset link');
     } catch (e) {
-      console.error('[FORGOT] Failed', e);
+      if (__DEV__) console.error('[FORGOT] Failed', e?.message);
       setError('Something went wrong. Please try again.');
     } finally {
       setSending(false);
