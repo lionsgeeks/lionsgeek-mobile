@@ -41,6 +41,7 @@ app-example
 
 
 .cursor
+android/
 
 # Firebase Android client config — local only; provide to EAS via file env var
 google-services.json

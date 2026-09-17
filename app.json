@@ -52,8 +52,7 @@
         "android.permission.MANAGE_OWN_CALLS",
         "android.permission.BIND_TELECOM_CONNECTION_SERVICE"
       ],
-      "package": "com.lionsgeek_pro.lionsgeek",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.lionsgeek_pro.lionsgeek"
     },
     "web": {
       "bundler": "metro",
@@ -77,7 +76,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/logo.png",
           "color": "#ffffff",
           "defaultChannel": "default"
         }
@@ -87,14 +86,14 @@
         {
           "photosPermission": "LionsGeek uses your photo library so you can choose photos for your profile picture and cover, attach images to community posts and stories, and share photos in chat. For example, when you create a post, you can select a photo from your library to upload with your message.",
           "cameraPermission": "LionsGeek uses your camera to take profile and story photos, scan QR codes for event and training attendance, and capture images to share in chat.",
-          "microphonePermission": "LionsGeek uses your microphone for voice calls and when recording video stories."
+          "microphonePermission": "LionsGeek uses your microphone for voice messages in chat and when recording video stories."
         }
       ],
       [
         "expo-camera",
         {
           "cameraPermission": "LionsGeek uses your camera to take profile and story photos, scan QR codes for event and training attendance, and capture images to share in chat.",
-          "microphonePermission": "LionsGeek uses your microphone for voice calls and when recording video stories."
+          "microphonePermission": "LionsGeek uses your microphone for voice messages in chat and when recording video stories."
         }
       ],
       "expo-font",
@@ -102,7 +101,13 @@
       "@react-native-community/datetimepicker",
       "expo-image",
       "expo-status-bar",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
       "expo-video",
       "expo-asset",
       "@config-plugins/react-native-callkeep",
