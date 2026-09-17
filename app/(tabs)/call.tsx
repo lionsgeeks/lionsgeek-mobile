@@ -122,10 +122,32 @@ export default function CallScreen() {
     endingRef.current = true;
     try {
       await end?.();
-    } catch (_) {}
-    clearActiveCall?.();
-    router.replace('/(tabs)/home');
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[Call] hangUp endCall error:', e?.response?.data || e?.message || e);
+      }
+    } finally {
+      clearActiveCall?.();
+      router.replace('/(tabs)/home');
+    }
   }, [end, clearActiveCall, router]);
+
+  // If the call screen unmounts without an explicit hang-up (nav away),
+  // still close the server-side call so it cannot block future initiates.
+  useEffect(() => {
+    return () => {
+      if (endingRef.current) return;
+      endingRef.current = true;
+      Promise.resolve()
+        .then(() => end?.())
+        .catch((e) => {
+          if (__DEV__) {
+            console.warn('[Call] unmount endCall error:', e?.response?.data || e?.message || e);
+          }
+        })
+        .finally(() => clearActiveCall?.());
+    };
+  }, [end, clearActiveCall]);
 
   const onRemoteLeft = useCallback(() => {
     hangUp();

@@ -18,6 +18,7 @@ export default function InfoSessionLayout() {
           gestureEnabled: true,
           gestureDirection: 'horizontal',
           animation: 'slide_from_right',
+          contentStyle: { flex: 1, backgroundColor: '#000' },
         }}
       />
       <Stack.Screen

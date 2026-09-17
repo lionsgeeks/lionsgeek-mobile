@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Overlays } from '@/constants/Colors';
 
@@ -16,16 +16,23 @@ export default function ScanResultOverlay({ visible, result, onDismiss, dismissH
     return () => clearTimeout(timer);
   }, [visible, result, onDismiss]);
 
-  if (!visible || !result) return null;
+  if (!result) return null;
 
   const isSuccess = result.status === 'success' || result.status === 'warning';
   const iconName = isSuccess ? 'checkmark-circle' : 'close-circle';
   const iconColor = isSuccess ? Colors.good : Colors.error;
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+    <Modal
+      visible={!!visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onDismiss}
+    >
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityLabel="Dismiss" />
+        <View style={styles.card} pointerEvents="box-none">
           <View
             style={[
               styles.iconWrap,
@@ -46,22 +53,18 @@ export default function ScanResultOverlay({ visible, result, onDismiss, dismissH
           <Text style={styles.hint}>
             {dismissHint ?? 'Returning to event details in 2 seconds…'}
           </Text>
-        </Pressable>
-      </Pressable>
-    </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
-  },
-  backdrop: {
     flex: 1,
     backgroundColor: Overlays.backdrop,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 32,
   },
   card: {
@@ -73,6 +76,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light,
     padding: 24,
     alignItems: 'center',
+    zIndex: 1,
   },
   iconWrap: {
     width: 64,

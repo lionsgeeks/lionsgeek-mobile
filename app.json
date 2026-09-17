@@ -7,16 +7,22 @@
     "icon": "./assets/images/icon.png",
     "scheme": "lionsgeek",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lionsgeek.lionsgeek-mobile",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "LionsGeek uses your camera for video calls, profile and story photos, QR attendance scanning, and chat images.",
         "NSMicrophoneUsageDescription": "LionsGeek uses your microphone for audio and video calls and when recording video stories.",
         "NSPhotoLibraryUsageDescription": "LionsGeek uses your photo library so you can choose photos for your profile picture and cover, attach images to community posts and stories, and share photos in chat. For example, when you create a post, you can select a photo from your library to upload with your message.",
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "voip",
+          "audio"
         ]
       }
     },
@@ -37,7 +43,14 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK"
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+        "android.permission.WAKE_LOCK",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.READ_PHONE_NUMBERS",
+        "android.permission.CALL_PHONE",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE"
       ],
       "package": "com.lionsgeek_pro.lionsgeek",
       "googleServicesFile": "./google-services.json"
@@ -92,7 +105,9 @@
       "expo-status-bar",
       "expo-audio",
       "expo-video",
-      "expo-asset"
+      "expo-asset",
+      "@config-plugins/react-native-callkeep",
+      "./plugins/withVoipPushCallKeep.js"
     ],
     "experiments": {
       "typedRoutes": true

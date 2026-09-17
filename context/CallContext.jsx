@@ -4,6 +4,15 @@ import API from "@/api";
 import { useRouter } from "expo-router";
 import { useAppContext } from "@/context";
 import { getAgoraAppId } from "@/hooks/useAgoraCall";
+import { withCallApiRetry } from "@/utils/callApiRetry";
+import {
+    setupCallKeep,
+    displayNativeIncomingCall,
+    endNativeCallForCallId,
+    endAllNativeCalls,
+    bindCallKeepListeners,
+    isCallKeepAvailable,
+} from "@/services/callKeep";
 
 const CallContext = createContext(null);
 
@@ -49,6 +58,90 @@ export function CallProvider({ children }) {
         try { router.replace("/(tabs)/home"); } catch (_) {}
     }, [router]);
 
+    const presentIncoming = useCallback(async (payload) => {
+        if (!payload?.callId) return;
+        setIncomingCall(payload);
+        const callerName = payload?.caller?.name || 'LionsGeek user';
+        await displayNativeIncomingCall({
+            callId: payload.callId,
+            callerName,
+            callType: payload.type || 'audio',
+        });
+        try {
+            router.replace("/(tabs)/incoming-call");
+        } catch (_) {}
+    }, [router]);
+
+    // Native CallKeep setup + answer/decline from system UI
+    useEffect(() => {
+        if (!token || !user?.id) return undefined;
+        let cleanupKeep = () => {};
+        let cleanupVoip = () => {};
+        (async () => {
+            await setupCallKeep();
+            cleanupKeep = bindCallKeepListeners({
+                onAnswer: async (meta) => {
+                    const auth = tokenRef.current;
+                    if (!auth || !meta?.callId) return;
+                    try {
+                        const data = await withCallApiRetry(() => API.acceptCall(meta.callId, auth));
+                        if (data?.token && data?.channel_name) {
+                            setActiveCall(mapCallPayload(data, {
+                                isCaller: false,
+                                type: data.type || meta.callType || 'audio',
+                                caller: { name: meta.callerName },
+                            }));
+                            setIncomingCall(null);
+                            setTimeout(() => router.replace('/(tabs)/call'), 0);
+                        }
+                    } catch (err) {
+                        console.error('[CallContext] CallKeep answer failed', err?.response?.data || err?.message);
+                        await endNativeCallForCallId(meta.callId);
+                    }
+                },
+                onEnd: async (meta) => {
+                    const auth = tokenRef.current;
+                    if (!auth || !meta?.callId) return;
+                    const active = activeCallRef.current;
+                    const incoming = incomingCallRef.current;
+                    try {
+                        if (active?.callId && String(active.callId) === String(meta.callId)) {
+                            await withCallApiRetry(() => API.endCall(meta.callId, auth));
+                            setActiveCall(null);
+                        } else if (incoming?.callId && String(incoming.callId) === String(meta.callId)) {
+                            await withCallApiRetry(() => API.rejectCall(meta.callId, auth));
+                            setIncomingCall(null);
+                        } else {
+                            await withCallApiRetry(() => API.endCall(meta.callId, auth)).catch(() =>
+                                withCallApiRetry(() => API.rejectCall(meta.callId, auth))
+                            );
+                        }
+                    } catch (e) {
+                        console.error('[CallContext] CallKeep end failed', e?.response?.data || e?.message);
+                    } finally {
+                        if (!activeCallRef.current) {
+                            try { router.replace('/(tabs)/home'); } catch (_) {}
+                        }
+                    }
+                },
+            });
+
+            try {
+                // eslint-disable-next-line global-require
+                const { startVoipPushRegistration, sendVoipTokenToBackend } = require('@/services/voipPush');
+                cleanupVoip = startVoipPushRegistration(async (voipToken) => {
+                    await sendVoipTokenToBackend(voipToken, token);
+                });
+            } catch (e) {
+                if (__DEV__) console.warn('[CallContext] VoIP setup', e?.message);
+            }
+        })();
+        return () => {
+            cleanupKeep?.();
+            cleanupVoip?.();
+        };
+    }, [token, user?.id, router]);
+
     useEffect(() => {
         if (!token || !user?.id || !channelName) {
             if (ablyClientRef.current) {
@@ -86,13 +179,12 @@ export function CallProvider({ children }) {
                 channel.subscribe("incoming-call", async (msg) => {
                     const data = msg.data;
                     if (!data?.call_id) return;
-                    setIncomingCall({
+                    await presentIncoming({
                         callId: data.call_id,
                         channel_name: data.channel_name,
                         type: data.call_type || data.type || 'audio',
                         caller: data.caller || {},
                     });
-                    router.replace("/(tabs)/incoming-call");
                 });
 
                 channel.subscribe("call-accepted", (msg) => {
@@ -117,13 +209,24 @@ export function CallProvider({ children }) {
                 };
 
                 channel.subscribe("call-rejected", clearOutgoing);
-                channel.subscribe("call-cancelled", () => {
+                channel.subscribe("call-cancelled", async (msg) => {
+                    const callId = msg?.data?.call_id;
+                    if (callId) await endNativeCallForCallId(callId);
                     setIncomingCall(null);
                     setPendingCallAsCaller(null);
                     if (!activeCallRef.current) leaveToHome();
                 });
-                channel.subscribe("call-missed", leaveToHome);
-                channel.subscribe("call-ended", leaveToHome);
+                channel.subscribe("call-missed", async (msg) => {
+                    const callId = msg?.data?.call_id;
+                    if (callId) await endNativeCallForCallId(callId);
+                    leaveToHome();
+                });
+                channel.subscribe("call-ended", async (msg) => {
+                    const callId = msg?.data?.call_id;
+                    if (callId) await endNativeCallForCallId(callId);
+                    else await endAllNativeCalls();
+                    leaveToHome();
+                });
             } catch (e) {
                 console.error("[CallContext] Ably init error:", e);
             }
@@ -137,7 +240,7 @@ export function CallProvider({ children }) {
                 channelRef.current = null;
             }
         };
-    }, [token, user?.id, channelName, router, leaveToHome]);
+    }, [token, user?.id, channelName, router, leaveToHome, presentIncoming]);
 
     const initiate = useCallback(
         async (calleeId, type = 'audio') => {
@@ -167,10 +270,12 @@ export function CallProvider({ children }) {
                 return;
             }
             try {
-                if (API.cancelCall) await API.cancelCall(pending.callId, token);
-                else await API.endCall(pending.callId, token);
+                await withCallApiRetry(async () => {
+                    if (API.cancelCall) return API.cancelCall(pending.callId, token);
+                    return API.endCall(pending.callId, token);
+                });
             } catch (e) {
-                console.error("[CallContext] Cancel call error:", e);
+                console.error("[CallContext] Cancel call error:", e?.response?.data || e?.message);
             }
             setPendingCallAsCaller(null);
             router.replace("/(tabs)/home");
@@ -183,10 +288,11 @@ export function CallProvider({ children }) {
             if (!incomingCall?.callId || !token) return null;
             let data;
             try {
-                data = await API.acceptCall(incomingCall.callId, token);
+                data = await withCallApiRetry(() => API.acceptCall(incomingCall.callId, token));
             } catch (err) {
                 console.error('[CallContext] API.acceptCall failed', err?.response?.data || err?.message);
                 setIncomingCall(null);
+                await endNativeCallForCallId(incomingCall.callId);
                 throw err;
             }
 
@@ -208,24 +314,39 @@ export function CallProvider({ children }) {
 
     const reject = useCallback(async () => {
         if (!incomingCall?.callId || !token) return;
+        const callId = incomingCall.callId;
         try {
-            await API.rejectCall(incomingCall.callId, token);
+            await withCallApiRetry(() => API.rejectCall(callId, token));
+        } catch (e) {
+            console.error('[CallContext] reject failed', e?.response?.data || e?.message);
         } finally {
+            await endNativeCallForCallId(callId);
             setIncomingCall(null);
         }
     }, [incomingCall, token]);
 
     const end = useCallback(
         async () => {
-            if (!activeCall?.callId || !token) return;
+            const callId = activeCallRef.current?.callId;
+            const auth = tokenRef.current;
+            if (!callId || !auth) {
+                setActiveCall(null);
+                setPendingCallAsCaller(null);
+                return;
+            }
             try {
-                await API.endCall(activeCall.callId, token);
+                await withCallApiRetry(() => API.endCall(callId, auth));
+            } catch (e) {
+                console.error('[CallContext] endCall failed', e?.response?.data || e?.message);
+                // Still clear local state, but surface for debugging — server cleanup will expire stale rows.
+                throw e;
             } finally {
+                await endNativeCallForCallId(callId);
                 setActiveCall(null);
                 setPendingCallAsCaller(null);
             }
         },
-        [activeCall, token]
+        []
     );
 
     const clearIncomingCall = useCallback(() => {
@@ -247,6 +368,8 @@ export function CallProvider({ children }) {
         clearIncomingCall,
         clearActiveCall,
         setActiveCall,
+        presentIncoming,
+        callKeepAvailable: isCallKeepAvailable(),
     };
 
     return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
@@ -266,6 +389,8 @@ const safeDefault = {
     clearIncomingCall: noop,
     clearActiveCall: noop,
     setActiveCall: noop,
+    presentIncoming: noopAsync,
+    callKeepAvailable: false,
 };
 
 export function useCallContext() {

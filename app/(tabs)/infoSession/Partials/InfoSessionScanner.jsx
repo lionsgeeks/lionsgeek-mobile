@@ -46,7 +46,7 @@ function buildScanResult(message, profile) {
     };
   }
 
-  if (normalized.includes('no such participant')) {
+  if (normalized.includes('no such participant') || normalized.includes('profile not found') || normalized.includes('not found')) {
     return {
       status: 'error',
       title: 'Not registered',
@@ -89,6 +89,7 @@ export default function InfoSessionScanner() {
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [permission, requestPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('');
   const [lastResult, setLastResult] = useState(null);
@@ -145,8 +146,10 @@ export default function InfoSessionScanner() {
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       setLastResult(null);
       resetScanner();
+      return () => setIsFocused(false);
     }, [resetScanner])
   );
 
@@ -183,6 +186,14 @@ export default function InfoSessionScanner() {
       lastResultRef.current = scanResult;
       setLastResult(scanResult);
     } catch (error) {
+      const apiMessage = error?.response?.data?.message || error?.response?.data?.error;
+      const profile = error?.response?.data?.profile ?? null;
+      if (apiMessage) {
+        const scanResult = { ...buildScanResult(apiMessage, profile), profile };
+        lastResultRef.current = scanResult;
+        setLastResult(scanResult);
+        return;
+      }
       console.error('[SCAN] Info session validation error:', error);
       showFailure('Error', 'Failed to validate QR code. Please try again.');
     } finally {
@@ -218,53 +229,54 @@ export default function InfoSessionScanner() {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        active
-        onBarcodeScanned={scanPaused ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-      >
-        <View style={styles.overlay} pointerEvents="box-none">
-          <View style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={20} color={Colors.light} />
-            </Pressable>
-            <View style={styles.headerCenter}>
-              <Text style={styles.headerEyebrow}>SCANNING</Text>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                {sessionTitle}
-              </Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
+      {/* CameraView does not support children — overlays must be absolute siblings. */}
+      {isFocused ? (
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          active={!scanPaused}
+          onBarcodeScanned={scanPaused ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        />
+      ) : null}
 
-          <View style={styles.frameSection}>
-            <View style={styles.scanFrame}>
-              <ScanFrameCorner position="top-left" borderColor={accentFill} />
-              <ScanFrameCorner position="top-right" borderColor={accentFill} />
-              <ScanFrameCorner position="bottom-left" borderColor={accentFill} />
-              <ScanFrameCorner position="bottom-right" borderColor={accentFill} />
-
-              {processing ? (
-                <View style={styles.processingWrap}>
-                  <Skeleton width={32} height={32} borderRadius={16} isDark={false} />
-                  <Text style={styles.processingText}>Validating…</Text>
-                </View>
-              ) : (
-                <Ionicons name="qr-code-outline" size={48} color={accentIcon} />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>Position the participant QR code in the frame</Text>
-            <Text style={styles.instructionsSub}>
-              On success you will open the participant profile to take their photo.
-            </Text>
-          </View>
+      <View style={styles.header} pointerEvents="box-none">
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={20} color={Colors.light} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerEyebrow}>SCANNING</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {sessionTitle}
+          </Text>
         </View>
-      </CameraView>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <View style={styles.frameSection} pointerEvents="none">
+        <View style={styles.scanFrame}>
+          <ScanFrameCorner position="top-left" borderColor={accentFill} />
+          <ScanFrameCorner position="top-right" borderColor={accentFill} />
+          <ScanFrameCorner position="bottom-left" borderColor={accentFill} />
+          <ScanFrameCorner position="bottom-right" borderColor={accentFill} />
+
+          {processing ? (
+            <View style={styles.processingWrap}>
+              <Skeleton width={32} height={32} borderRadius={16} isDark={false} />
+              <Text style={styles.processingText}>Validating…</Text>
+            </View>
+          ) : (
+            <Ionicons name="qr-code-outline" size={48} color={accentIcon} />
+          )}
+        </View>
+      </View>
+
+      <View style={styles.instructions} pointerEvents="none">
+        <Text style={styles.instructionsTitle}>Position the participant QR code in the frame</Text>
+        <Text style={styles.instructionsSub}>
+          On success you will open the participant profile to take their photo.
+        </Text>
+      </View>
 
       <ScanResultOverlay
         visible={!!lastResult}
@@ -283,13 +295,22 @@ export default function InfoSessionScanner() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark,
+    backgroundColor: '#000',
+    overflow: 'hidden',
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
+  camera: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 56,
@@ -328,7 +349,12 @@ const styles = StyleSheet.create({
     width: 40,
   },
   frameSection: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -350,6 +376,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   instructions: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingBottom: 40,

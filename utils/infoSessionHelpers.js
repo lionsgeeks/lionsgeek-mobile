@@ -193,7 +193,38 @@ export function mapValidationMessage(message) {
   if (normalized.includes('already participated')) return 'warning';
   if (normalized.includes('another session')) return 'error';
   if (normalized.includes('no such participant')) return 'error';
+  if (normalized.includes('profile not found')) return 'error';
+  if (normalized.includes('not found')) return 'error';
   return 'info';
+}
+
+function axiosPayload(error) {
+  const data = error?.response?.data;
+  if (!data || typeof data !== 'object') return null;
+  const message = data.message || data.error || null;
+  if (!message) return null;
+  return {
+    message: String(message),
+    profile: data.profile ?? null,
+  };
+}
+
+function findSessionParticipant(participants, qr) {
+  if (!Array.isArray(participants) || !qr) return null;
+
+  if (qr.participantId != null) {
+    const byId = participants.find((p) => String(p?.id) === String(qr.participantId));
+    if (byId) return byId;
+  }
+
+  if (qr.email) {
+    const email = String(qr.email).trim().toLowerCase();
+    return (
+      participants.find((p) => String(p?.email || '').trim().toLowerCase() === email) || null
+    );
+  }
+
+  return null;
 }
 
 // lionsgeek.ma emails encode { id, email }; the API validates with email + participant.code.
@@ -241,48 +272,88 @@ export async function validateInfoSessionQrScan(rawPayload, sessionId) {
   let email = qr.email;
   let code = qr.code;
 
+  // Prefer session roster (includes invitation codes) so we don't depend on profile-data.
+  if ((!code || !email) && sessionId != null) {
+    try {
+      const sessionResponse = await InfoSessionAPI.getSessionData(sessionId);
+      const match = findSessionParticipant(sessionResponse?.data?.participants, qr);
+      if (match) {
+        email = email || match.email || null;
+        if (code == null && match.code != null && match.code !== '') {
+          code = String(match.code);
+        }
+      }
+    } catch {
+      // Fall through to profile-data / validate.
+    }
+  }
+
   // Current lionsgeek.ma PDF QR: { id, email } — resolve invitation code from profile.
   if (qr.participantId != null && !code) {
-    const profileResponse = await InfoSessionAPI.getProfileData(qr.participantId);
-    const profile = profileResponse?.data;
+    try {
+      const profileResponse = await InfoSessionAPI.getProfileData(qr.participantId);
+      const profile = profileResponse?.data;
 
-    if (!profile) {
-      return {
-        ok: false,
-        title: 'Not registered',
-        message: 'Participant not found.',
-      };
-    }
+      if (!profile || profile.message) {
+        return {
+          ok: true,
+          response: { data: { message: 'No such participant.', profile: null } },
+        };
+      }
 
-    email = profile.email;
-    code = profile.code != null && profile.code !== '' ? String(profile.code) : null;
+      email = email || profile.email || null;
+      code = profile.code != null && profile.code !== '' ? String(profile.code) : null;
 
-    if (
-      qr.email &&
-      email &&
-      String(qr.email).trim().toLowerCase() !== String(email).trim().toLowerCase()
-    ) {
-      return {
-        ok: false,
-        title: 'Invalid QR code',
-        message: 'QR code data does not match the participant record.',
-      };
+      if (
+        qr.email &&
+        email &&
+        String(qr.email).trim().toLowerCase() !== String(email).trim().toLowerCase()
+      ) {
+        return {
+          ok: false,
+          title: 'Invalid QR code',
+          message: 'QR code data does not match the participant record.',
+        };
+      }
+    } catch (error) {
+      const payload = axiosPayload(error);
+      if (error?.response?.status === 404 || payload) {
+        return {
+          ok: true,
+          response: {
+            data: {
+              message: payload?.message || 'No such participant.',
+              profile: payload?.profile ?? null,
+            },
+          },
+        };
+      }
+      throw error;
     }
   }
 
   if (!email || !code) {
     return {
-      ok: false,
-      title: 'Invalid QR code',
-      message: 'Missing participant information in this QR code.',
+      ok: true,
+      response: { data: { message: 'No such participant.', profile: null } },
     };
   }
 
-  const response = await InfoSessionAPI.validateInvitation({
-    email,
-    code,
-    sessionId: Number(sessionId),
-  });
-
-  return { ok: true, response };
+  try {
+    const response = await InfoSessionAPI.validateInvitation({
+      email,
+      code,
+      sessionId: Number(sessionId),
+    });
+    return { ok: true, response };
+  } catch (error) {
+    const payload = axiosPayload(error);
+    if (payload) {
+      return {
+        ok: true,
+        response: { data: { message: payload.message, profile: payload.profile } },
+      };
+    }
+    throw error;
+  }
 }

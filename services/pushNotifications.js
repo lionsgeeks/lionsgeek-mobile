@@ -27,14 +27,84 @@ function ensureNotificationHandler(Notifications) {
   if (!Notifications || notificationHandlerConfigured) return;
   notificationHandlerConfigured = true;
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async (notification) => {
+      const type = notification?.request?.content?.data?.type;
+      // Native CallKeep / CallKit owns the UI + ringtone for incoming calls.
+      if (type === 'incoming_call') {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: false,
+          shouldShowList: false,
+        };
+      }
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    },
   });
+}
+
+const BACKGROUND_CALL_TASK = 'LIONSGEEK-BACKGROUND-INCOMING-CALL';
+
+function defineBackgroundCallTask() {
+  if (!isPushNotificationsAvailable()) return;
+  try {
+    // eslint-disable-next-line global-require
+    const TaskManager = require('expo-task-manager');
+    TaskManager.defineTask(BACKGROUND_CALL_TASK, async ({ data, error }) => {
+      if (error) {
+        console.warn('[Push] background call task error', error);
+        return;
+      }
+      try {
+        const raw =
+          data?.notification?.request?.content?.data ||
+          data?.notification?.data ||
+          data?.data ||
+          data;
+        if (raw?.type !== 'incoming_call' || !raw?.call_id) return;
+        // eslint-disable-next-line global-require
+        const { displayNativeIncomingCall } = require('./callKeep');
+        await displayNativeIncomingCall({
+          callId: raw.call_id,
+          callerName: raw.caller_name || 'LionsGeek user',
+          callType: raw.call_type || 'audio',
+        });
+      } catch (e) {
+        console.warn('[Push] background CallKeep failed', e?.message);
+      }
+    });
+  } catch (e) {
+    // Already defined across Fast Refresh, or TaskManager unavailable.
+    if (__DEV__ && !String(e?.message || '').includes('already')) {
+      console.warn('[Push] TaskManager unavailable', e?.message);
+    }
+  }
+}
+
+defineBackgroundCallTask();
+
+async function presentIncomingCallFromPushData(data) {
+  if (!data || data.type !== 'incoming_call' || !data.call_id) return false;
+  try {
+    // eslint-disable-next-line global-require
+    const { displayNativeIncomingCall } = require('./callKeep');
+    await displayNativeIncomingCall({
+      callId: data.call_id,
+      callerName: data.caller_name || 'LionsGeek user',
+      callType: data.call_type || 'audio',
+    });
+    return true;
+  } catch (e) {
+    if (__DEV__) console.warn('[Push] presentIncomingCallFromPushData', e?.message);
+    return false;
+  }
 }
 
 /**
@@ -92,11 +162,15 @@ export async function registerForPushNotificationsAsync() {
         lightColor: '#22c55e',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
-        // Omit `sound` so Android uses the system default.
-        // `sound: 'default'` is treated as a custom file and throws in SDK 57.
         enableVibrate: true,
         showBadge: false,
       });
+    }
+
+    try {
+      await Notifications.registerTaskAsync(BACKGROUND_CALL_TASK);
+    } catch (e) {
+      if (__DEV__) console.warn('[Push] registerTaskAsync', e?.message);
     }
 
     return token;
@@ -206,13 +280,24 @@ export function setupNotificationListeners() {
   }
 
   ensureNotificationHandler(Notifications);
-  const notificationListener = Notifications.addNotificationReceivedListener(() => {});
+  const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+    const data = notification?.request?.content?.data;
+    if (data?.type === 'incoming_call') {
+      presentIncomingCallFromPushData(data);
+    }
+  });
 
   const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
     const notificationId = response?.notification?.request?.identifier;
     const data = response?.notification?.request?.content?.data;
     if (!data) return;
     markNotificationHandled(notificationId).finally(() => {
+      if (data.type === 'incoming_call') {
+        presentIncomingCallFromPushData(data).finally(() => {
+          handleNotificationNavigation(data);
+        });
+        return;
+      }
       handleNotificationNavigation(data);
     });
   });

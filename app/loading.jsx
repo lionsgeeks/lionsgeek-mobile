@@ -8,6 +8,7 @@ import API from '@/api';
 import { Home as LogoIcon } from '@/components/logo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { registerForPushNotificationsAsync, sendPushTokenToBackend, consumePendingNotificationNavigation, handleNotificationNavigation } from '@/services/pushNotifications';
+import { startVoipPushRegistration, sendVoipTokenToBackend } from '@/services/voipPush';
 
 export default function LoadingScreen() {
   const { saveAuth } = useAppContext();
@@ -41,6 +42,10 @@ export default function LoadingScreen() {
             if (pushToken) {
               await sendPushTokenToBackend(pushToken, tokenStr);
             }
+            // iOS PushKit VoIP token for CallKit when the app is killed.
+            startVoipPushRegistration(async (voipToken) => {
+              await sendVoipTokenToBackend(voipToken, tokenStr);
+            });
           } catch {
             // Push setup is optional; do not block app flow.
           }

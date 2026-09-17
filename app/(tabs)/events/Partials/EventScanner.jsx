@@ -91,6 +91,7 @@ export default function EventScanner() {
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [permission, requestPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventData, setEventData] = useState(null);
@@ -142,8 +143,10 @@ export default function EventScanner() {
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       setLastResult(null);
       resetScanner();
+      return () => setIsFocused(false);
     }, [resetScanner])
   );
 
@@ -251,53 +254,58 @@ export default function EventScanner() {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        active
-        onBarcodeScanned={scanPaused ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-      >
-        <View style={styles.overlay} pointerEvents="box-none">
-          <View style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
-            </Pressable>
-            <View style={styles.headerCenter}>
-              <Text style={styles.headerEyebrow}>SCANNING</Text>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                {eventTitle}
-              </Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
+      {/* CameraView does not support children — overlays must be absolute siblings. */}
+      {isFocused ? (
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          active={!scanPaused}
+          onBarcodeScanned={scanPaused ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        />
+      ) : (
+        <View style={styles.camera} />
+      )}
 
-          <View style={styles.frameSection}>
-            <View style={styles.scanFrame}>
-              <ScanFrameCorner position="top-left" borderColor={accentFill} />
-              <ScanFrameCorner position="top-right" borderColor={accentFill} />
-              <ScanFrameCorner position="bottom-left" borderColor={accentFill} />
-              <ScanFrameCorner position="bottom-right" borderColor={accentFill} />
-
-              {processing ? (
-                <View style={styles.processingWrap}>
-                  <Skeleton width={32} height={32} borderRadius={16} isDark={false} />
-                  <Text style={styles.processingText}>Validating…</Text>
-                </View>
-              ) : (
-                <Ionicons name="qr-code-outline" size={48} color={accentIcon} />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>Position the visitor QR code in the frame</Text>
-            <Text style={styles.instructionsSub}>
-              Registered visitors show success. Others show an error, then you return to event details.
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.header} pointerEvents="box-none">
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerEyebrow}>SCANNING</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {eventTitle}
             </Text>
           </View>
+          <View style={styles.headerSpacer} />
         </View>
-      </CameraView>
+
+        <View style={styles.frameSection} pointerEvents="none">
+          <View style={styles.scanFrame}>
+            <ScanFrameCorner position="top-left" borderColor={accentFill} />
+            <ScanFrameCorner position="top-right" borderColor={accentFill} />
+            <ScanFrameCorner position="bottom-left" borderColor={accentFill} />
+            <ScanFrameCorner position="bottom-right" borderColor={accentFill} />
+
+            {processing ? (
+              <View style={styles.processingWrap}>
+                <Skeleton width={32} height={32} borderRadius={16} isDark={false} />
+                <Text style={styles.processingText}>Validating…</Text>
+              </View>
+            ) : (
+              <Ionicons name="qr-code-outline" size={48} color={accentIcon} />
+            )}
+          </View>
+        </View>
+
+        <View style={styles.instructions} pointerEvents="none">
+          <Text style={styles.instructionsTitle}>Position the visitor QR code in the frame</Text>
+          <Text style={styles.instructionsSub}>
+            Registered visitors show success. Others show an error, then you return to event details.
+          </Text>
+        </View>
+      </View>
 
       <ScanResultOverlay visible={!!lastResult} result={lastResult} onDismiss={handleResultDismiss} />
     </View>
@@ -307,10 +315,14 @@ export default function EventScanner() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark,
+    backgroundColor: '#000',
+  },
+  camera: {
+    flex: 1,
   },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
     backgroundColor: 'transparent',
   },
   header: {
@@ -352,7 +364,6 @@ const styles = StyleSheet.create({
     width: 40,
   },
   frameSection: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
