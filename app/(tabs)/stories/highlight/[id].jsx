@@ -22,7 +22,6 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import StoryVideo from '../Partials/StoryVideo';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import OverlayRenderer from '../Partials/OverlayRenderer';

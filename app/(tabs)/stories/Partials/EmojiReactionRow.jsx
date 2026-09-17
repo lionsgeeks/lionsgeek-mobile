@@ -6,7 +6,6 @@ import Animated, {
   withTiming,
   withSequence,
   withDelay,
-  runOnJS,
   Easing,
 } from 'react-native-reanimated';
 

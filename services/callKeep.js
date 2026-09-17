@@ -210,10 +210,6 @@ export async function endAllNativeCalls() {
   callByUuid.clear();
 }
 
-export async function reportNativeCallEnded(callId) {
-  await endNativeCallForCallId(callId);
-}
-
 /**
  * Bind answer / end listeners. Returns cleanup.
  * Handlers receive { callId, uuid, callType, callerName }.

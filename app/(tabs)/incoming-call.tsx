@@ -10,7 +10,7 @@ import API from "@/api";
 export default function IncomingCallScreen() {
   const router = useRouter();
   const { callId: paramCallId } = useLocalSearchParams<{ callId?: string }>();
-  const { user, token } = useAppContext();
+  const { token } = useAppContext();
   const { incomingCall, activeCall, accept, reject, clearIncomingCall, setActiveCall } = useCallContext();
   const [fetchedCall, setFetchedCall] = useState<{
     callId: number;

@@ -8,7 +8,6 @@ import Constants from 'expo-constants';
 import API from '@/api';
 import {
   rememberIncomingFromVoip,
-  clearCallKeepMapping,
 } from '@/services/callKeep';
 
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -94,7 +93,6 @@ export function startVoipPushRegistration(onToken) {
       VoipPushNotification.removeEventListener('notification');
       VoipPushNotification.removeEventListener('didLoadWithEvents');
     } catch (_) {}
-    void clearCallKeepMapping;
   };
 }
 

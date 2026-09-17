@@ -61,7 +61,7 @@ function statusLabel(state: string): string {
 
 export default function CallScreen() {
   const router = useRouter();
-  const { user, token } = useAppContext();
+  const { user } = useAppContext();
   const { activeCall, end, clearActiveCall } = useCallContext();
   const [seconds, setSeconds] = useState(0);
   const [permReady, setPermReady] = useState(false);

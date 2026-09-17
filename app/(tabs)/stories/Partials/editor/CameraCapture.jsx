@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Pressable,
-  Image,
   ActivityIndicator,
   Platform,
   StatusBar as RNStatusBar,

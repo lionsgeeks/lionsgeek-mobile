@@ -1,4 +1,4 @@
-import { View, Text, Image, Platform } from 'react-native';
+import { View, Text, Image } from 'react-native';
 
 export default function StickerOverlay({ overlay, containerSize, selected = false, style }) {
   if (!overlay || !containerSize) return null;
