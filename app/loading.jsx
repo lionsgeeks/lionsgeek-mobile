@@ -63,14 +63,17 @@ export default function LoadingScreen() {
           const cached = await AsyncStorage.getItem('auth_user');
           if (cached) {
             try {
-              await enterAppWithUser(JSON.parse(cached));
-              return;
+              const parsed = JSON.parse(cached);
+              if (parsed?.id != null) {
+                await enterAppWithUser(parsed);
+                return;
+              }
             } catch {
               // fall through
             }
           }
-          await saveAuth(tokenStr, { id: null, name: 'You' });
-          router.replace('/(tabs)/home');
+          // Never enter the app with a null user id — calls/Ably require it.
+          router.replace('/auth/login');
         };
 
         try {

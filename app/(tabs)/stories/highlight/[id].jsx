@@ -439,6 +439,10 @@ export default function HighlightViewerScreen() {
                   muted: muted || ((typeof musicOverlay?.original_volume === 'number' ? musicOverlay.original_volume : (musicOverlay ? 0 : 1)) <= 0.01),
                   playerRef: videoRef,
                   onReady: () => setVideoReady(true),
+                  onError: () => {
+                    setVideoReady(true);
+                    advance();
+                  },
                   onEnd: advance,
                 }}
               />

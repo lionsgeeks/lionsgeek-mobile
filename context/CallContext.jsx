@@ -93,10 +93,17 @@ export function CallProvider({ children }) {
                             }));
                             setIncomingCall(null);
                             setTimeout(() => router.replace('/(tabs)/call'), 0);
+                            return;
                         }
+                        console.error('[CallContext] CallKeep answer missing Agora fields');
+                        await endNativeCallForCallId(meta.callId);
+                        setIncomingCall(null);
+                        try { router.replace('/(tabs)/home'); } catch (_) {}
                     } catch (err) {
                         console.error('[CallContext] CallKeep answer failed', err?.response?.data || err?.message);
                         await endNativeCallForCallId(meta.callId);
+                        setIncomingCall(null);
+                        try { router.replace('/(tabs)/home'); } catch (_) {}
                     }
                 },
                 onEnd: async (meta) => {

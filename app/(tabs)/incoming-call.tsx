@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Image, ActivityIndicator, Animated, Easing } from "react-native";
+import { View, Text, TouchableOpacity, Image, ActivityIndicator, Animated, Easing, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallContext } from "@/context/CallContext";
 import { useAppContext } from "@/context";
 import { useCallRinger } from "@/hooks/useCallRinger";
 import API from "@/api";
+import { endNativeCallForCallId } from "@/services/callKeep";
 
 export default function IncomingCallScreen() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function IncomingCallScreen() {
     type?: string;
     caller: { id: number; name?: string; avatar?: string | null };
   } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // When opened from push: we have callId param but no Ably incomingCall – fetch call details
   useEffect(() => {
@@ -89,12 +91,26 @@ export default function IncomingCallScreen() {
     return () => loop.stop();
   }, [displayCall, pulseAnim]);
 
+  const leaveIncoming = async (callId?: number | string | null) => {
+    if (callId != null) {
+      try { await endNativeCallForCallId(callId); } catch {}
+    }
+    clearIncomingCall?.();
+    setFetchedCall(null);
+    try { router.replace("/(tabs)/home"); } catch {}
+  };
+
   const handleAccept = async () => {
+    if (busy) return;
+    setBusy(true);
+    const callId = displayCall?.callId;
     try {
       if (incomingCall) {
         // accept() in CallContext already navigates to /call on success.
         await accept();
-      } else if (fetchedCall && token) {
+        return;
+      }
+      if (fetchedCall && token) {
         const data = await API.acceptCall(fetchedCall.callId, token);
         if (data?.token && data?.channel_name && setActiveCall) {
           setActiveCall({
@@ -106,23 +122,39 @@ export default function IncomingCallScreen() {
             isCaller: false,
             caller: fetchedCall.caller,
           });
+          setFetchedCall(null);
           router.replace("/(tabs)/call");
+          return;
         }
+        Alert.alert('Call failed', 'Could not join the call. Please try again.');
+        await leaveIncoming(callId);
+        return;
       }
     } catch (e) {
       console.error("Accept call error:", e);
+      Alert.alert('Call failed', e?.response?.data?.message || e?.message || 'Could not accept the call.');
+      await leaveIncoming(callId);
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleReject = async () => {
-    if (incomingCall) {
-      await reject();
-      clearIncomingCall();
-    } else if (fetchedCall && token) {
-      await API.rejectCall(fetchedCall.callId, token);
-      setFetchedCall(null);
+    if (busy) return;
+    setBusy(true);
+    const callId = displayCall?.callId;
+    try {
+      if (incomingCall) {
+        await reject();
+      } else if (fetchedCall && token) {
+        await API.rejectCall(fetchedCall.callId, token);
+      }
+    } catch (e) {
+      console.error("Reject call error:", e);
+    } finally {
+      setBusy(false);
+      await leaveIncoming(callId);
     }
-    router.replace("/(tabs)/home");
   };
 
   if (!displayCall) {
@@ -190,6 +222,7 @@ export default function IncomingCallScreen() {
           onPress={handleReject}
           className="items-center"
           activeOpacity={0.8}
+          disabled={busy}
         >
           <View className="w-20 h-20 rounded-full bg-red-500 items-center justify-center">
             <Ionicons
@@ -205,6 +238,7 @@ export default function IncomingCallScreen() {
           onPress={handleAccept}
           className="items-center"
           activeOpacity={0.8}
+          disabled={busy}
         >
           <View className="w-20 h-20 rounded-full bg-green-500 items-center justify-center">
             <Ionicons name="call" size={36} color="#fff" />

@@ -69,7 +69,7 @@ export function useCallRinger({ enabled, mode = 'incoming' }) {
                     interruptionMode: 'duckOthers',
                 });
 
-                const asset = require('../assets/sounds/ringtone.mp3');
+                const asset = require('../assets/sounds/ringtone.wav');
 
                 const player = createAudioPlayer(asset);
                 player.loop = true;
