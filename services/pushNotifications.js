@@ -84,19 +84,6 @@ export async function registerForPushNotificationsAsync() {
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
       });
-      await Notifications.setNotificationChannelAsync('incoming-calls', {
-        name: 'Incoming voice calls',
-        description: 'Persistent ringing notifications for incoming calls.',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
-        lightColor: '#22c55e',
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: true,
-        // Omit `sound` so Android uses the system default.
-        // `sound: 'default'` is treated as a custom file and throws in SDK 57.
-        enableVibrate: true,
-        showBadge: false,
-      });
     }
 
     return token;

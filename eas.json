@@ -12,14 +12,12 @@
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_EVENTS_INFO_SECTION_URL": "https://lionsgeek.ma/",
-        "EXPO_PUBLIC_EVENTS_INFO_USE_PROXY": "true"
-      }
+      "environment": "production"
     }
   },
   "submit": {

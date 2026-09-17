@@ -41,5 +41,7 @@ app-example
 
 
 .cursor
-
+android/
 google-services.json
+
+audit.md
