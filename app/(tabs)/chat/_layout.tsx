@@ -20,6 +20,9 @@ export default function ChatLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="create-group" />
+      <Stack.Screen name="group/[id]" />
+      <Stack.Screen name="group-info/[id]" />
       <Stack.Screen name="[otherUserId]" />
     </Stack>
   );

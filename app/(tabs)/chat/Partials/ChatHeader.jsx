@@ -17,6 +17,10 @@ export default function ChatHeader({ conversation, onBack }) {
     const [isStartingCall, setIsStartingCall] = useState(false);
     const [startingType, setStartingType] = useState(null);
 
+    const isGroup = conversation?.type === 'group';
+    const membersCount =
+        conversation?.members_count || conversation?.participants?.length || 0;
+
     const lastOnline = conversation.other_user?.last_online
         ? new Date(conversation.other_user.last_online)
         : null;
@@ -46,13 +50,25 @@ export default function ChatHeader({ conversation, onBack }) {
 
     let statusLine = null;
     let isOnline = false;
-    if (lastOnline) {
+    if (isGroup) {
+        statusLine = `${membersCount} member${membersCount === 1 ? '' : 's'}`;
+    } else if (lastOnline) {
         const diffMinutes = Math.floor((Date.now() - lastOnline) / (1000 * 60));
         isOnline = diffMinutes <= 5;
         statusLine = isOnline
             ? 'Active now'
             : `Last seen ${diffMinutes < 60 ? `${diffMinutes}m ago` : `${Math.floor(diffMinutes / 60)}h ago`}`;
     }
+
+    const title = isGroup
+        ? conversation.name || 'Group'
+        : conversation.other_user?.name || 'User';
+
+    const openGroupInfo = () => {
+        const id = conversation?.id;
+        if (!id) return;
+        router.push(`/(tabs)/chat/group-info/${id}`);
+    };
 
     return (
         <View
@@ -69,77 +85,99 @@ export default function ChatHeader({ conversation, onBack }) {
                         <Ionicons name="chevron-back" size={22} color={fg} />
                     </Pressable>
                 )}
-                <View className="flex-1 flex-row items-center min-w-0 gap-3">
-                    <Pressable
-                        onPress={() =>
-                            router.push({
-                                pathname: '/(tabs)/profile',
-                                params: { userId: String(conversation.other_user.id) },
-                            })
-                        }
-                        className="relative"
-                    >
-                        {conversation.other_user?.image ? (
-                            <Image
-                                source={{ uri: `${API.APP_URL}/storage/img/profile/${conversation.other_user.image}` }}
-                                className="w-12 h-12 rounded-2xl"
-                                resizeMode="cover"
-                            />
-                        ) : (
-                            <View className="w-12 h-12 rounded-2xl bg-neutral-200 dark:bg-zinc-800 items-center justify-center">
-                                <Text className="text-lg font-bold text-black/30 dark:text-white/30">
-                                    {(conversation.other_user?.name || '?').charAt(0).toUpperCase()}
-                                </Text>
-                            </View>
-                        )}
-                        <View
-                            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-light dark:border-dark ${isOnline ? 'bg-alpha' : 'bg-neutral-400 dark:bg-zinc-600'
+                <Pressable
+                    onPress={
+                        isGroup
+                            ? openGroupInfo
+                            : () =>
+                                  router.push({
+                                      pathname: '/(tabs)/profile',
+                                      params: { userId: String(conversation.other_user.id) },
+                                  })
+                    }
+                    className="flex-1 flex-row items-center min-w-0 gap-3 active:opacity-80"
+                >
+                    {isGroup ? (
+                        <View className="w-12 h-12 rounded-2xl bg-alpha/20 items-center justify-center">
+                            <Ionicons name="people" size={22} color={fg} />
+                        </View>
+                    ) : (
+                        <View className="relative">
+                            {conversation.other_user?.image ? (
+                                <Image
+                                    source={{
+                                        uri: `${API.APP_URL}/storage/img/profile/${conversation.other_user.image}`,
+                                    }}
+                                    className="w-12 h-12 rounded-2xl"
+                                    resizeMode="cover"
+                                />
+                            ) : (
+                                <View className="w-12 h-12 rounded-2xl bg-neutral-200 dark:bg-zinc-800 items-center justify-center">
+                                    <Text className="text-lg font-bold text-black/30 dark:text-white/30">
+                                        {(conversation.other_user?.name || '?').charAt(0).toUpperCase()}
+                                    </Text>
+                                </View>
+                            )}
+                            <View
+                                className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-light dark:border-dark ${
+                                    isOnline ? 'bg-alpha' : 'bg-neutral-400 dark:bg-zinc-600'
                                 }`}
-                        />
-                    </Pressable>
+                            />
+                        </View>
+                    )}
+                    <View className="flex-1 min-w-0">
+                        <Text
+                            className="text-base font-extrabold text-black dark:text-white tracking-tight"
+                            numberOfLines={1}
+                        >
+                            {title}
+                        </Text>
+                        <Text
+                            className="text-[11px] mt-0.5 uppercase tracking-[0.14em] text-black/50 dark:text-white"
+                            numberOfLines={1}
+                        >
+                            {statusLine || (isGroup ? 'Group' : 'Offline')}
+                        </Text>
+                    </View>
+                </Pressable>
+                {isGroup ? (
                     <Pressable
-                        onPress={() =>
-                            router.push({
-                                pathname: '/(tabs)/profile',
-                                params: { userId: String(conversation.other_user.id) },
-                            })
-                        }
-                        className="flex-1 min-w-0"
+                        onPress={openGroupInfo}
+                        accessibilityLabel="Group info"
+                        className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
                     >
-                        <Text className="text-base font-extrabold text-black dark:text-white tracking-tight" numberOfLines={1}>
-                            {conversation.other_user?.name || 'User'}
-                        </Text>
-                        <Text className="text-[11px] mt-0.5 uppercase tracking-[0.14em] text-black/50 dark:text-white" numberOfLines={1}>
-                            {statusLine || 'Offline'}
-                        </Text>
+                        <Ionicons name="information-circle-outline" size={22} color={fg} />
                     </Pressable>
-                </View>
-                <Pressable
-                    onPress={() => handleCall('audio')}
-                    disabled={isStartingCall}
-                    accessibilityLabel="Audio call"
-                    className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
-                    style={isStartingCall ? { opacity: 0.6 } : undefined}
-                >
-                    {isStartingCall && startingType === 'audio' ? (
-                        <ActivityIndicator size="small" color={fg} />
-                    ) : (
-                        <Ionicons name="call-outline" size={20} color={fg} />
-                    )}
-                </Pressable>
-                <Pressable
-                    onPress={() => handleCall('video')}
-                    disabled={isStartingCall}
-                    accessibilityLabel="Video call"
-                    className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
-                    style={isStartingCall ? { opacity: 0.6 } : undefined}
-                >
-                    {isStartingCall && startingType === 'video' ? (
-                        <ActivityIndicator size="small" color={fg} />
-                    ) : (
-                        <Ionicons name="videocam-outline" size={20} color={fg} />
-                    )}
-                </Pressable>
+                ) : (
+                    <>
+                        <Pressable
+                            onPress={() => handleCall('audio')}
+                            disabled={isStartingCall}
+                            accessibilityLabel="Audio call"
+                            className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
+                            style={isStartingCall ? { opacity: 0.6 } : undefined}
+                        >
+                            {isStartingCall && startingType === 'audio' ? (
+                                <ActivityIndicator size="small" color={fg} />
+                            ) : (
+                                <Ionicons name="call-outline" size={20} color={fg} />
+                            )}
+                        </Pressable>
+                        <Pressable
+                            onPress={() => handleCall('video')}
+                            disabled={isStartingCall}
+                            accessibilityLabel="Video call"
+                            className="w-10 h-10 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-70"
+                            style={isStartingCall ? { opacity: 0.6 } : undefined}
+                        >
+                            {isStartingCall && startingType === 'video' ? (
+                                <ActivityIndicator size="small" color={fg} />
+                            ) : (
+                                <Ionicons name="videocam-outline" size={20} color={fg} />
+                            )}
+                        </Pressable>
+                    </>
+                )}
             </View>
         </View>
     );

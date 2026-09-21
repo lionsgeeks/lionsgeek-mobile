@@ -19,6 +19,13 @@ function openChatThread(otherUserId, onBeforeNavigate) {
   router.push(`/(tabs)/chat/${id}`);
 }
 
+function openGroupThread(conversationId, onBeforeNavigate) {
+  const id = String(conversationId ?? '').trim();
+  if (!id) return;
+  onBeforeNavigate?.();
+  router.push(`/(tabs)/chat/group/${id}`);
+}
+
 function parseStructuredBody(body) {
   if (!body) return null;
   if (typeof body === 'object') return body;
@@ -79,8 +86,12 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
     }, [fetchConversations])
   );
 
-  const handleConversationClick = (_conversationId, otherUserId) => {
-    openChatThread(otherUserId, onBeforeNavigateToThread);
+  const handleConversationClick = (conversation) => {
+    if (conversation?.type === 'group') {
+      openGroupThread(conversation.id, onBeforeNavigateToThread);
+      return;
+    }
+    openChatThread(conversation?.other_user?.id, onBeforeNavigateToThread);
   };
 
   useEffect(() => {
@@ -124,6 +135,11 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
   const viewerIsAdmin = userHasAdminRole(currentUser);
   const q = searchQuery.toLowerCase();
   const filteredConversations = conversations.filter((conv) => {
+    if (conv.type === 'group') {
+      return String(conv.name || '')
+        .toLowerCase()
+        .includes(q);
+    }
     const nameMatch = conv.other_user?.name?.toLowerCase().includes(q);
     const emailMatch =
       viewerIsAdmin && conv.other_user?.email?.toLowerCase().includes(q);
@@ -266,9 +282,7 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
                 conversation={conversation}
                 currentUserId={currentUser?.id}
                 accentIcon={accentIcon}
-                onClick={() =>
-                  handleConversationClick(conversation.id, conversation.other_user.id)
-                }
+                onClick={() => handleConversationClick(conversation)}
                 onLongPress={() => setContextConversation(conversation)}
               />
             ))}
@@ -295,26 +309,41 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
             </View>
             <View className="px-5 pt-3 pb-3 border-b border-beta/10 dark:border-light/10">
               <Text className="text-[10px] font-bold tracking-[0.2em] text-beta/45 dark:text-light/45 uppercase">
-                Conversation
+                {contextConversation?.type === 'group' ? 'Group' : 'Conversation'}
               </Text>
               <Text
                 className="text-base font-semibold text-beta dark:text-light mt-1.5"
                 numberOfLines={1}
               >
-                {contextConversation?.other_user?.name || 'Conversation'}
+                {contextConversation?.type === 'group'
+                  ? contextConversation?.name || 'Group'
+                  : contextConversation?.other_user?.name || 'Conversation'}
               </Text>
             </View>
             <Pressable
               onPress={() => {
                 if (!contextConversation) return;
                 setContextConversation(null);
-                openChatThread(contextConversation.other_user.id, onBeforeNavigateToThread);
+                handleConversationClick(contextConversation);
               }}
               className="mx-4 mt-4 px-4 py-3.5 flex-row items-center rounded-2xl border border-beta/10 dark:border-light/10"
             >
               <Ionicons name="chatbubble-ellipses-outline" size={18} color={accentIcon} />
               <Text className="ml-3 text-beta dark:text-light font-semibold">Open conversation</Text>
             </Pressable>
+            {contextConversation?.type === 'group' ? (
+              <Pressable
+                onPress={() => {
+                  const id = contextConversation?.id;
+                  setContextConversation(null);
+                  if (id) router.push(`/(tabs)/chat/group-info/${id}`);
+                }}
+                className="mx-4 mt-2 px-4 py-3.5 flex-row items-center rounded-2xl border border-beta/10 dark:border-light/10"
+              >
+                <Ionicons name="information-circle-outline" size={18} color={accentIcon} />
+                <Text className="ml-3 text-beta dark:text-light font-semibold">Group info</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() =>
                 contextConversation && handleDeleteConversation(contextConversation.id)
@@ -322,7 +351,9 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
               className="mx-4 mt-2 px-4 py-3.5 flex-row items-center rounded-2xl bg-error/10"
             >
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
-              <Text className="ml-3 text-error font-semibold">Delete conversation</Text>
+              <Text className="ml-3 text-error font-semibold">
+                {contextConversation?.type === 'group' ? 'Leave / delete group' : 'Delete conversation'}
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => setContextConversation(null)}
@@ -341,7 +372,10 @@ export default function ConversationsList({ onUnreadCountChange, onBeforeNavigat
 
 function ConversationItem({ conversation, currentUserId, accentIcon, onClick, onLongPress }) {
   const unread = conversation.unread_count > 0;
-  const otherUserName = conversation.other_user?.name || 'User';
+  const isGroup = conversation.type === 'group';
+  const otherUserName = isGroup
+    ? conversation.name || 'Group'
+    : conversation.other_user?.name || 'User';
   const timeShort = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true })
         .replace('about ', '')
@@ -360,7 +394,7 @@ function ConversationItem({ conversation, currentUserId, accentIcon, onClick, on
     : '';
 
   const getLastMessagePreview = () => {
-    if (!conversation.last_message) return 'Tap to open';
+    if (!conversation.last_message) return isGroup ? 'New group' : 'Tap to open';
     const { body, attachment_type, sender_id } = conversation.last_message;
     const isFromCurrentUser = sender_id === currentUserId;
     const prefix = isFromCurrentUser ? 'You: ' : '';
@@ -400,7 +434,11 @@ function ConversationItem({ conversation, currentUserId, accentIcon, onClick, on
     >
       <View className="flex-row items-center p-4 gap-3">
         <View className="relative">
-          {conversation.other_user?.image ? (
+          {isGroup ? (
+            <View className="h-14 w-14 rounded-2xl bg-alpha/20 items-center justify-center">
+              <Ionicons name="people" size={24} color={accentIcon} />
+            </View>
+          ) : conversation.other_user?.image ? (
             <Image
               source={{
                 uri: `${API.APP_URL}/storage/img/profile/${conversation.other_user.image}`,
@@ -442,6 +480,12 @@ function ConversationItem({ conversation, currentUserId, accentIcon, onClick, on
               </Text>
             ) : null}
           </View>
+
+          {isGroup ? (
+            <Text className="text-[11px] text-beta/45 dark:text-light/45 mt-0.5">
+              {conversation.members_count || conversation.participants?.length || 0} members
+            </Text>
+          ) : null}
 
           <View className="flex-row items-center gap-1.5 mt-1.5">
             {conversation.last_message?.attachment_type === 'image' ? (
