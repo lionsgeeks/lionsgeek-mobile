@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
-  Modal,
   StyleSheet,
   Pressable,
   Image,
   Linking,
   Dimensions,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +34,7 @@ const OVAL_HEIGHT = 320;
  *
  * @param {{
  *   visible: boolean,
+ *   submitting?: boolean,
  *   onCapture: (photoUri: string) => void,
  *   onCancel: () => void,
  *   errorMessage?: string | null,
@@ -41,12 +42,14 @@ const OVAL_HEIGHT = 320;
  */
 export default function FaceCaptureModal({
   visible,
+  submitting = false,
   onCapture,
   onCancel,
   errorMessage = null,
 }) {
   const insets = useSafeAreaInsets();
   const cameraRef = useRef(null);
+  const confirmLock = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedUri, setCapturedUri] = useState(null);
   const [capturing, setCapturing] = useState(false);
@@ -68,8 +71,12 @@ export default function FaceCaptureModal({
       requestPermission();
     }
 
-    return undefined;
-  }, [visible, permission, requestPermission, borderOpacity]);
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!submitting) onCancel();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, permission, requestPermission, borderOpacity, onCancel, submitting]);
 
   useEffect(() => {
     if (!visible || capturedUri || !permission?.granted) {
@@ -123,14 +130,25 @@ export default function FaceCaptureModal({
     }
   }, [capturing, capturedUri, borderOpacity]);
 
-  const handleRetake = useCallback(() => {
+  useEffect(() => {
+    if (!submitting) confirmLock.current = false;
+  }, [submitting]);
+
+  useEffect(() => {
+    if (!errorMessage || submitting) return;
     setCapturedUri(null);
-  }, []);
+  }, [errorMessage, submitting]);
+
+  const handleRetake = useCallback(() => {
+    if (submitting) return;
+    setCapturedUri(null);
+  }, [submitting]);
 
   const handleConfirm = useCallback(() => {
-    if (!capturedUri) return;
+    if (!capturedUri || submitting || confirmLock.current) return;
+    confirmLock.current = true;
     onCapture(capturedUri);
-  }, [capturedUri, onCapture]);
+  }, [capturedUri, onCapture, submitting]);
 
   const renderPermissionLoading = () => (
     <View style={styles.centered}>
@@ -167,7 +185,8 @@ export default function FaceCaptureModal({
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <Pressable
         style={styles.headerBack}
-        onPress={onCancel}
+        onPress={submitting ? undefined : onCancel}
+        disabled={submitting}
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel="Cancel face capture"
@@ -183,52 +202,55 @@ export default function FaceCaptureModal({
     <View style={styles.flex}>
       <CameraView
         ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
+        style={styles.flex}
         facing="front"
-        active={visible && !capturedUri}
       />
 
-      {renderHeader()}
+      <View style={styles.overlayLayer} pointerEvents="box-none">
+        {renderHeader()}
 
-      <View style={styles.ovalWrap} pointerEvents="none">
-        {errorMessage ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{errorMessage}</Text>
-            <Text style={styles.errorBannerSub}>
-              No worries — better light usually does it.
-            </Text>
-          </View>
-        ) : null}
+        <View style={styles.ovalWrap} pointerEvents="none">
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+              {errorMessage === "Hmm, we couldn't tell it was you." ? (
+                <Text style={styles.errorBannerSub}>
+                  No worries — better light usually does it.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
-        <Animated.View style={[styles.oval, ovalAnimatedStyle]} />
+          <Animated.View style={[styles.oval, ovalAnimatedStyle]} />
 
-        {qualityHint ? (
-          <View style={styles.qualityHint}>
-            <Text style={styles.qualityHintText}>{qualityHint}</Text>
-          </View>
-        ) : null}
-      </View>
+          {qualityHint ? (
+            <View style={styles.qualityHint}>
+              <Text style={styles.qualityHintText}>{qualityHint}</Text>
+            </View>
+          ) : null}
+        </View>
 
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 40 }]}>
-        <Text style={styles.instruction}>Look at the camera</Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.captureOuter,
-            pressed && styles.capturePressed,
-          ]}
-          onPress={handleCapture}
-          disabled={capturing}
-          accessibilityRole="button"
-          accessibilityLabel="Capture photo"
-        >
-          <View style={styles.captureInner}>
-            {capturing ? (
-              <ActivityIndicator color="#1a1400" />
-            ) : (
-              <Ionicons name="camera" size={28} color="#1a1400" />
-            )}
-          </View>
-        </Pressable>
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 40 }]}>
+          <Text style={styles.instruction}>Look at the camera</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.captureOuter,
+              pressed && styles.capturePressed,
+            ]}
+            onPress={handleCapture}
+            disabled={capturing}
+            accessibilityRole="button"
+            accessibilityLabel="Capture photo"
+          >
+            <View style={styles.captureInner}>
+              {capturing ? (
+                <ActivityIndicator color="#1a1400" />
+              ) : (
+                <Ionicons name="camera" size={28} color="#1a1400" />
+              )}
+            </View>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -243,16 +265,21 @@ export default function FaceCaptureModal({
       <View style={styles.previewOverlay} />
       {renderHeader()}
 
-      <View style={styles.previewCard}>
-        <Text style={styles.previewLabel}>Looks good?</Text>
+      <View style={[styles.previewCard, { bottom: insets.bottom + 28 }]}>
+        <Text style={styles.previewLabel}>
+          {submitting ? 'Sending your photo' : 'Looks good?'}
+        </Text>
         <Text style={styles.previewSub}>
-          This is the photo we'll use to recognise you.
+          {submitting
+            ? 'Please wait while we mark your attendance.'
+            : "This is the photo we'll use to recognise you."}
         </Text>
         <View className="flex-row items-center gap-3">
           <Button
             variant="outline"
             className="flex-1 rounded-2xl border-white/25"
             onPress={handleRetake}
+            disabled={submitting}
           >
             Retake
           </Button>
@@ -260,6 +287,8 @@ export default function FaceCaptureModal({
             variant="default"
             className="flex-1 rounded-2xl"
             onPress={handleConfirm}
+            disabled={submitting}
+            loading={submitting}
           >
             Looks good — use this
           </Button>
@@ -269,6 +298,9 @@ export default function FaceCaptureModal({
   );
 
   let body = null;
+  if (!visible) {
+    return null;
+  }
   if (!permission) {
     body = renderPermissionLoading();
   } else if (!permission.granted) {
@@ -280,14 +312,7 @@ export default function FaceCaptureModal({
   }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="fullScreen"
-      onRequestClose={onCancel}
-    >
-      <View style={styles.root}>{body}</View>
-    </Modal>
+    <View style={styles.root}>{body}</View>
   );
 }
 
@@ -298,6 +323,13 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  overlayLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   centered: {
     flex: 1,
@@ -364,7 +396,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   ovalWrap: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -461,14 +497,13 @@ const styles = StyleSheet.create({
   },
   previewOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
   },
   previewCard: {
     position: 'absolute',
     alignSelf: 'center',
-    top: '50%',
-    marginTop: -120,
-    width: SCREEN_WIDTH - 48,
+    left: 24,
+    right: 24,
     backgroundColor: 'rgba(23,23,23,0.92)',
     borderRadius: 20,
     borderWidth: 1,
