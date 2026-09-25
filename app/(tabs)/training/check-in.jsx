@@ -30,6 +30,7 @@ import {
   formatCheckInSuccessMessage,
   getApiMessage,
   isFaceNotRecognizedError,
+  isLivePhotoUploadError,
   isStaffUser,
   isStudentUser,
   submitCheckIn,
@@ -306,6 +307,12 @@ export default function AttendanceCheckIn() {
         if (isFaceNotRecognizedError(error)) {
           setFaceError("Hmm, we couldn't tell it was you.");
           setShowFaceCapture(true);
+        } else if (isLivePhotoUploadError(error)) {
+          Alert.alert(
+            'Check-In Failed',
+            getApiMessage(error, 'The live photo failed to upload. Please try again.'),
+          );
+          setShowFaceCapture(true);
         } else if (status === 403) {
           handleCheckInRestricted(error);
         } else if (status === 503) {
@@ -385,6 +392,17 @@ export default function AttendanceCheckIn() {
   const showStatusCard = !showSkeleton && !showCta;
   const ctaIconColor = screenUi.mutedCta ? V.tertiaryText : V.onAccent;
   const ctaSpinnerColor = screenUi.mutedCta ? V.tertiaryText : V.onAccent;
+
+  if (showFaceCapture) {
+    return (
+      <FaceCaptureModal
+        visible
+        onCapture={handleFaceCapture}
+        onCancel={handleFaceCancel}
+        errorMessage={faceError}
+      />
+    );
+  }
 
   return (
     <AppLayout className={isDark ? 'bg-[#0b0b0c] dark:bg-[#0b0b0c]' : ''}>
@@ -505,13 +523,6 @@ export default function AttendanceCheckIn() {
             ) : null}
           </View>
         </ScrollView>
-
-        <FaceCaptureModal
-          visible={showFaceCapture}
-          onCapture={handleFaceCapture}
-          onCancel={handleFaceCancel}
-          errorMessage={faceError}
-        />
       </View>
     </AppLayout>
   );

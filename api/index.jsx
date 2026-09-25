@@ -132,12 +132,9 @@ const post = async (endpoint, data, Token) => {
         );
 
         // For JSON, we set application/json.
-        // For FormData (uploads), axios-on-RN is more reliable when explicitly
-        // using multipart/form-data (boundary is handled by the native layer).
+        // For FormData, omit Content-Type so the native layer sets the multipart boundary.
         if (!isFormData) {
             headers['Content-Type'] = 'application/json';
-        } else {
-            headers['Content-Type'] = 'multipart/form-data';
         }
 
         if (Token) {

@@ -19,11 +19,13 @@ import {
   checkAttendanceNetwork,
   formatCheckInSuccessMessage,
   getApiMessage,
-  getTrainingHubRoute,
   isFaceNotRecognizedError,
+  isLivePhotoUploadError,
   isStaffUser,
   submitCheckIn,
 } from '@/components/training/attendanceCheckIn';
+
+const HOME_ROUTE = '/(tabs)/home';
 
 export default function QRScanner() {
   const { id, trainingId } = useLocalSearchParams();
@@ -45,15 +47,14 @@ export default function QRScanner() {
   const [pendingFormationId, setPendingFormationId] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
 
-  const navigateToTraining = useCallback(() => {
+  const navigateHome = useCallback(() => {
     try {
       const routerToUse = routerHook || routerDirect;
-      const route = getTrainingHubRoute(user);
       if (routerToUse) {
-        if (typeof routerToUse.push === 'function') {
-          routerToUse.push(route);
-        } else if (typeof routerToUse.replace === 'function') {
-          routerToUse.replace(route);
+        if (typeof routerToUse.replace === 'function') {
+          routerToUse.replace(HOME_ROUTE);
+        } else if (typeof routerToUse.push === 'function') {
+          routerToUse.push(HOME_ROUTE);
         } else {
           console.warn('Router navigation methods not available');
         }
@@ -63,7 +64,20 @@ export default function QRScanner() {
     } catch (error) {
       console.error('Navigation error:', error);
     }
-  }, [routerHook, user]);
+  }, [routerHook]);
+
+  const goBack = useCallback(() => {
+    try {
+      const routerToUse = routerHook || routerDirect;
+      if (typeof routerToUse?.back === 'function') {
+        routerToUse.back();
+      } else if (typeof routerToUse?.replace === 'function') {
+        routerToUse.replace(HOME_ROUTE);
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [routerHook]);
 
   const resetScanner = useCallback(() => {
     setScanned(false);
@@ -77,8 +91,8 @@ export default function QRScanner() {
   }, []);
 
   const showAttendanceSuccess = useCallback((message) => {
-    Alert.alert('Attendance Marked', message, [{ text: 'OK', onPress: navigateToTraining }]);
-  }, [navigateToTraining]);
+    Alert.alert('Attendance Marked', message, [{ text: 'OK', onPress: navigateHome }]);
+  }, [navigateHome]);
 
   const checkNetwork = useCallback(async () => {
     if (!token || isStaffUser(user)) {
@@ -206,7 +220,6 @@ export default function QRScanner() {
         return;
       }
 
-      setShowFaceCapture(false);
       setFaceError(null);
       setProcessing(true);
 
@@ -217,8 +230,9 @@ export default function QRScanner() {
         });
         pendingCheckInRef.current = null;
         setPendingFormationId(null);
-        setIsPaused(false);
         setProcessing(false);
+        setShowFaceCapture(false);
+        setIsPaused(false);
         showAttendanceSuccess(formatCheckInSuccessMessage(data));
       } catch (checkInError) {
         setProcessing(false);
@@ -227,9 +241,16 @@ export default function QRScanner() {
         if (isFaceNotRecognizedError(checkInError)) {
           setFaceError("Hmm, we couldn't tell it was you.");
           setIsPaused(true);
-          setShowFaceCapture(true);
           return;
         }
+        if (isLivePhotoUploadError(checkInError)) {
+          const message = getApiMessage(checkInError, 'The live photo failed to upload. Please try again.');
+          setFaceError(message);
+          setIsPaused(true);
+          Alert.alert('Check-In Failed', message);
+          return;
+        }
+        setShowFaceCapture(false);
         if (status === 403) {
           handleCheckInRestricted(checkInError);
           return;
@@ -245,7 +266,7 @@ export default function QRScanner() {
           Alert.alert(
             'Already Marked',
             getApiMessage(checkInError, 'You have already marked attendance for this slot.'),
-            [{ text: 'OK', onPress: navigateToTraining }],
+            [{ text: 'OK', onPress: navigateHome }],
           );
           return;
         }
@@ -271,7 +292,7 @@ export default function QRScanner() {
       showAttendanceSuccess,
       handleCheckInRestricted,
       handleCheckInUnavailable,
-      navigateToTraining,
+      navigateHome,
       resetScanner,
     ],
   );
@@ -381,19 +402,30 @@ export default function QRScanner() {
   return (
     <View style={styles.container}>
       <CameraView
-        style={StyleSheet.absoluteFillObject}
+        style={styles.camera}
         facing="back"
         active={!isPaused && !showFaceCapture}
         onBarcodeScanned={scanned || processing || isPaused || showFaceCapture ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
-      >
-        <View style={styles.overlay}>
+      />
+      {showFaceCapture ? (
+        <View style={styles.faceLayer}>
+          <FaceCaptureModal
+            visible
+            submitting={processing}
+            onCapture={handleFaceCapture}
+            onCancel={handleFaceCancel}
+            errorMessage={faceError}
+          />
+        </View>
+      ) : (
+        <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.header}>
             <Pressable
               style={styles.backButton(isDark)}
-              onPress={navigateToTraining}
+              onPress={goBack}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.light} />
             </Pressable>
@@ -450,14 +482,7 @@ export default function QRScanner() {
             )}
           </View>
         </View>
-      </CameraView>
-
-      <FaceCaptureModal
-        visible={showFaceCapture}
-        onCapture={handleFaceCapture}
-        onCancel={handleFaceCancel}
-        errorMessage={faceError}
-      />
+      )}
     </View>
   );
 }
@@ -469,8 +494,19 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
+  faceLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'transparent',
   },
   header: {
