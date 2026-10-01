@@ -11,6 +11,7 @@ export default function StoryMediaFrame({
   videoProps,
   failed = false,
   onImageError,
+  onImageLoad,
 }) {
   const overlays = Array.isArray(story?.overlays) ? story.overlays : [];
   const boom = overlays.find((o) => o.type === 'boomerang' && Array.isArray(o.frames) && o.frames.length);
@@ -52,6 +53,7 @@ export default function StoryMediaFrame({
         source={{ uri: story.media_url }}
         style={style}
         resizeMode="cover"
+        onLoad={onImageLoad}
         onError={onImageError}
       />
     );

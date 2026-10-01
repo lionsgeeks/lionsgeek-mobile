@@ -48,6 +48,23 @@ function firstUnseenIndex(group) {
   return idx >= 0 ? idx : 0;
 }
 
+function storyDurationMs(story) {
+  if (!story) return 5000;
+  if (story.media_type === 'video') return story.duration_ms || 15000;
+  return story.duration_ms || 5000;
+}
+
+/** True when this story needs an async media load before the progress timer starts. */
+function storyNeedsMediaLoad(story) {
+  if (!story) return false;
+  if (story.media_type === 'video') return true;
+  const overlays = Array.isArray(story.overlays) ? story.overlays : [];
+  if (overlays.some((o) => o.type === 'boomerang' && Array.isArray(o.frames) && o.frames.length)) return false;
+  if (overlays.some((o) => o.type === 'layout')) return false;
+  if (overlays.some((o) => o.type === 'gradient' && Array.isArray(o.colors) && o.colors.length >= 2)) return false;
+  return !!story.media_url;
+}
+
 /**
  * Premium-feel story viewer.
  *
@@ -71,7 +88,7 @@ function firstUnseenIndex(group) {
  */
 export default function StoryViewerScreen() {
   const router = useRouter();
-  const { startUserId } = useLocalSearchParams();
+  const { startUserId, openId } = useLocalSearchParams();
   const { token, user } = useAppContext();
 
   const [loading, setLoading] = useState(true);
@@ -79,7 +96,7 @@ export default function StoryViewerScreen() {
   const [userIdx, setUserIdx] = useState(0);
   const [storyIdx, setStoryIdx] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [mediaReady, setMediaReady] = useState(false);
   const [viewerSheetOpen, setViewerSheetOpen] = useState(false);
   const [saveSheetOpen, setSaveSheetOpen] = useState(false);
   const [replying, setReplying] = useState(false);
@@ -111,8 +128,8 @@ export default function StoryViewerScreen() {
   // Animated translateY for swipe-down dismiss.
   const translateY = useSharedValue(0);
 
-  // Screen is often reused (same startUserId) — reset exit animation so
-  // second open isn't stuck off-screen (black).
+  // Screen is often reused — reset exit animation + clear previous story so
+  // reopen never flashes the last viewed frame.
   useFocusEffect(
     useCallback(() => {
       animatingExitRef.current = false;
@@ -130,8 +147,15 @@ export default function StoryViewerScreen() {
         isPausedRef.current = true;
         interactionLockRef.current = true;
         try { videoRef.current?.pause?.(); } catch (_) {}
+        cancelAnimation(progress);
+        progress.value = 0;
+        setGroups([]);
+        setUserIdx(0);
+        setStoryIdx(0);
+        setMediaReady(false);
+        setLoading(true);
       };
-    }, [translateY]),
+    }, [translateY, progress]),
   );
 
   const currentGroup = groups[userIdx] || null;
@@ -162,8 +186,19 @@ export default function StoryViewerScreen() {
   // ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setGroups([]);
+    setUserIdx(0);
+    setStoryIdx(0);
+    setMediaReady(false);
+    cancelAnimation(progress);
+    progress.value = 0;
+
     (async () => {
-      if (!token) return;
+      if (!token) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
       try {
         const data = await API.listStories(token);
         if (cancelled) return;
@@ -184,7 +219,7 @@ export default function StoryViewerScreen() {
       }
     })();
     return () => { cancelled = true; };
-  }, [token, startUserId]);
+  }, [token, startUserId, openId, progress]);
 
   // ────────────────────────────────────────────────────────────────────
   // View tracking (record once per story)
@@ -226,38 +261,43 @@ export default function StoryViewerScreen() {
 
   const startProgress = useCallback((durationMs) => {
     if (!currentStory) return;
+    if (isPausedRef.current || interactionLockRef.current) return;
     cancelAnimation(progress);
     progress.value = 0;
-    const duration = Math.max(1500, durationMs || 5000);
+    const duration = Math.max(2000, durationMs || 5000);
+    lastTickRef.current = duration;
     progress.value = withTiming(1, {
       duration,
       easing: Easing.linear,
     }, (finished) => {
       if (finished) runOnJS(advance)();
     });
-  }, [currentStory, advance]);
+  }, [currentStory, advance, progress]);
 
+  // Reset media-ready gate whenever the active story changes.
   useEffect(() => {
     advancingRef.current = false;
     setMediaFailed(false);
+    setMediaReady(false);
+    cancelAnimation(progress);
+    progress.value = 0;
     if (!currentStory) return undefined;
 
-    if (currentStory.media_type === 'video') {
-      setVideoReady(false);
-      cancelAnimation(progress);
-      progress.value = 0;
-      return () => cancelAnimation(progress);
+    // Gradients / collage / boomerang are local — start as soon as mounted.
+    if (!storyNeedsMediaLoad(currentStory)) {
+      setMediaReady(true);
     }
 
-    startProgress(currentStory.duration_ms || 5000);
     return () => cancelAnimation(progress);
-  }, [currentStory?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentStory?.id, progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Progress timer starts only after media is ready (image onLoad / video ready).
   useEffect(() => {
-    if (!currentStory || currentStory.media_type !== 'video' || !videoReady) return undefined;
-    startProgress(currentStory.duration_ms || 15000);
+    if (!currentStory || !mediaReady || !viewerActive) return undefined;
+    if (isPausedRef.current || interactionLockRef.current) return undefined;
+    startProgress(storyDurationMs(currentStory));
     return () => cancelAnimation(progress);
-  }, [currentStory?.id, videoReady, startProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentStory?.id, mediaReady, viewerActive, startProgress, progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!currentStory?.expires_at) return undefined;
@@ -295,9 +335,10 @@ export default function StoryViewerScreen() {
     if (!isPausedRef.current) return;
     isPausedRef.current = false;
     setMusicPaused(false);
-    if (!currentStory) return;
+    if (!currentStory || !mediaReady) return;
     const remaining = Math.max(0, 1 - progress.value);
-    const duration = Math.max(500, Math.round((currentStory.duration_ms || 5000) * remaining));
+    const full = storyDurationMs(currentStory);
+    const duration = Math.max(500, Math.round(full * remaining));
     progress.value = withTiming(1, {
       duration,
       easing: Easing.linear,
@@ -307,7 +348,7 @@ export default function StoryViewerScreen() {
     if (videoRef.current) {
       try { videoRef.current.play(); } catch (_) {}
     }
-  }, [currentStory, advance, progress]);
+  }, [currentStory, advance, progress, mediaReady]);
 
   const lockInteraction = useCallback(() => {
     interactionLockRef.current = true;
@@ -421,7 +462,8 @@ export default function StoryViewerScreen() {
 
   const longPressGesture = Gesture.LongPress()
     .enabled(gesturesEnabled)
-    .minDuration(180)
+    .minDuration(150)
+    .maxDistance(24)
     .onStart(() => { runOnJS(pause)(); })
     .onEnd(() => { runOnJS(resume)(); });
 
@@ -737,18 +779,19 @@ export default function StoryViewerScreen() {
                   story={currentStory}
                   style={{ width: WINDOW_W, height: WINDOW_H }}
                   videoProps={{
-                    shouldPlay: !isPausedRef.current,
+                    shouldPlay: !isPausedRef.current && mediaReady,
                     muted: videoIsMuted,
                     playerRef: videoRef,
-                    onReady: () => setVideoReady(true),
+                    onReady: () => setMediaReady(true),
                     onEnd: advance,
                     onError: () => setMediaFailed(true),
                   }}
+                  onImageLoad={() => setMediaReady(true)}
                   onImageError={() => setMediaFailed(true)}
                 />
               )}
 
-              {currentStory.media_type === 'video' && !videoReady ? (
+              {!mediaReady && !mediaFailed ? (
                 <ActivityIndicator
                   size="large"
                   color="#fff"

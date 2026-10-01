@@ -477,7 +477,9 @@ export default function NotificationsScreen() {
         const startUserId = (query || '').split('&')[0];
         router.push({
           pathname: '/(tabs)/stories/viewer',
-          params: startUserId ? { startUserId: String(startUserId) } : {},
+          params: startUserId
+            ? { startUserId: String(startUserId), openId: String(Date.now()) }
+            : { openId: String(Date.now()) },
         });
         return;
       }
